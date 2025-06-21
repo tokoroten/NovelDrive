@@ -2,6 +2,7 @@ import { ipcMain, app } from 'electron';
 import * as duckdb from 'duckdb';
 import * as path from 'path';
 import * as fs from 'fs';
+import { getSearchTokens, createDuckDBTokenizerFunction } from './services/japanese-tokenizer';
 
 let db: duckdb.Database | null = null;
 let conn: duckdb.Connection | null = null;
@@ -134,6 +135,15 @@ async function createInitialSchema(): Promise<void> {
       FOREIGN KEY (plot_id) REFERENCES plots(id)
     );
   `);
+  
+  // 日本語検索用のカラムを追加
+  const tokenizerSQL = createDuckDBTokenizerFunction();
+  const statements = tokenizerSQL.split(';').filter(s => s.trim());
+  for (const statement of statements) {
+    if (statement.trim()) {
+      await runAsync(statement);
+    }
+  }
 }
 
 function setupIPCHandlers(): void {
@@ -164,6 +174,55 @@ function setupIPCHandlers(): void {
           reject(err);
         } else {
           resolve({ success: true });
+        }
+      });
+    });
+  });
+  
+  // 日本語トークン化
+  ipcMain.handle('tokenizer:tokenize', async (_, text: string) => {
+    return getSearchTokens(text);
+  });
+  
+  // ナレッジの保存（日本語トークン化込み）
+  ipcMain.handle('knowledge:save', async (_, knowledge: any) => {
+    if (!conn) throw new Error('Database connection not initialized');
+    
+    // 検索用トークンを生成
+    const titleTokens = getSearchTokens(knowledge.title || '');
+    const contentTokens = getSearchTokens(knowledge.content || '');
+    const searchTokens = [...new Set([...titleTokens, ...contentTokens])].join(' ');
+    
+    const sql = `
+      INSERT INTO knowledge (id, title, content, type, project_id, embedding, metadata, search_tokens)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        title = excluded.title,
+        content = excluded.content,
+        type = excluded.type,
+        project_id = excluded.project_id,
+        embedding = excluded.embedding,
+        metadata = excluded.metadata,
+        search_tokens = excluded.search_tokens,
+        updated_at = CURRENT_TIMESTAMP
+    `;
+    
+    return new Promise((resolve, reject) => {
+      conn!.run(sql, [
+        knowledge.id,
+        knowledge.title,
+        knowledge.content,
+        knowledge.type,
+        knowledge.projectId || null,
+        JSON.stringify(knowledge.embedding || null),
+        JSON.stringify(knowledge.metadata || {}),
+        searchTokens
+      ], (err) => {
+        if (err) {
+          console.error('Knowledge save error:', err);
+          reject(err);
+        } else {
+          resolve({ success: true, searchTokens });
         }
       });
     });

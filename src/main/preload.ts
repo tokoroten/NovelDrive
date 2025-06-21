@@ -18,6 +18,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('db:execute', sql, params),
   },
   
+  // 日本語処理関連
+  tokenizer: {
+    tokenize: (text: string) => ipcRenderer.invoke('tokenizer:tokenize', text),
+  },
+  
+  // ナレッジ管理
+  knowledge: {
+    save: (knowledge: any) => ipcRenderer.invoke('knowledge:save', knowledge),
+  },
+  
   // ファイル操作
   file: {
     read: (path: string) => ipcRenderer.invoke('file:read', path),
