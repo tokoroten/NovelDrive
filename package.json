@@ -4,10 +4,10 @@
   "description": "A two-layer creative writing platform with serendipitous knowledge management",
   "main": "dist/main/index.js",
   "scripts": {
-    "dev": "concurrently \"pnpm run dev:main\" \"pnpm run dev:renderer\"",
+    "dev": "concurrently \"npm run dev:main\" \"npm run dev:renderer\"",
     "dev:main": "tsc -w -p tsconfig.main.json",
     "dev:renderer": "vite",
-    "build": "pnpm run build:main && pnpm run build:renderer && electron-builder",
+    "build": "npm run build:main && npm run build:renderer && electron-builder",
     "build:main": "tsc -p tsconfig.main.json",
     "build:renderer": "vite build",
     "start": "electron .",
@@ -27,7 +27,7 @@
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.11.0",
-    "@types/react": "^18.2.48",
+    "@types/react": "^18.3.23",
     "@types/react-dom": "^18.2.18",
     "@types/uuid": "^9.0.7",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
@@ -50,11 +50,13 @@
     "vite-plugin-electron-renderer": "^0.14.5"
   },
   "dependencies": {
-    "duckdb": "^0.10.0",
+    "date-fns": "^4.1.0",
     "dotenv": "^16.3.1",
+    "duckdb": "^0.10.0",
     "openai": "^4.24.7",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "reactflow": "^11.11.4",
     "tiny-segmenter": "^0.2.0",
     "uuid": "^9.0.1"
   },

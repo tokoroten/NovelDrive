@@ -9,6 +9,7 @@ import { setupCrawlerHandlers } from './services/web-crawler';
 import { setupAnythingBoxHandlers } from './services/anything-box';
 import { setupAgentHandlers } from './services/agent-handlers';
 import { setupPlotHandlers } from './services/plot-management';
+import { setupChapterHandlers } from './services/chapter-management';
 
 let db: duckdb.Database | null = null;
 let conn: duckdb.Connection | null = null;
@@ -17,16 +18,16 @@ export async function initializeDatabase(): Promise<void> {
   try {
     // データベースファイルのパスを設定
     const dbPath = path.join(app.getPath('userData'), 'noveldrive.db');
-    
+
     // DuckDBインスタンスの作成
     db = new duckdb.Database(dbPath);
-    
+
     // 接続の作成
     conn = db.connect();
-    
+
     // 初期スキーマの作成
     await createInitialSchema();
-    
+
     // IPCハンドラーの設定
     setupIPCHandlers();
     setupSerendipitySearchHandlers(conn);
@@ -34,7 +35,8 @@ export async function initializeDatabase(): Promise<void> {
     setupAnythingBoxHandlers(conn);
     setupAgentHandlers(conn);
     setupPlotHandlers(conn);
-    
+    setupChapterHandlers(conn);
+
     console.log('Database initialized successfully at:', dbPath);
   } catch (error) {
     console.error('Failed to initialize database:', error);
@@ -44,7 +46,7 @@ export async function initializeDatabase(): Promise<void> {
 
 async function createInitialSchema(): Promise<void> {
   if (!conn) throw new Error('Database connection not initialized');
-  
+
   // promisifyして非同期処理を扱いやすくする
   const runAsync = (sql: string): Promise<any> => {
     return new Promise((resolve, reject) => {
@@ -54,7 +56,7 @@ async function createInitialSchema(): Promise<void> {
       });
     });
   };
-  
+
   // VSSとFTS拡張のインストール
   try {
     await runAsync(`INSTALL vss;`);
@@ -62,14 +64,14 @@ async function createInitialSchema(): Promise<void> {
   } catch (error) {
     console.log('VSS extension not available, skipping...');
   }
-  
+
   try {
     await runAsync(`INSTALL fts;`);
     await runAsync(`LOAD fts;`);
   } catch (error) {
     console.log('FTS extension not available, skipping...');
   }
-  
+
   // ナレッジテーブル
   await runAsync(`
     CREATE TABLE IF NOT EXISTS knowledge (
@@ -85,7 +87,7 @@ async function createInitialSchema(): Promise<void> {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
-  
+
   // プロジェクトテーブル
   await runAsync(`
     CREATE TABLE IF NOT EXISTS projects (
@@ -98,7 +100,7 @@ async function createInitialSchema(): Promise<void> {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
-  
+
   // キャラクターテーブル
   await runAsync(`
     CREATE TABLE IF NOT EXISTS characters (
@@ -115,7 +117,7 @@ async function createInitialSchema(): Promise<void> {
       FOREIGN KEY (project_id) REFERENCES projects(id)
     );
   `);
-  
+
   // プロットテーブル
   await runAsync(`
     CREATE TABLE IF NOT EXISTS plots (
@@ -132,7 +134,7 @@ async function createInitialSchema(): Promise<void> {
       FOREIGN KEY (project_id) REFERENCES projects(id)
     );
   `);
-  
+
   // エージェント議論テーブル
   await runAsync(`
     CREATE TABLE IF NOT EXISTS agent_discussions (
@@ -147,10 +149,28 @@ async function createInitialSchema(): Promise<void> {
       FOREIGN KEY (plot_id) REFERENCES plots(id)
     );
   `);
-  
+
+  // チャプターテーブル
+  await runAsync(`
+    CREATE TABLE IF NOT EXISTS chapters (
+      id VARCHAR PRIMARY KEY,
+      plot_id VARCHAR NOT NULL,
+      title VARCHAR NOT NULL,
+      content TEXT,
+      "order" INTEGER NOT NULL,
+      status VARCHAR NOT NULL DEFAULT 'draft',
+      word_count INTEGER DEFAULT 0,
+      character_count INTEGER DEFAULT 0,
+      metadata TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (plot_id) REFERENCES plots(id)
+    );
+  `);
+
   // 日本語検索用のカラムを追加
   const tokenizerSQL = createDuckDBTokenizerFunction();
-  const statements = tokenizerSQL.split(';').filter(s => s.trim());
+  const statements = tokenizerSQL.split(';').filter((s) => s.trim());
   for (const statement of statements) {
     if (statement.trim()) {
       await runAsync(statement);
@@ -162,7 +182,7 @@ function setupIPCHandlers(): void {
   // クエリ実行
   ipcMain.handle('db:query', async (_, sql: string, params?: any[]) => {
     if (!conn) throw new Error('Database connection not initialized');
-    
+
     return new Promise((resolve, reject) => {
       conn!.all(sql, params || [], (err, rows) => {
         if (err) {
@@ -174,11 +194,11 @@ function setupIPCHandlers(): void {
       });
     });
   });
-  
+
   // 実行（戻り値なし）
   ipcMain.handle('db:execute', async (_, sql: string, params?: any[]) => {
     if (!conn) throw new Error('Database connection not initialized');
-    
+
     return new Promise((resolve, reject) => {
       conn!.run(sql, params || [], (err) => {
         if (err) {
@@ -190,16 +210,16 @@ function setupIPCHandlers(): void {
       });
     });
   });
-  
+
   // 日本語トークン化
   ipcMain.handle('tokenizer:tokenize', async (_, text: string) => {
     return getSearchTokens(text);
   });
-  
+
   // ナレッジの保存（日本語トークン化込み）
   ipcMain.handle('knowledge:save', async (_, knowledge: any) => {
     if (!conn) throw new Error('Database connection not initialized');
-    
+
     // URLから生成された場合、既に存在しないかチェック
     const sourceUrl = knowledge.metadata?.url || knowledge.sourceUrl;
     if (sourceUrl) {
@@ -217,21 +237,21 @@ function setupIPCHandlers(): void {
           }
         );
       });
-      
+
       if (existingCheck) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: 'URL already exists in knowledge base',
-          duplicate: true 
+          duplicate: true,
         };
       }
     }
-    
+
     // 検索用トークンを生成
     const titleTokens = getSearchTokens(knowledge.title || '');
     const contentTokens = getSearchTokens(knowledge.content || '');
     const searchTokens = [...new Set([...titleTokens, ...contentTokens])].join(' ');
-    
+
     // ベクトル埋め込みを生成（まだない場合）
     let embedding = knowledge.embedding;
     if (!embedding && knowledge.content) {
@@ -241,7 +261,7 @@ function setupIPCHandlers(): void {
         console.warn('Failed to generate embedding:', error);
       }
     }
-    
+
     const sql = `
       INSERT INTO knowledge (id, title, content, type, project_id, embedding, metadata, search_tokens, source_url)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -256,35 +276,39 @@ function setupIPCHandlers(): void {
         source_url = excluded.source_url,
         updated_at = CURRENT_TIMESTAMP
     `;
-    
+
     return new Promise((resolve, reject) => {
-      conn!.run(sql, [
-        knowledge.id,
-        knowledge.title,
-        knowledge.content,
-        knowledge.type,
-        knowledge.projectId || null,
-        JSON.stringify(embedding || null),
-        JSON.stringify(knowledge.metadata || {}),
-        searchTokens,
-        sourceUrl || null
-      ], (err) => {
-        if (err) {
-          // UNIQUE制約違反の場合
-          if (err.message && err.message.includes('UNIQUE constraint failed')) {
-            resolve({ 
-              success: false, 
-              error: 'URL already exists in knowledge base',
-              duplicate: true 
-            });
+      conn!.run(
+        sql,
+        [
+          knowledge.id,
+          knowledge.title,
+          knowledge.content,
+          knowledge.type,
+          knowledge.projectId || null,
+          JSON.stringify(embedding || null),
+          JSON.stringify(knowledge.metadata || {}),
+          searchTokens,
+          sourceUrl || null,
+        ],
+        (err) => {
+          if (err) {
+            // UNIQUE制約違反の場合
+            if (err.message && err.message.includes('UNIQUE constraint failed')) {
+              resolve({
+                success: false,
+                error: 'URL already exists in knowledge base',
+                duplicate: true,
+              });
+            } else {
+              console.error('Knowledge save error:', err);
+              reject(err);
+            }
           } else {
-            console.error('Knowledge save error:', err);
-            reject(err);
+            resolve({ success: true, searchTokens, embedding: !!embedding });
           }
-        } else {
-          resolve({ success: true, searchTokens, embedding: !!embedding });
         }
-      });
+      );
     });
   });
 }

@@ -50,14 +50,14 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
-  
+
   // OpenAI APIの初期化
   const apiKey = process.env.OPENAI_API_KEY || loadSettings().openai_api_key;
   if (apiKey) {
     initializeOpenAI(apiKey);
   }
   setupOpenAIHandlers();
-  
+
   createWindow();
 
   app.on('activate', () => {
@@ -70,7 +70,7 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', async () => {
   // データベースのクローズ
   await closeDatabase();
-  
+
   if (process.platform !== 'darwin') {
     app.quit();
   }
@@ -121,7 +121,7 @@ ipcMain.handle('settings:set', (_, key: string, value: any) => {
   const settings = loadSettings();
   settings[key] = value;
   saveSettings(settings);
-  
+
   // OpenAI APIキーが更新された場合
   if (key === 'openai_api_key') {
     updateApiKey(value);
