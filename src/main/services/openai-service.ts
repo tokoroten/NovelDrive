@@ -218,6 +218,148 @@ export async function extractInspiration(text: string, type: string): Promise<{
 }
 
 /**
+ * スレッドを作成
+ */
+export async function createThread(metadata?: Record<string, any>): Promise<string> {
+  if (!openai) {
+    throw new Error('OpenAI client not initialized. Please set API key in settings.');
+  }
+  
+  try {
+    const thread = await openai.beta.threads.create({
+      metadata,
+    });
+    return thread.id;
+  } catch (error) {
+    console.error('Failed to create thread:', error);
+    throw error;
+  }
+}
+
+/**
+ * スレッドにメッセージを追加
+ */
+export async function addMessageToThread(
+  threadId: string,
+  content: string,
+  role: 'user' | 'assistant' = 'user'
+): Promise<string> {
+  if (!openai) {
+    throw new Error('OpenAI client not initialized. Please set API key in settings.');
+  }
+  
+  try {
+    const message = await openai.beta.threads.messages.create(threadId, {
+      role,
+      content,
+    });
+    return message.id;
+  } catch (error) {
+    console.error('Failed to add message to thread:', error);
+    throw error;
+  }
+}
+
+/**
+ * アシスタントを作成
+ */
+export async function createAssistant(
+  name: string,
+  instructions: string,
+  model: string = 'gpt-4-turbo-preview',
+  temperature: number = 0.7
+): Promise<string> {
+  if (!openai) {
+    throw new Error('OpenAI client not initialized. Please set API key in settings.');
+  }
+  
+  try {
+    const assistant = await openai.beta.assistants.create({
+      name,
+      instructions,
+      model,
+      temperature,
+    });
+    return assistant.id;
+  } catch (error) {
+    console.error('Failed to create assistant:', error);
+    throw error;
+  }
+}
+
+/**
+ * スレッドでアシスタントを実行
+ */
+export async function runAssistant(
+  threadId: string,
+  assistantId: string,
+  instructions?: string
+): Promise<OpenAI.Beta.Threads.Messages.Message[]> {
+  if (!openai) {
+    throw new Error('OpenAI client not initialized. Please set API key in settings.');
+  }
+  
+  try {
+    // Runを作成
+    const run = await openai.beta.threads.runs.create(threadId, {
+      assistant_id: assistantId,
+      instructions,
+    });
+    
+    // Runの完了を待つ
+    let runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
+    while (runStatus.status !== 'completed' && runStatus.status !== 'failed') {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
+      
+      if (runStatus.status === 'failed') {
+        throw new Error(`Assistant run failed: ${runStatus.last_error?.message}`);
+      }
+    }
+    
+    // メッセージを取得
+    const messages = await openai.beta.threads.messages.list(threadId);
+    return messages.data;
+  } catch (error) {
+    console.error('Failed to run assistant:', error);
+    throw error;
+  }
+}
+
+/**
+ * スレッドのメッセージを取得
+ */
+export async function getThreadMessages(threadId: string): Promise<OpenAI.Beta.Threads.Messages.Message[]> {
+  if (!openai) {
+    throw new Error('OpenAI client not initialized. Please set API key in settings.');
+  }
+  
+  try {
+    const messages = await openai.beta.threads.messages.list(threadId);
+    return messages.data;
+  } catch (error) {
+    console.error('Failed to get thread messages:', error);
+    throw error;
+  }
+}
+
+/**
+ * スレッドを削除
+ */
+export async function deleteThread(threadId: string): Promise<void> {
+  if (!openai) {
+    throw new Error('OpenAI client not initialized. Please set API key in settings.');
+  }
+  
+  try {
+    await openai.beta.threads.del(threadId);
+  } catch (error) {
+    console.error('Failed to delete thread:', error);
+    throw error;
+  }
+}
+
+/**
  * IPCハンドラーの設定
  */
 export function setupOpenAIHandlers(): void {
@@ -244,5 +386,30 @@ export function setupOpenAIHandlers(): void {
   // HTMLコンテンツ抽出
   ipcMain.handle('ai:extractContent', async (_, html: string, url: string) => {
     return extractMainContent(html, url);
+  });
+  
+  // Thread API関連
+  ipcMain.handle('ai:createThread', async (_, metadata?: Record<string, any>) => {
+    return createThread(metadata);
+  });
+  
+  ipcMain.handle('ai:addMessage', async (_, threadId: string, content: string, role?: 'user' | 'assistant') => {
+    return addMessageToThread(threadId, content, role);
+  });
+  
+  ipcMain.handle('ai:createAssistant', async (_, name: string, instructions: string, model?: string, temperature?: number) => {
+    return createAssistant(name, instructions, model, temperature);
+  });
+  
+  ipcMain.handle('ai:runAssistant', async (_, threadId: string, assistantId: string, instructions?: string) => {
+    return runAssistant(threadId, assistantId, instructions);
+  });
+  
+  ipcMain.handle('ai:getThreadMessages', async (_, threadId: string) => {
+    return getThreadMessages(threadId);
+  });
+  
+  ipcMain.handle('ai:deleteThread', async (_, threadId: string) => {
+    return deleteThread(threadId);
   });
 }

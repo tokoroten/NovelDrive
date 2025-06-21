@@ -47,6 +47,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('ai:extractInspiration', text, type),
     extractContent: (html: string, url: string) =>
       ipcRenderer.invoke('ai:extractContent', html, url),
+    // Thread API関連
+    createThread: (metadata?: any) =>
+      ipcRenderer.invoke('ai:createThread', metadata),
+    addMessage: (threadId: string, content: string, role?: string) =>
+      ipcRenderer.invoke('ai:addMessage', threadId, content, role),
+    createAssistant: (name: string, instructions: string, model?: string, temperature?: number) =>
+      ipcRenderer.invoke('ai:createAssistant', name, instructions, model, temperature),
+    runAssistant: (threadId: string, assistantId: string, instructions?: string) =>
+      ipcRenderer.invoke('ai:runAssistant', threadId, assistantId, instructions),
+    getThreadMessages: (threadId: string) =>
+      ipcRenderer.invoke('ai:getThreadMessages', threadId),
+    deleteThread: (threadId: string) =>
+      ipcRenderer.invoke('ai:deleteThread', threadId),
   },
   
   // 検索関連
@@ -71,5 +84,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('anythingBox:process', input),
     history: (options?: any) =>
       ipcRenderer.invoke('anythingBox:history', options),
+  },
+  
+  // エージェントシステム関連
+  agents: {
+    create: (options: any) =>
+      ipcRenderer.invoke('agents:create', options),
+    startDiscussion: (options: any) =>
+      ipcRenderer.invoke('agents:startDiscussion', options),
+    pauseSession: (sessionId: string) =>
+      ipcRenderer.invoke('agents:pauseSession', sessionId),
+    resumeSession: (sessionId: string) =>
+      ipcRenderer.invoke('agents:resumeSession', sessionId),
+    getSession: (sessionId: string) =>
+      ipcRenderer.invoke('agents:getSession', sessionId),
+    getAllSessions: () =>
+      ipcRenderer.invoke('agents:getAllSessions'),
+    getDiscussionHistory: (options?: any) =>
+      ipcRenderer.invoke('agents:getDiscussionHistory', options),
+    
+    // リアルタイムイベントのリスナー
+    onMessage: (callback: (data: any) => void) => {
+      ipcRenderer.on('agent-message', (_, data) => callback(data));
+    },
+    onSessionStarted: (callback: (data: any) => void) => {
+      ipcRenderer.on('session-started', (_, data) => callback(data));
+    },
+    onSessionConcluded: (callback: (data: any) => void) => {
+      ipcRenderer.on('session-concluded', (_, data) => callback(data));
+    },
   },
 });

@@ -7,6 +7,7 @@ import { generateEmbedding } from './services/openai-service';
 import { setupSerendipitySearchHandlers } from './services/serendipity-search';
 import { setupCrawlerHandlers } from './services/web-crawler';
 import { setupAnythingBoxHandlers } from './services/anything-box';
+import { setupAgentHandlers } from './services/agent-handlers';
 
 let db: duckdb.Database | null = null;
 let conn: duckdb.Connection | null = null;
@@ -30,6 +31,7 @@ export async function initializeDatabase(): Promise<void> {
     setupSerendipitySearchHandlers(conn);
     setupCrawlerHandlers(conn);
     setupAnythingBoxHandlers(conn);
+    setupAgentHandlers(conn);
     
     console.log('Database initialized successfully at:', dbPath);
   } catch (error) {

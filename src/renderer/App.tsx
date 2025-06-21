@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Settings } from './components/Settings';
 import { AnythingBox } from './components/AnythingBox';
+import { AgentMeetingRoom } from './components/AgentMeetingRoom';
 
 export function App() {
   const [currentView, setCurrentView] = useState<string>('dashboard');
@@ -11,6 +12,8 @@ export function App() {
         return <Settings />;
       case 'anything-box':
         return <AnythingBox />;
+      case 'agent-meeting':
+        return <AgentMeetingRoom />;
       default:
         return (
           <div>
