@@ -144,3 +144,49 @@ The system consists of multiple AI agents working in hierarchy:
 - `docs/ai-behavior-spec.md` - AI agent behavior patterns
 - `docs/workflow.md` - Complete workflow documentation
 - `docs/screen-specifications.md` - Screen and UI specifications
+
+## 開発TODOリストの管理
+
+開発作業を進める際は、TodoWrite/TodoReadツールを使用してTODOリストを作成・管理してください。
+
+### TODOリスト管理の原則
+1. **常にTODOリストを確認**: 作業開始時、作業中、作業終了時にTodoReadで確認
+2. **即座に更新**: タスクの状態が変わったらすぐにTodoWriteで更新
+3. **適切な粒度**: タスクは具体的で実行可能な単位に分割
+4. **優先度設定**: high/medium/lowで優先度を設定
+5. **進捗の可視化**: in_progressは常に1つのみ
+
+### タスクのライフサイクル
+1. `pending`: 未着手のタスク
+2. `in_progress`: 現在作業中（同時に1つのみ）
+3. `completed`: 完了したタスク
+
+### コミットのタイミング
+- 論理的な機能単位が完成したとき
+- 大きな変更を加えた後
+- テストが通った後
+- 作業を中断する前
+
+### 自律的な開発フロー
+1. TodoReadでタスクを確認
+2. 優先度の高いタスクを選択
+3. タスクをin_progressに更新
+4. 実装作業を実施
+5. テスト実行（可能な場合）
+6. タスクをcompletedに更新
+7. 適切なタイミングでgit commit & push
+8. 開発日誌を更新
+9. 定期的にコードのリファクタリングを検討
+   - 重複コードの削除
+   - コンポーネントの適切な分割
+   - 型定義の改善
+   - パフォーマンスの最適化
+10. 次のタスクへ
+
+### リファクタリングのタイミング
+- 3-5個のタスクを完了した後
+- 同じパターンのコードが3箇所以上ある場合
+- コンポーネントが100行を超えた場合
+- 新機能追加前の準備として
+
+この指針に従って、自律的に開発を進めてください。
