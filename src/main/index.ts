@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { config } from 'dotenv';
+import { initializeDatabase, closeDatabase } from './database';
 
 // .envファイルを読み込む
 const envPath = path.join(app.getPath('exe'), '..', '.env');
@@ -39,7 +40,16 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // データベースの初期化
+  try {
+    await initializeDatabase();
+  } catch (error) {
+    console.error('Failed to initialize database:', error);
+    app.quit();
+    return;
+  }
+  
   createWindow();
 
   app.on('activate', () => {
@@ -49,10 +59,17 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('window-all-closed', () => {
+app.on('window-all-closed', async () => {
+  // データベースのクローズ
+  await closeDatabase();
+  
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+app.on('before-quit', async () => {
+  await closeDatabase();
 });
 
 // 設定を保存するためのストレージ
