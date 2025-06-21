@@ -37,7 +37,7 @@ class WebCrawler {
       maxPages: options.maxPages || 100,
       followExternalLinks: options.followExternalLinks || false,
       rateLimit: Math.max(options.rateLimit || 1000, 1000), // 最低1秒
-      userAgent: options.userAgent || 'NovelDrive/1.0 (Knowledge Crawler)'
+      userAgent: options.userAgent || 'NovelDrive/1.0 (Knowledge Crawler)',
     };
   }
 
@@ -51,7 +51,7 @@ class WebCrawler {
 
     while (this.queue.length > 0 && this.results.length < this.options.maxPages!) {
       const { url, depth } = this.queue.shift()!;
-      
+
       if (this.visited.has(url) || depth > this.options.maxDepth) {
         continue;
       }
@@ -62,7 +62,7 @@ class WebCrawler {
         if (result) {
           this.results.push(result);
           this.visited.add(url);
-          
+
           // リンクをキューに追加
           for (const link of result.links) {
             if (this.shouldFollowLink(link)) {
@@ -88,13 +88,13 @@ class WebCrawler {
         method: 'GET',
         headers: {
           'User-Agent': this.options.userAgent!,
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'ja,en;q=0.5'
-        }
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'ja,en;q=0.5',
+        },
       });
 
       let html = '';
-      
+
       request.on('response', (response) => {
         if (response.statusCode !== 200) {
           console.warn(`HTTP ${response.statusCode} for ${url}`);
@@ -116,10 +116,10 @@ class WebCrawler {
           try {
             // HTMLからメインコンテンツを抽出
             const extracted = await extractMainContent(html, url);
-            
+
             // リンクを抽出
             const links = this.extractLinks(html, url);
-            
+
             resolve({
               url,
               title: extracted.title,
@@ -128,11 +128,11 @@ class WebCrawler {
               metadata: {
                 ...extracted.metadata,
                 crawledAt: new Date().toISOString(),
-                depth
+                depth,
               },
               links,
               depth,
-              timestamp: new Date()
+              timestamp: new Date(),
             });
           } catch (error) {
             console.error('Failed to extract content:', error);
@@ -178,21 +178,21 @@ class WebCrawler {
   private shouldFollowLink(link: string): boolean {
     try {
       const url = new URL(link);
-      
+
       // 同一ドメインチェック
       if (!this.options.followExternalLinks && url.hostname !== this.domain) {
         return false;
       }
-      
+
       // 除外パターン
       const excludePatterns = [
         /\.(jpg|jpeg|png|gif|pdf|zip|exe|dmg)$/i,
         /^mailto:/,
         /^javascript:/,
-        /#$/
+        /#$/,
       ];
-      
-      return !excludePatterns.some(pattern => pattern.test(link));
+
+      return !excludePatterns.some((pattern) => pattern.test(link));
     } catch {
       return false;
     }
@@ -204,12 +204,12 @@ class WebCrawler {
   private async rateLimitDelay(): Promise<void> {
     const now = Date.now();
     const timeSinceLastRequest = now - this.lastRequestTime;
-    
+
     if (timeSinceLastRequest < this.options.rateLimit!) {
       const delay = this.options.rateLimit! - timeSinceLastRequest;
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
-    
+
     this.lastRequestTime = Date.now();
   }
 }
@@ -240,13 +240,13 @@ async function saveAsKnowledge(
           url: result.url,
           summary: result.summary,
           crawledAt: result.timestamp,
-          links: result.links
-        }
+          links: result.links,
+        },
       };
 
       // データベースに直接保存
       const saveResult = await saveKnowledgeFromCrawl(conn, knowledge);
-      
+
       if (saveResult.success) {
         saved++;
       } else if (saveResult.duplicate) {
@@ -269,7 +269,7 @@ async function saveAsKnowledge(
  */
 async function saveKnowledgeFromCrawl(conn: any, knowledge: any): Promise<any> {
   const sourceUrl = knowledge.metadata?.url || knowledge.sourceUrl;
-  
+
   // URLの重複チェック
   const existingCheck = await new Promise<boolean>((resolve) => {
     conn.all(
@@ -285,20 +285,20 @@ async function saveKnowledgeFromCrawl(conn: any, knowledge: any): Promise<any> {
       }
     );
   });
-  
+
   if (existingCheck) {
-    return { 
-      success: false, 
+    return {
+      success: false,
       error: 'URL already exists in knowledge base',
-      duplicate: true 
+      duplicate: true,
     };
   }
-  
+
   // 検索用トークンを生成
   const titleTokens = getSearchTokens(knowledge.title || '');
   const contentTokens = getSearchTokens(knowledge.content || '');
   const searchTokens = [...new Set([...titleTokens, ...contentTokens])].join(' ');
-  
+
   // ベクトル埋め込みを生成
   let embedding = knowledge.embedding;
   if (!embedding && knowledge.content) {
@@ -308,39 +308,43 @@ async function saveKnowledgeFromCrawl(conn: any, knowledge: any): Promise<any> {
       console.warn('Failed to generate embedding:', error);
     }
   }
-  
+
   const sql = `
     INSERT INTO knowledge (id, title, content, type, project_id, embedding, metadata, search_tokens, source_url)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
-  
+
   return new Promise((resolve) => {
-    conn.run(sql, [
-      knowledge.id,
-      knowledge.title,
-      knowledge.content,
-      knowledge.type,
-      knowledge.projectId || null,
-      JSON.stringify(embedding || null),
-      JSON.stringify(knowledge.metadata || {}),
-      searchTokens,
-      sourceUrl
-    ], (err: any) => {
-      if (err) {
-        if (err.message && err.message.includes('UNIQUE constraint failed')) {
-          resolve({ 
-            success: false, 
-            error: 'URL already exists in knowledge base',
-            duplicate: true 
-          });
+    conn.run(
+      sql,
+      [
+        knowledge.id,
+        knowledge.title,
+        knowledge.content,
+        knowledge.type,
+        knowledge.projectId || null,
+        JSON.stringify(embedding || null),
+        JSON.stringify(knowledge.metadata || {}),
+        searchTokens,
+        sourceUrl,
+      ],
+      (err: any) => {
+        if (err) {
+          if (err.message && err.message.includes('UNIQUE constraint failed')) {
+            resolve({
+              success: false,
+              error: 'URL already exists in knowledge base',
+              duplicate: true,
+            });
+          } else {
+            console.error('Knowledge save error:', err);
+            resolve({ success: false, error: err.message });
+          }
         } else {
-          console.error('Knowledge save error:', err);
-          resolve({ success: false, error: err.message });
+          resolve({ success: true });
         }
-      } else {
-        resolve({ success: true });
       }
-    });
+    );
   });
 }
 
@@ -352,36 +356,32 @@ export function setupCrawlerHandlers(conn: any): void {
     try {
       const crawler = new WebCrawler({
         maxDepth: depth,
-        ...options
+        ...options,
       });
-      
+
       const results = await crawler.crawl(url);
-      
+
       // ナレッジとして保存
-      const { saved, failed, skipped } = await saveAsKnowledge(
-        conn,
-        results,
-        options?.projectId
-      );
-      
+      const { saved, failed, skipped } = await saveAsKnowledge(conn, results, options?.projectId);
+
       return {
         success: true,
         crawled: results.length,
         saved,
         failed,
         skipped,
-        results: results.map(r => ({
+        results: results.map((r) => ({
           url: r.url,
           title: r.title,
           summary: r.summary,
-          depth: r.depth
-        }))
+          depth: r.depth,
+        })),
       };
     } catch (error) {
       console.error('Crawler error:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   });

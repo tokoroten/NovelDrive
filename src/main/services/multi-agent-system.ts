@@ -1,12 +1,12 @@
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
-import { 
-  createThread, 
-  createAssistant, 
-  addMessageToThread, 
-  runAssistant, 
+import {
+  createThread,
+  createAssistant,
+  addMessageToThread,
+  runAssistant,
   getThreadMessages,
-  deleteThread 
+  deleteThread,
 } from './openai-service';
 import { performSerendipitySearch } from './serendipity-search';
 
@@ -14,7 +14,7 @@ import { performSerendipitySearch } from './serendipity-search';
 export type AgentRole = 'writer' | 'editor' | 'proofreader' | 'deputy_editor';
 
 // エージェントの人格タイプ
-export type PersonalityType = 
+export type PersonalityType =
   | 'experimental' // 実験的・挑戦的
   | 'traditional' // 伝統的・保守的
   | 'logical' // 論理的・分析的
@@ -92,7 +92,7 @@ export class Agent extends EventEmitter {
       personality: this.personality,
       name: this.name,
     });
-    
+
     this.assistantId = await createAssistant(
       this.name,
       this.systemPrompt,
@@ -132,18 +132,42 @@ export class Agent extends EventEmitter {
         commercial: '商業副編・売上',
       },
     };
-    
+
     return names[this.role][this.personality] || `${this.role}-${this.personality}`;
   }
 
   private getDefaultTemperature(): number {
     const temperatures = {
-      writer: { experimental: 0.9, traditional: 0.6, logical: 0.5, emotional: 0.8, commercial: 0.7 },
-      editor: { experimental: 0.7, traditional: 0.5, logical: 0.4, emotional: 0.6, commercial: 0.5 },
-      proofreader: { experimental: 0.4, traditional: 0.3, logical: 0.2, emotional: 0.4, commercial: 0.3 },
-      deputy_editor: { experimental: 0.6, traditional: 0.4, logical: 0.3, emotional: 0.5, commercial: 0.4 },
+      writer: {
+        experimental: 0.9,
+        traditional: 0.6,
+        logical: 0.5,
+        emotional: 0.8,
+        commercial: 0.7,
+      },
+      editor: {
+        experimental: 0.7,
+        traditional: 0.5,
+        logical: 0.4,
+        emotional: 0.6,
+        commercial: 0.5,
+      },
+      proofreader: {
+        experimental: 0.4,
+        traditional: 0.3,
+        logical: 0.2,
+        emotional: 0.4,
+        commercial: 0.3,
+      },
+      deputy_editor: {
+        experimental: 0.6,
+        traditional: 0.4,
+        logical: 0.3,
+        emotional: 0.5,
+        commercial: 0.4,
+      },
     };
-    
+
     return temperatures[this.role][this.personality] || 0.5;
   }
 
@@ -207,16 +231,12 @@ ${roleSpecific[this.role]}
     let serendipityContext = '';
     if (this.role === 'writer' && projectId) {
       try {
-        const searchResults = await performSerendipitySearch(
-          this.conn,
-          topic,
-          {
-            projectId,
-            limit: 5,
-            serendipityLevel: 0.5,
-          }
-        );
-        
+        const searchResults = await performSerendipitySearch(this.conn, topic, {
+          projectId,
+          limit: 5,
+          serendipityLevel: 0.5,
+        });
+
         if (searchResults.length > 0) {
           serendipityContext = '\n\n【セレンディピティ検索で発見した関連要素】\n';
           searchResults.forEach((result) => {
@@ -230,7 +250,7 @@ ${roleSpecific[this.role]}
 
     // コンテキストメッセージを構築
     let contextMessage = `議題: ${topic}${serendipityContext}\n\n`;
-    
+
     // 他のエージェントの発言を追加
     if (context.length > 0) {
       contextMessage += '【これまでの議論】\n';
@@ -245,10 +265,14 @@ ${roleSpecific[this.role]}
 
     // アシスタントを実行
     const messages = await runAssistant(this.threadId!, this.assistantId!);
-    
+
     // 最新のアシスタントメッセージを取得
-    const latestMessage = messages.find(msg => msg.role === 'assistant');
-    if (!latestMessage || typeof latestMessage.content[0] !== 'object' || !('text' in latestMessage.content[0])) {
+    const latestMessage = messages.find((msg) => msg.role === 'assistant');
+    if (
+      !latestMessage ||
+      typeof latestMessage.content[0] !== 'object' ||
+      !('text' in latestMessage.content[0])
+    ) {
       throw new Error('No response from assistant');
     }
 
@@ -324,11 +348,7 @@ export class MultiAgentOrchestrator extends EventEmitter {
     this.sessions.clear();
   }
 
-  async createAgent(
-    role: AgentRole,
-    personality: PersonalityType,
-    options?: any
-  ): Promise<Agent> {
+  async createAgent(role: AgentRole, personality: PersonalityType, options?: any): Promise<Agent> {
     const agent = new Agent(role, personality, this.conn, options);
     await agent.initialize();
     this.agents.set(agent.id, agent);
@@ -360,23 +380,19 @@ export class MultiAgentOrchestrator extends EventEmitter {
 
     // 議論を開始
     const maxRounds = options?.maxRounds || 5;
-    
+
     for (let round = 0; round < maxRounds && session.status === 'active'; round++) {
       for (const agent of participants) {
         if (session.status !== 'active') break;
-        
+
         try {
-          const message = await agent.generateResponse(
-            session.messages,
-            topic,
-            options?.projectId
-          );
-          
+          const message = await agent.generateResponse(session.messages, topic, options?.projectId);
+
           session.messages.push(message);
           this.emit('message', { session, message });
-          
+
           // メッセージ間の遅延（リアルタイム感を演出）
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         } catch (error) {
           console.error(`Agent ${agent.name} error:`, error);
         }
@@ -387,10 +403,10 @@ export class MultiAgentOrchestrator extends EventEmitter {
     session.status = 'concluded';
     session.endTime = new Date();
     session.summary = await this.generateSummary(session);
-    
+
     // データベースに保存
     await this.saveSession(session);
-    
+
     this.emit('sessionConcluded', session);
     return session;
   }
@@ -420,18 +436,22 @@ export class MultiAgentOrchestrator extends EventEmitter {
       'gpt-4-turbo-preview',
       0.3
     );
-    
+
     try {
-      const content = session.messages.map(m => `[${m.agentRole}] ${m.content}`).join('\n\n');
+      const content = session.messages.map((m) => `[${m.agentRole}] ${m.content}`).join('\n\n');
       await addMessageToThread(threadId, content, 'user');
-      
+
       const messages = await runAssistant(threadId, assistantId);
-      const summaryMessage = messages.find(msg => msg.role === 'assistant');
-      
-      if (!summaryMessage || typeof summaryMessage.content[0] !== 'object' || !('text' in summaryMessage.content[0])) {
+      const summaryMessage = messages.find((msg) => msg.role === 'assistant');
+
+      if (
+        !summaryMessage ||
+        typeof summaryMessage.content[0] !== 'object' ||
+        !('text' in summaryMessage.content[0])
+      ) {
         throw new Error('No summary generated');
       }
-      
+
       return summaryMessage.content[0].text.value;
     } finally {
       // クリーンアップ
@@ -446,20 +466,24 @@ export class MultiAgentOrchestrator extends EventEmitter {
         (id, plot_id, participants, messages, conclusion, status, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `;
-      
-      this.conn.run(sql, [
-        session.id,
-        session.plotId || null,
-        JSON.stringify(session.participants.map(p => p.toJSON())),
-        JSON.stringify(session.messages),
-        session.summary || null,
-        session.status,
-        session.startTime,
-        session.endTime || new Date(),
-      ], (err: any) => {
-        if (err) reject(err);
-        else resolve();
-      });
+
+      this.conn.run(
+        sql,
+        [
+          session.id,
+          session.plotId || null,
+          JSON.stringify(session.participants.map((p) => p.toJSON())),
+          JSON.stringify(session.messages),
+          session.summary || null,
+          session.status,
+          session.startTime,
+          session.endTime || new Date(),
+        ],
+        (err: any) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
     });
   }
 

@@ -36,12 +36,10 @@ interface ProcessedItem {
 /**
  * なんでもボックスに投入されたコンテンツを処理
  */
-export async function processAnythingBoxInput(
-  input: AnythingBoxInput
-): Promise<ProcessedItem> {
+export async function processAnythingBoxInput(input: AnythingBoxInput): Promise<ProcessedItem> {
   const originalId = uuidv4();
   const timestamp = new Date();
-  
+
   // 元データの保存準備
   const original = {
     id: originalId,
@@ -56,29 +54,31 @@ export async function processAnythingBoxInput(
 
   // コンテンツタイプに応じた処理
   let extractedContent = input.content;
-  
+
   if (original.type === 'url') {
     // URLの場合はクローラーを起動（別途実装済み）
     return {
       original,
       inspirations: [],
-      knowledge: [{
-        id: uuidv4(),
-        title: 'URLクロール予約',
-        content: `URL: ${input.content} のクロールを予約しました`,
-        type: 'task',
-        metadata: {
-          url: input.content,
-          taskType: 'crawl',
-          scheduledAt: timestamp,
+      knowledge: [
+        {
+          id: uuidv4(),
+          title: 'URLクロール予約',
+          content: `URL: ${input.content} のクロールを予約しました`,
+          type: 'task',
+          metadata: {
+            url: input.content,
+            taskType: 'crawl',
+            scheduledAt: timestamp,
+          },
         },
-      }],
+      ],
     };
   }
 
   // AIによるインスピレーション抽出
   const inspiration = await extractInspiration(extractedContent, original.type);
-  
+
   // インスピレーションを個別のアイテムに変換
   const inspirations: ProcessedItem['inspirations'] = [];
   const knowledge: ProcessedItem['knowledge'] = [];
@@ -178,17 +178,17 @@ function detectContentType(content: string): string {
   if (/^https?:\/\//.test(content)) {
     return 'url';
   }
-  
+
   // 画像パス判定
   if (/\.(jpg|jpeg|png|gif|webp|svg)$/i.test(content)) {
     return 'image';
   }
-  
+
   // 音声ファイル判定
   if (/\.(mp3|wav|ogg|m4a)$/i.test(content)) {
     return 'audio';
   }
-  
+
   return 'text';
 }
 
@@ -198,12 +198,12 @@ function detectContentType(content: string): string {
 function generateTitle(content: string): string {
   // 改行で分割して最初の行を取得
   const firstLine = content.split('\n')[0];
-  
+
   // 長すぎる場合は切り詰め
   if (firstLine.length > 50) {
     return firstLine.substring(0, 47) + '...';
   }
-  
+
   return firstLine || '無題';
 }
 
@@ -223,7 +223,7 @@ async function saveProcessedItems(
     try {
       // 埋め込みを生成
       const embedding = await generateEmbedding(item.title + ' ' + item.content);
-      
+
       const knowledge = {
         ...item,
         projectId,
@@ -232,7 +232,7 @@ async function saveProcessedItems(
 
       // データベースに直接保存
       const result = await saveKnowledgeItem(conn, knowledge);
-      
+
       if (result.success) {
         saved++;
       } else {
@@ -268,21 +268,21 @@ async function saveKnowledgeItem(conn: any, knowledge: any): Promise<any> {
         }
       );
     });
-    
+
     if (existingCheck) {
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: 'URL already exists in knowledge base',
-        duplicate: true 
+        duplicate: true,
       };
     }
   }
-  
+
   // 検索用トークンを生成
   const titleTokens = getSearchTokens(knowledge.title || '');
   const contentTokens = getSearchTokens(knowledge.content || '');
   const searchTokens = [...new Set([...titleTokens, ...contentTokens])].join(' ');
-  
+
   // ベクトル埋め込みを生成（まだない場合）
   let embedding = knowledge.embedding;
   if (!embedding && knowledge.content) {
@@ -292,7 +292,7 @@ async function saveKnowledgeItem(conn: any, knowledge: any): Promise<any> {
       console.warn('Failed to generate embedding:', error);
     }
   }
-  
+
   const sql = `
     INSERT INTO knowledge (id, title, content, type, project_id, embedding, metadata, search_tokens, source_url)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -307,35 +307,39 @@ async function saveKnowledgeItem(conn: any, knowledge: any): Promise<any> {
       source_url = excluded.source_url,
       updated_at = CURRENT_TIMESTAMP
   `;
-  
+
   return new Promise((resolve) => {
-    conn.run(sql, [
-      knowledge.id,
-      knowledge.title,
-      knowledge.content,
-      knowledge.type,
-      knowledge.projectId || null,
-      JSON.stringify(embedding || null),
-      JSON.stringify(knowledge.metadata || {}),
-      searchTokens,
-      sourceUrl || null
-    ], (err: any) => {
-      if (err) {
-        // UNIQUE制約違反の場合
-        if (err.message && err.message.includes('UNIQUE constraint failed')) {
-          resolve({ 
-            success: false, 
-            error: 'URL already exists in knowledge base',
-            duplicate: true 
-          });
+    conn.run(
+      sql,
+      [
+        knowledge.id,
+        knowledge.title,
+        knowledge.content,
+        knowledge.type,
+        knowledge.projectId || null,
+        JSON.stringify(embedding || null),
+        JSON.stringify(knowledge.metadata || {}),
+        searchTokens,
+        sourceUrl || null,
+      ],
+      (err: any) => {
+        if (err) {
+          // UNIQUE制約違反の場合
+          if (err.message && err.message.includes('UNIQUE constraint failed')) {
+            resolve({
+              success: false,
+              error: 'URL already exists in knowledge base',
+              duplicate: true,
+            });
+          } else {
+            console.error('Knowledge save error:', err);
+            resolve({ success: false, error: err.message });
+          }
         } else {
-          console.error('Knowledge save error:', err);
-          resolve({ success: false, error: err.message });
+          resolve({ success: true, searchTokens, embedding: !!embedding });
         }
-      } else {
-        resolve({ success: true, searchTokens, embedding: !!embedding });
       }
-    });
+    );
   });
 }
 
@@ -347,14 +351,10 @@ export function setupAnythingBoxHandlers(conn: any): void {
   ipcMain.handle('anythingBox:process', async (_, input: AnythingBoxInput) => {
     try {
       const processed = await processAnythingBoxInput(input);
-      
+
       // データベースに保存
-      const { saved, failed } = await saveProcessedItems(
-        conn,
-        processed,
-        input.projectId
-      );
-      
+      const { saved, failed } = await saveProcessedItems(conn, processed, input.projectId);
+
       return {
         success: true,
         processed: {
@@ -375,37 +375,40 @@ export function setupAnythingBoxHandlers(conn: any): void {
   });
 
   // 処理履歴の取得
-  ipcMain.handle('anythingBox:history', async (_, options?: { projectId?: string; limit?: number }) => {
-    const { projectId, limit = 50 } = options || {};
-    
-    let sql = `
+  ipcMain.handle(
+    'anythingBox:history',
+    async (_, options?: { projectId?: string; limit?: number }) => {
+      const { projectId, limit = 50 } = options || {};
+
+      let sql = `
       SELECT id, title, type, metadata, created_at
       FROM knowledge
       WHERE metadata LIKE '%"processedAt"%'
     `;
-    
-    const params: any[] = [];
-    
-    if (projectId) {
-      sql += ` AND project_id = ?`;
-      params.push(projectId);
-    }
-    
-    sql += ` ORDER BY created_at DESC LIMIT ?`;
-    params.push(limit);
-    
-    return new Promise((resolve, reject) => {
-      conn.all(sql, params, (err: any, rows: any[]) => {
-        if (err) {
-          reject(err);
-        } else {
-          const results = rows.map(row => ({
-            ...row,
-            metadata: JSON.parse(row.metadata || '{}'),
-          }));
-          resolve(results);
-        }
+
+      const params: any[] = [];
+
+      if (projectId) {
+        sql += ` AND project_id = ?`;
+        params.push(projectId);
+      }
+
+      sql += ` ORDER BY created_at DESC LIMIT ?`;
+      params.push(limit);
+
+      return new Promise((resolve, reject) => {
+        conn.all(sql, params, (err: any, rows: any[]) => {
+          if (err) {
+            reject(err);
+          } else {
+            const results = rows.map((row) => ({
+              ...row,
+              metadata: JSON.parse(row.metadata || '{}'),
+            }));
+            resolve(results);
+          }
+        });
       });
-    });
-  });
+    }
+  );
 }

@@ -11,7 +11,7 @@ export function initializeOpenAI(apiKey: string): void {
     console.warn('OpenAI API key not provided');
     return;
   }
-  
+
   openai = new OpenAI({
     apiKey: apiKey,
   });
@@ -31,13 +31,13 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
   if (!openai) {
     throw new Error('OpenAI client not initialized. Please set API key in settings.');
   }
-  
+
   try {
     const response = await openai.embeddings.create({
       model: 'text-embedding-3-small',
       input: text,
     });
-    
+
     return response.data[0].embedding;
   } catch (error) {
     console.error('Failed to generate embedding:', error);
@@ -60,7 +60,7 @@ export async function generateChatCompletion(
   if (!openai) {
     throw new Error('OpenAI client not initialized. Please set API key in settings.');
   }
-  
+
   try {
     const response = await openai.chat.completions.create({
       model: options?.model || 'gpt-4-turbo-preview',
@@ -69,7 +69,7 @@ export async function generateChatCompletion(
       max_tokens: options?.maxTokens,
       top_p: options?.topP ?? 1.0,
     });
-    
+
     return response.choices[0].message.content || '';
   } catch (error) {
     console.error('Failed to generate chat completion:', error);
@@ -80,7 +80,10 @@ export async function generateChatCompletion(
 /**
  * HTMLからメインコンテンツを抽出
  */
-export async function extractMainContent(html: string, url: string): Promise<{
+export async function extractMainContent(
+  html: string,
+  url: string
+): Promise<{
   title: string;
   content: string;
   summary: string;
@@ -89,7 +92,7 @@ export async function extractMainContent(html: string, url: string): Promise<{
   if (!openai) {
     throw new Error('OpenAI client not initialized. Please set API key in settings.');
   }
-  
+
   const systemPrompt = `あなたはWebページの内容を分析し、メインコンテンツを抽出する専門家です。
 HTMLから以下を抽出してください：
 1. ページのメインタイトル
@@ -114,14 +117,14 @@ HTMLから以下を抽出してください：
     const response = await generateChatCompletion(
       [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `URL: ${url}\n\nHTML:\n${html.slice(0, 50000)}` }
+        { role: 'user', content: `URL: ${url}\n\nHTML:\n${html.slice(0, 50000)}` },
       ],
       {
         temperature: 0.3,
-        model: 'gpt-4-turbo-preview'
+        model: 'gpt-4-turbo-preview',
       }
     );
-    
+
     return JSON.parse(response);
   } catch (error) {
     console.error('Failed to extract main content:', error);
@@ -130,7 +133,7 @@ HTMLから以下を抽出してください：
       title: 'Unknown',
       content: html.replace(/<[^>]*>/g, '').slice(0, 5000),
       summary: '',
-      metadata: { url }
+      metadata: { url },
     };
   }
 }
@@ -138,15 +141,18 @@ HTMLから以下を抽出してください：
 /**
  * 画像を生成
  */
-export async function generateImage(prompt: string, options?: {
-  size?: '256x256' | '512x512' | '1024x1024' | '1792x1024' | '1024x1792';
-  quality?: 'standard' | 'hd';
-  style?: 'vivid' | 'natural';
-}): Promise<string> {
+export async function generateImage(
+  prompt: string,
+  options?: {
+    size?: '256x256' | '512x512' | '1024x1024' | '1792x1024' | '1024x1792';
+    quality?: 'standard' | 'hd';
+    style?: 'vivid' | 'natural';
+  }
+): Promise<string> {
   if (!openai) {
     throw new Error('OpenAI client not initialized. Please set API key in settings.');
   }
-  
+
   try {
     const response = await openai.images.generate({
       model: 'dall-e-3',
@@ -156,7 +162,7 @@ export async function generateImage(prompt: string, options?: {
       quality: options?.quality || 'standard',
       style: options?.style || 'vivid',
     });
-    
+
     return response.data?.[0]?.url || '';
   } catch (error) {
     console.error('Failed to generate image:', error);
@@ -167,7 +173,10 @@ export async function generateImage(prompt: string, options?: {
 /**
  * テキストからインスピレーションを抽出
  */
-export async function extractInspiration(text: string, type: string): Promise<{
+export async function extractInspiration(
+  text: string,
+  type: string
+): Promise<{
   keywords: string[];
   themes: string[];
   emotions: string[];
@@ -195,14 +204,14 @@ export async function extractInspiration(text: string, type: string): Promise<{
     const response = await generateChatCompletion(
       [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: text }
+        { role: 'user', content: text },
       ],
       {
         temperature: 0.8,
-        model: 'gpt-4-turbo-preview'
+        model: 'gpt-4-turbo-preview',
       }
     );
-    
+
     return JSON.parse(response);
   } catch (error) {
     console.error('Failed to extract inspiration:', error);
@@ -212,7 +221,7 @@ export async function extractInspiration(text: string, type: string): Promise<{
       emotions: [],
       plotSeeds: [],
       characters: [],
-      scenes: []
+      scenes: [],
     };
   }
 }
@@ -224,7 +233,7 @@ export async function createThread(metadata?: Record<string, any>): Promise<stri
   if (!openai) {
     throw new Error('OpenAI client not initialized. Please set API key in settings.');
   }
-  
+
   try {
     const thread = await openai.beta.threads.create({
       metadata,
@@ -247,7 +256,7 @@ export async function addMessageToThread(
   if (!openai) {
     throw new Error('OpenAI client not initialized. Please set API key in settings.');
   }
-  
+
   try {
     const message = await openai.beta.threads.messages.create(threadId, {
       role,
@@ -272,7 +281,7 @@ export async function createAssistant(
   if (!openai) {
     throw new Error('OpenAI client not initialized. Please set API key in settings.');
   }
-  
+
   try {
     const assistant = await openai.beta.assistants.create({
       name,
@@ -298,25 +307,25 @@ export async function runAssistant(
   if (!openai) {
     throw new Error('OpenAI client not initialized. Please set API key in settings.');
   }
-  
+
   try {
     // Runを作成
     const run = await openai.beta.threads.runs.create(threadId, {
       assistant_id: assistantId,
       instructions,
     });
-    
+
     // Runの完了を待つ
     let runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
     while (runStatus.status !== 'completed' && runStatus.status !== 'failed') {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
-      
+
       if (runStatus.status === 'failed') {
         throw new Error(`Assistant run failed: ${runStatus.last_error?.message}`);
       }
     }
-    
+
     // メッセージを取得
     const messages = await openai.beta.threads.messages.list(threadId);
     return messages.data;
@@ -329,11 +338,13 @@ export async function runAssistant(
 /**
  * スレッドのメッセージを取得
  */
-export async function getThreadMessages(threadId: string): Promise<OpenAI.Beta.Threads.Messages.Message[]> {
+export async function getThreadMessages(
+  threadId: string
+): Promise<OpenAI.Beta.Threads.Messages.Message[]> {
   if (!openai) {
     throw new Error('OpenAI client not initialized. Please set API key in settings.');
   }
-  
+
   try {
     const messages = await openai.beta.threads.messages.list(threadId);
     return messages.data;
@@ -350,7 +361,7 @@ export async function deleteThread(threadId: string): Promise<void> {
   if (!openai) {
     throw new Error('OpenAI client not initialized. Please set API key in settings.');
   }
-  
+
   try {
     await openai.beta.threads.del(threadId);
   } catch (error) {
@@ -367,48 +378,57 @@ export function setupOpenAIHandlers(): void {
   ipcMain.handle('ai:embed', async (_, text: string) => {
     return generateEmbedding(text);
   });
-  
+
   // チャット
   ipcMain.handle('ai:chat', async (_, messages: any[], options?: any) => {
     return generateChatCompletion(messages, options);
   });
-  
+
   // 画像生成
   ipcMain.handle('ai:generateImage', async (_, prompt: string, options?: any) => {
     return generateImage(prompt, options);
   });
-  
+
   // インスピレーション抽出
   ipcMain.handle('ai:extractInspiration', async (_, text: string, type: string) => {
     return extractInspiration(text, type);
   });
-  
+
   // HTMLコンテンツ抽出
   ipcMain.handle('ai:extractContent', async (_, html: string, url: string) => {
     return extractMainContent(html, url);
   });
-  
+
   // Thread API関連
   ipcMain.handle('ai:createThread', async (_, metadata?: Record<string, any>) => {
     return createThread(metadata);
   });
-  
-  ipcMain.handle('ai:addMessage', async (_, threadId: string, content: string, role?: 'user' | 'assistant') => {
-    return addMessageToThread(threadId, content, role);
-  });
-  
-  ipcMain.handle('ai:createAssistant', async (_, name: string, instructions: string, model?: string, temperature?: number) => {
-    return createAssistant(name, instructions, model, temperature);
-  });
-  
-  ipcMain.handle('ai:runAssistant', async (_, threadId: string, assistantId: string, instructions?: string) => {
-    return runAssistant(threadId, assistantId, instructions);
-  });
-  
+
+  ipcMain.handle(
+    'ai:addMessage',
+    async (_, threadId: string, content: string, role?: 'user' | 'assistant') => {
+      return addMessageToThread(threadId, content, role);
+    }
+  );
+
+  ipcMain.handle(
+    'ai:createAssistant',
+    async (_, name: string, instructions: string, model?: string, temperature?: number) => {
+      return createAssistant(name, instructions, model, temperature);
+    }
+  );
+
+  ipcMain.handle(
+    'ai:runAssistant',
+    async (_, threadId: string, assistantId: string, instructions?: string) => {
+      return runAssistant(threadId, assistantId, instructions);
+    }
+  );
+
   ipcMain.handle('ai:getThreadMessages', async (_, threadId: string) => {
     return getThreadMessages(threadId);
   });
-  
+
   ipcMain.handle('ai:deleteThread', async (_, threadId: string) => {
     return deleteThread(threadId);
   });

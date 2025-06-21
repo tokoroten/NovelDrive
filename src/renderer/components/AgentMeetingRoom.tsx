@@ -62,7 +62,7 @@ export function AgentMeetingRoom() {
     // リアルタイムイベントのリスナー設定
     window.electronAPI.agents.onMessage((data) => {
       if (activeSession && data.sessionId === activeSession.id) {
-        setMessages(prev => [...prev, data.message]);
+        setMessages((prev) => [...prev, data.message]);
       }
     });
 
@@ -72,7 +72,9 @@ export function AgentMeetingRoom() {
 
     window.electronAPI.agents.onSessionConcluded((data) => {
       if (activeSession && data.sessionId === activeSession.id) {
-        setActiveSession(prev => prev ? { ...prev, status: 'concluded', summary: data.summary } : null);
+        setActiveSession((prev) =>
+          prev ? { ...prev, status: 'concluded', summary: data.summary } : null
+        );
       }
       loadSessions();
     });
@@ -137,7 +139,7 @@ export function AgentMeetingRoom() {
 
     try {
       await window.electronAPI.agents.pauseSession(activeSession.id);
-      setActiveSession(prev => prev ? { ...prev, status: 'paused' } : null);
+      setActiveSession((prev) => (prev ? { ...prev, status: 'paused' } : null));
     } catch (error) {
       console.error('Failed to pause session:', error);
     }
@@ -148,7 +150,7 @@ export function AgentMeetingRoom() {
 
     try {
       await window.electronAPI.agents.resumeSession(activeSession.id);
-      setActiveSession(prev => prev ? { ...prev, status: 'active' } : null);
+      setActiveSession((prev) => (prev ? { ...prev, status: 'active' } : null));
     } catch (error) {
       console.error('Failed to resume session:', error);
     }
@@ -195,7 +197,7 @@ export function AgentMeetingRoom() {
   return (
     <div className="h-full flex flex-col">
       <h2 className="text-3xl font-bold text-secondary-800 mb-5">エージェント会議室</h2>
-      
+
       <div className="flex-1 flex gap-6">
         {/* 左側：設定パネル */}
         <div className="w-1/3 space-y-6">
@@ -223,7 +225,7 @@ export function AgentMeetingRoom() {
                 + 追加
               </button>
             </div>
-            
+
             <div className="space-y-3">
               {participants.map((participant, index) => (
                 <div key={index} className="p-3 bg-gray-50 rounded-md">
@@ -239,25 +241,27 @@ export function AgentMeetingRoom() {
                       </button>
                     )}
                   </div>
-                  
+
                   <select
                     value={participant.role}
                     onChange={(e) => updateParticipant(index, 'role', e.target.value)}
                     disabled={activeSession?.status === 'active'}
                     className="w-full p-2 mb-2 border border-gray-300 rounded text-sm"
                   >
-                    {AGENT_ROLES.map(role => (
-                      <option key={role.value} value={role.value}>{role.label}</option>
+                    {AGENT_ROLES.map((role) => (
+                      <option key={role.value} value={role.value}>
+                        {role.label}
+                      </option>
                     ))}
                   </select>
-                  
+
                   <select
                     value={participant.personality}
                     onChange={(e) => updateParticipant(index, 'personality', e.target.value)}
                     disabled={activeSession?.status === 'active'}
                     className="w-full p-2 border border-gray-300 rounded text-sm"
                   >
-                    {PERSONALITIES.map(personality => (
+                    {PERSONALITIES.map((personality) => (
                       <option key={personality.value} value={personality.value}>
                         {personality.label}
                       </option>
@@ -284,7 +288,7 @@ export function AgentMeetingRoom() {
                   {isLoading ? '準備中...' : '議論を開始'}
                 </button>
               )}
-              
+
               {activeSession?.status === 'active' && (
                 <button
                   onClick={pauseSession}
@@ -293,7 +297,7 @@ export function AgentMeetingRoom() {
                   一時停止
                 </button>
               )}
-              
+
               {activeSession?.status === 'paused' && (
                 <button
                   onClick={resumeSession}
@@ -302,7 +306,7 @@ export function AgentMeetingRoom() {
                   再開
                 </button>
               )}
-              
+
               {activeSession?.status === 'concluded' && (
                 <button
                   onClick={() => {
@@ -326,19 +330,26 @@ export function AgentMeetingRoom() {
             </h3>
             {activeSession && (
               <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
-                <span className={`px-2 py-1 rounded text-xs font-medium ${
-                  activeSession.status === 'active' ? 'bg-green-100 text-green-700' :
-                  activeSession.status === 'paused' ? 'bg-yellow-100 text-yellow-700' :
-                  'bg-gray-100 text-gray-700'
-                }`}>
-                  {activeSession.status === 'active' ? '進行中' :
-                   activeSession.status === 'paused' ? '一時停止' : '完了'}
+                <span
+                  className={`px-2 py-1 rounded text-xs font-medium ${
+                    activeSession.status === 'active'
+                      ? 'bg-green-100 text-green-700'
+                      : activeSession.status === 'paused'
+                        ? 'bg-yellow-100 text-yellow-700'
+                        : 'bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  {activeSession.status === 'active'
+                    ? '進行中'
+                    : activeSession.status === 'paused'
+                      ? '一時停止'
+                      : '完了'}
                 </span>
                 <span>{activeSession.messageCount} メッセージ</span>
               </div>
             )}
           </div>
-          
+
           <div className="flex-1 overflow-y-auto p-6">
             {messages.length === 0 ? (
               <div className="text-center text-gray-500 mt-20">
@@ -367,7 +378,7 @@ export function AgentMeetingRoom() {
               </div>
             )}
           </div>
-          
+
           {activeSession?.summary && (
             <div className="p-4 border-t border-gray-200 bg-gray-50">
               <h4 className="font-semibold text-gray-700 mb-2">議論の要約</h4>

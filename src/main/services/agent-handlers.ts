@@ -11,96 +11,100 @@ export function setupAgentHandlers(conn: any): void {
   orchestrator = new MultiAgentOrchestrator(conn);
 
   // エージェント作成
-  ipcMain.handle('agents:create', async (_, options: {
-    role: AgentRole;
-    personality: PersonalityType;
-    name?: string;
-    temperature?: number;
-    customPrompt?: string;
-  }) => {
-    if (!orchestrator) {
-      throw new Error('Orchestrator not initialized');
-    }
+  ipcMain.handle(
+    'agents:create',
+    async (
+      _,
+      options: {
+        role: AgentRole;
+        personality: PersonalityType;
+        name?: string;
+        temperature?: number;
+        customPrompt?: string;
+      }
+    ) => {
+      if (!orchestrator) {
+        throw new Error('Orchestrator not initialized');
+      }
 
-    try {
-      const agent = await orchestrator.createAgent(
-        options.role,
-        options.personality,
-        {
+      try {
+        const agent = await orchestrator.createAgent(options.role, options.personality, {
           name: options.name,
           temperature: options.temperature,
           customPrompt: options.customPrompt,
-        }
-      );
+        });
 
-      return {
-        success: true,
-        agent: agent.toJSON(),
-      };
-    } catch (error) {
-      console.error('Failed to create agent:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
+        return {
+          success: true,
+          agent: agent.toJSON(),
+        };
+      } catch (error) {
+        console.error('Failed to create agent:', error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+      }
     }
-  });
+  );
 
   // 議論開始
-  ipcMain.handle('agents:startDiscussion', async (_, options: {
-    topic: string;
-    agentConfigs: Array<{
-      role: AgentRole;
-      personality: PersonalityType;
-      name?: string;
-    }>;
-    projectId?: string;
-    plotId?: string;
-    maxRounds?: number;
-  }) => {
-    if (!orchestrator) {
-      throw new Error('Orchestrator not initialized');
-    }
+  ipcMain.handle(
+    'agents:startDiscussion',
+    async (
+      _,
+      options: {
+        topic: string;
+        agentConfigs: Array<{
+          role: AgentRole;
+          personality: PersonalityType;
+          name?: string;
+        }>;
+        projectId?: string;
+        plotId?: string;
+        maxRounds?: number;
+      }
+    ) => {
+      if (!orchestrator) {
+        throw new Error('Orchestrator not initialized');
+      }
 
-    try {
-      // エージェントを作成
-      const agents = await Promise.all(
-        options.agentConfigs.map(config => 
-          orchestrator!.createAgent(config.role, config.personality, { name: config.name })
-        )
-      );
+      try {
+        // エージェントを作成
+        const agents = await Promise.all(
+          options.agentConfigs.map((config) =>
+            orchestrator!.createAgent(config.role, config.personality, { name: config.name })
+          )
+        );
 
-      // 議論を開始
-      const session = await orchestrator.startDiscussion(
-        options.topic,
-        agents,
-        {
+        // 議論を開始
+        const session = await orchestrator.startDiscussion(options.topic, agents, {
           projectId: options.projectId,
           plotId: options.plotId,
           maxRounds: options.maxRounds,
-        }
-      );
+        });
 
-      return {
-        success: true,
-        session: {
-          id: session.id,
-          topic: session.topic,
-          status: session.status,
-          messageCount: session.messages.length,
-          summary: session.summary,
-          startTime: session.startTime,
-          endTime: session.endTime,
-        },
-      };
-    } catch (error) {
-      console.error('Failed to start discussion:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
+        return {
+          success: true,
+          session: {
+            id: session.id,
+            topic: session.topic,
+            status: session.status,
+            messageCount: session.messages.length,
+            summary: session.summary,
+            startTime: session.startTime,
+            endTime: session.endTime,
+          },
+        };
+      } catch (error) {
+        console.error('Failed to start discussion:', error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+      }
     }
-  });
+  );
 
   // セッション一時停止
   ipcMain.handle('agents:pauseSession', async (_, sessionId: string) => {
@@ -157,7 +161,7 @@ export function setupAgentHandlers(conn: any): void {
         topic: session.topic,
         status: session.status,
         messages: session.messages,
-        participants: session.participants.map(p => p.toJSON()),
+        participants: session.participants.map((p) => p.toJSON()),
         summary: session.summary,
         startTime: session.startTime,
         endTime: session.endTime,
@@ -174,7 +178,7 @@ export function setupAgentHandlers(conn: any): void {
     const sessions = orchestrator.getAllSessions();
     return {
       success: true,
-      sessions: sessions.map(session => ({
+      sessions: sessions.map((session) => ({
         id: session.id,
         topic: session.topic,
         status: session.status,
@@ -186,56 +190,62 @@ export function setupAgentHandlers(conn: any): void {
   });
 
   // 議論履歴の取得（データベースから）
-  ipcMain.handle('agents:getDiscussionHistory', async (_, options?: {
-    projectId?: string;
-    plotId?: string;
-    limit?: number;
-  }) => {
-    const { projectId, plotId, limit = 50 } = options || {};
-    
-    let sql = `
+  ipcMain.handle(
+    'agents:getDiscussionHistory',
+    async (
+      _,
+      options?: {
+        projectId?: string;
+        plotId?: string;
+        limit?: number;
+      }
+    ) => {
+      const { projectId, plotId, limit = 50 } = options || {};
+
+      let sql = `
       SELECT id, plot_id, participants, messages, conclusion, status, 
              created_at, updated_at
       FROM agent_discussions
       WHERE 1=1
     `;
-    
-    const params: any[] = [];
-    
-    if (projectId) {
-      sql += ` AND plot_id IN (SELECT id FROM plots WHERE project_id = ?)`;
-      params.push(projectId);
-    }
-    
-    if (plotId) {
-      sql += ` AND plot_id = ?`;
-      params.push(plotId);
-    }
-    
-    sql += ` ORDER BY created_at DESC LIMIT ?`;
-    params.push(limit);
-    
-    return new Promise((resolve, reject) => {
-      conn.all(sql, params, (err: any, rows: any[]) => {
-        if (err) {
-          reject({
-            success: false,
-            error: err.message,
-          });
-        } else {
-          const results = rows.map(row => ({
-            ...row,
-            participants: JSON.parse(row.participants || '[]'),
-            messages: JSON.parse(row.messages || '[]'),
-          }));
-          resolve({
-            success: true,
-            discussions: results,
-          });
-        }
+
+      const params: any[] = [];
+
+      if (projectId) {
+        sql += ` AND plot_id IN (SELECT id FROM plots WHERE project_id = ?)`;
+        params.push(projectId);
+      }
+
+      if (plotId) {
+        sql += ` AND plot_id = ?`;
+        params.push(plotId);
+      }
+
+      sql += ` ORDER BY created_at DESC LIMIT ?`;
+      params.push(limit);
+
+      return new Promise((resolve, reject) => {
+        conn.all(sql, params, (err: any, rows: any[]) => {
+          if (err) {
+            reject({
+              success: false,
+              error: err.message,
+            });
+          } else {
+            const results = rows.map((row) => ({
+              ...row,
+              participants: JSON.parse(row.participants || '[]'),
+              messages: JSON.parse(row.messages || '[]'),
+            }));
+            resolve({
+              success: true,
+              discussions: results,
+            });
+          }
+        });
       });
-    });
-  });
+    }
+  );
 
   // リアルタイムメッセージ通知の設定
   if (orchestrator) {

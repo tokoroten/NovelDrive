@@ -5,6 +5,8 @@ import { AgentMeetingRoom } from './components/AgentMeetingRoom';
 import { PlotManagement } from './components/PlotManagement';
 import { KnowledgeGraph } from './components/KnowledgeGraph';
 import { WritingEditor } from './components/WritingEditor';
+import { ProjectKnowledge } from './components/ProjectKnowledge';
+import { IdeaGacha } from './components/IdeaGacha';
 
 export function App() {
   const [currentView, setCurrentView] = useState<string>('dashboard');
@@ -23,6 +25,10 @@ export function App() {
         return <KnowledgeGraph />;
       case 'writing-editor':
         return <WritingEditor />;
+      case 'project-knowledge':
+        return <ProjectKnowledge />;
+      case 'idea-gacha':
+        return <IdeaGacha />;
       default:
         return (
           <div>

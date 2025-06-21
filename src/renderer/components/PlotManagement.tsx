@@ -141,11 +141,11 @@ export function PlotManagement() {
 
   const renderPlotTree = () => {
     // バージョンツリーを構築
-    const rootPlots = plots.filter(p => !p.parentVersion);
-    
+    const rootPlots = plots.filter((p) => !p.parentVersion);
+
     const renderNode = (plot: PlotNode, depth: number = 0): JSX.Element => {
-      const children = plots.filter(p => p.parentVersion === plot.version);
-      
+      const children = plots.filter((p) => p.parentVersion === plot.version);
+
       return (
         <div key={plot.id} style={{ marginLeft: `${depth * 30}px` }} className="mb-4">
           <div
@@ -161,15 +161,24 @@ export function PlotManagement() {
                 <span className="text-lg font-bold text-primary-600">{plot.version}</span>
                 <span className="ml-3 font-medium">{plot.title}</span>
               </div>
-              <span className={`px-2 py-1 text-xs rounded ${
-                plot.status === 'approved' ? 'bg-green-100 text-green-700' :
-                plot.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                plot.status === 'reviewing' ? 'bg-yellow-100 text-yellow-700' :
-                'bg-gray-100 text-gray-700'
-              }`}>
-                {plot.status === 'approved' ? '承認済み' :
-                 plot.status === 'rejected' ? '却下' :
-                 plot.status === 'reviewing' ? 'レビュー中' : '草稿'}
+              <span
+                className={`px-2 py-1 text-xs rounded ${
+                  plot.status === 'approved'
+                    ? 'bg-green-100 text-green-700'
+                    : plot.status === 'rejected'
+                      ? 'bg-red-100 text-red-700'
+                      : plot.status === 'reviewing'
+                        ? 'bg-yellow-100 text-yellow-700'
+                        : 'bg-gray-100 text-gray-700'
+                }`}
+              >
+                {plot.status === 'approved'
+                  ? '承認済み'
+                  : plot.status === 'rejected'
+                    ? '却下'
+                    : plot.status === 'reviewing'
+                      ? 'レビュー中'
+                      : '草稿'}
               </span>
             </div>
             <p className="text-sm text-gray-600 mt-1 line-clamp-2">{plot.synopsis}</p>
@@ -184,19 +193,13 @@ export function PlotManagement() {
             </div>
           </div>
           {children.length > 0 && (
-            <div className="mt-2">
-              {children.map(child => renderNode(child, depth + 1))}
-            </div>
+            <div className="mt-2">{children.map((child) => renderNode(child, depth + 1))}</div>
           )}
         </div>
       );
     };
 
-    return (
-      <div className="space-y-4">
-        {rootPlots.map(plot => renderNode(plot))}
-      </div>
-    );
+    return <div className="space-y-4">{rootPlots.map((plot) => renderNode(plot))}</div>;
   };
 
   return (
@@ -223,17 +226,15 @@ export function PlotManagement() {
               </div>
             </div>
           </div>
-          
+
           <div className="flex-1 overflow-y-auto p-4">
             {plots.length === 0 ? (
-              <div className="text-center text-gray-500 mt-10">
-                プロットがありません
-              </div>
+              <div className="text-center text-gray-500 mt-10">プロットがありません</div>
             ) : viewMode === 'tree' ? (
               renderPlotTree()
             ) : (
               <div className="space-y-3">
-                {plots.map(plot => (
+                {plots.map((plot) => (
                   <div
                     key={plot.id}
                     className={`p-4 border rounded-lg cursor-pointer transition-colors ${
@@ -244,7 +245,9 @@ export function PlotManagement() {
                     onClick={() => setSelectedPlot(plot)}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-medium">{plot.version}: {plot.title}</span>
+                      <span className="font-medium">
+                        {plot.version}: {plot.title}
+                      </span>
                       <span className="text-sm text-gray-500">
                         {new Date(plot.createdAt).toLocaleDateString()}
                       </span>
@@ -273,7 +276,7 @@ export function PlotManagement() {
                   placeholder="プロットのタイトル"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium mb-1">あらすじ</label>
                 <textarea
@@ -283,7 +286,7 @@ export function PlotManagement() {
                   placeholder="物語のあらすじを入力..."
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium mb-1">ジャンル</label>
                 <input
@@ -294,12 +297,14 @@ export function PlotManagement() {
                   placeholder="ファンタジー、SF、ミステリーなど"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium mb-1">幕数</label>
                 <select
                   value={newPlotData.acts}
-                  onChange={(e) => setNewPlotData({ ...newPlotData, acts: parseInt(e.target.value) })}
+                  onChange={(e) =>
+                    setNewPlotData({ ...newPlotData, acts: parseInt(e.target.value) })
+                  }
                   className="w-full p-2 border border-gray-300 rounded"
                 >
                   <option value={3}>3幕構成</option>
@@ -307,7 +312,7 @@ export function PlotManagement() {
                   <option value={5}>5幕構成</option>
                 </select>
               </div>
-              
+
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={createNewPlot}
@@ -356,7 +361,7 @@ export function PlotManagement() {
                 </button>
               </div>
             </div>
-            
+
             <div className="space-y-4">
               <div>
                 <h4 className="font-semibold mb-2">ステータス</h4>
@@ -371,12 +376,12 @@ export function PlotManagement() {
                   <option value="rejected">却下</option>
                 </select>
               </div>
-              
+
               <div>
                 <h4 className="font-semibold mb-2">あらすじ</h4>
                 <p className="text-gray-700 whitespace-pre-wrap">{selectedPlot.synopsis}</p>
               </div>
-              
+
               {selectedPlot.metadata && (
                 <div>
                   <h4 className="font-semibold mb-2">分析スコア</h4>
@@ -417,7 +422,7 @@ export function PlotManagement() {
                   </div>
                 </div>
               )}
-              
+
               <div>
                 <h4 className="font-semibold mb-2">構造</h4>
                 <div className="space-y-2">
@@ -432,14 +437,15 @@ export function PlotManagement() {
                   </p>
                 </div>
               </div>
-              
+
               <div className="text-sm text-gray-500 pt-4 border-t">
                 <p>作成日: {new Date(selectedPlot.createdAt).toLocaleString()}</p>
                 <p>更新日: {new Date(selectedPlot.updatedAt).toLocaleString()}</p>
-                <p>作成者: {selectedPlot.createdBy === 'human' ? '人間' : `AI (${selectedPlot.createdBy})`}</p>
-                {selectedPlot.parentVersion && (
-                  <p>親バージョン: {selectedPlot.parentVersion}</p>
-                )}
+                <p>
+                  作成者:{' '}
+                  {selectedPlot.createdBy === 'human' ? '人間' : `AI (${selectedPlot.createdBy})`}
+                </p>
+                {selectedPlot.parentVersion && <p>親バージョン: {selectedPlot.parentVersion}</p>}
               </div>
             </div>
           </div>

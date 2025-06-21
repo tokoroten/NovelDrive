@@ -12,18 +12,18 @@ export function tokenize(text: string): string[] {
   if (!text || typeof text !== 'string') {
     return [];
   }
-  
+
   // TinySegmenterでセグメント化
   const tokens = segmenter.segment(text);
-  
+
   // 空白文字や記号のみのトークンを除外
   return tokens.filter((token: string) => {
     // 空白文字のみのトークンを除外
     if (!token.trim()) return false;
-    
+
     // 単一の句読点や記号を除外（ただし、意味のある記号は残す）
     if (token.length === 1 && /[、。，．,.\s]/.test(token)) return false;
-    
+
     return true;
   });
 }
@@ -34,21 +34,21 @@ export function tokenize(text: string): string[] {
  * @returns 正規化されたトークンの配列
  */
 export function normalizeTokens(tokens: string[]): string[] {
-  return tokens.map(token => {
+  return tokens.map((token) => {
     // 全角英数字を半角に変換
     let normalized = token.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => {
-      return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+      return String.fromCharCode(s.charCodeAt(0) - 0xfee0);
     });
-    
+
     // カタカナをひらがなに変換（検索の柔軟性向上）
     normalized = normalized.replace(/[\u30A1-\u30F6]/g, (match) => {
       const code = match.charCodeAt(0) - 0x60;
       return String.fromCharCode(code);
     });
-    
+
     // 小文字に統一
     normalized = normalized.toLowerCase();
-    
+
     return normalized;
   });
 }
@@ -61,7 +61,7 @@ export function normalizeTokens(tokens: string[]): string[] {
 export function getSearchTokens(text: string): string[] {
   const tokens = tokenize(text);
   const normalized = normalizeTokens(tokens);
-  
+
   // 重複を除去
   return [...new Set(normalized)];
 }
@@ -74,12 +74,12 @@ export function getSearchTokens(text: string): string[] {
  */
 export function generateNgrams(tokens: string[], n: number = 2): string[] {
   const ngrams: string[] = [];
-  
+
   for (let i = 0; i <= tokens.length - n; i++) {
     const ngram = tokens.slice(i, i + n).join('');
     ngrams.push(ngram);
   }
-  
+
   return ngrams;
 }
 
@@ -108,32 +108,32 @@ export function createDuckDBTokenizerFunction(): string {
 export function calculateReadabilityScore(text: string): number {
   const tokens = tokenize(text);
   const totalLength = text.length;
-  
+
   if (totalLength === 0) return 0;
-  
+
   // 平均トークン長
   const avgTokenLength = tokens.reduce((sum, token) => sum + token.length, 0) / tokens.length;
-  
+
   // 句読点の密度
   const punctuationCount = (text.match(/[、。！？]/g) || []).length;
   const punctuationDensity = punctuationCount / tokens.length;
-  
+
   // 漢字の比率
   const kanjiCount = (text.match(/[\u4E00-\u9FAF]/g) || []).length;
   const kanjiRatio = kanjiCount / totalLength;
-  
+
   // スコア計算（簡易版）
   let score = 100;
-  
+
   // トークンが長すぎると読みにくい
   if (avgTokenLength > 4) score -= (avgTokenLength - 4) * 10;
-  
+
   // 句読点が少なすぎても多すぎても読みにくい
   const idealPunctuationDensity = 0.1;
   score -= Math.abs(punctuationDensity - idealPunctuationDensity) * 50;
-  
+
   // 漢字が多すぎると読みにくい
   if (kanjiRatio > 0.4) score -= (kanjiRatio - 0.4) * 50;
-  
+
   return Math.max(0, Math.min(100, score));
 }
