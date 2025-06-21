@@ -114,4 +114,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('session-concluded', (_, data) => callback(data));
     },
   },
+  
+  // プロット管理関連
+  plots: {
+    create: (data: any) =>
+      ipcRenderer.invoke('plots:create', data),
+    fork: (plotId: string, modifications: any) =>
+      ipcRenderer.invoke('plots:fork', plotId, modifications),
+    get: (plotId: string) =>
+      ipcRenderer.invoke('plots:get', plotId),
+    history: (projectId: string) =>
+      ipcRenderer.invoke('plots:history', projectId),
+    updateStatus: (plotId: string, status: string) =>
+      ipcRenderer.invoke('plots:updateStatus', plotId, status),
+  },
 });

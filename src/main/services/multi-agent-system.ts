@@ -33,6 +33,7 @@ export interface AgentMessage {
     confidence?: number;
     emotionalTone?: string;
     tokensUsed?: number;
+    threadId?: string;
   };
 }
 
@@ -262,7 +263,7 @@ ${roleSpecific[this.role]}
       metadata: {
         confidence: 0.8,
         emotionalTone: this.detectEmotionalTone(responseContent),
-        threadId: this.threadId,
+        threadId: this.threadId || undefined,
       },
     };
 

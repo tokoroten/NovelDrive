@@ -2,6 +2,7 @@ import { ipcMain } from 'electron';
 import { v4 as uuidv4 } from 'uuid';
 import { extractInspiration } from './openai-service';
 import { generateEmbedding } from './openai-service';
+import { getSearchTokens } from './japanese-tokenizer';
 
 interface AnythingBoxInput {
   content: string;
@@ -229,8 +230,8 @@ async function saveProcessedItems(
         embedding,
       };
 
-      // knowledge:saveハンドラーを通じて保存
-      const result = await ipcMain.handle('knowledge:save', null, knowledge);
+      // データベースに直接保存
+      const result = await saveKnowledgeItem(conn, knowledge);
       
       if (result.success) {
         saved++;
@@ -244,6 +245,98 @@ async function saveProcessedItems(
   }
 
   return { saved, failed };
+}
+
+/**
+ * ナレッジアイテムをデータベースに保存
+ */
+async function saveKnowledgeItem(conn: any, knowledge: any): Promise<any> {
+  // URLから生成された場合、既に存在しないかチェック
+  const sourceUrl = knowledge.metadata?.url || knowledge.sourceUrl;
+  if (sourceUrl) {
+    const existingCheck = await new Promise<boolean>((resolve) => {
+      conn.all(
+        'SELECT id FROM knowledge WHERE source_url = ? LIMIT 1',
+        [sourceUrl],
+        (err: any, rows: any[]) => {
+          if (err) {
+            console.error('URL check error:', err);
+            resolve(false);
+          } else {
+            resolve(rows && rows.length > 0);
+          }
+        }
+      );
+    });
+    
+    if (existingCheck) {
+      return { 
+        success: false, 
+        error: 'URL already exists in knowledge base',
+        duplicate: true 
+      };
+    }
+  }
+  
+  // 検索用トークンを生成
+  const titleTokens = getSearchTokens(knowledge.title || '');
+  const contentTokens = getSearchTokens(knowledge.content || '');
+  const searchTokens = [...new Set([...titleTokens, ...contentTokens])].join(' ');
+  
+  // ベクトル埋め込みを生成（まだない場合）
+  let embedding = knowledge.embedding;
+  if (!embedding && knowledge.content) {
+    try {
+      embedding = await generateEmbedding(knowledge.title + ' ' + knowledge.content);
+    } catch (error) {
+      console.warn('Failed to generate embedding:', error);
+    }
+  }
+  
+  const sql = `
+    INSERT INTO knowledge (id, title, content, type, project_id, embedding, metadata, search_tokens, source_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      title = excluded.title,
+      content = excluded.content,
+      type = excluded.type,
+      project_id = excluded.project_id,
+      embedding = excluded.embedding,
+      metadata = excluded.metadata,
+      search_tokens = excluded.search_tokens,
+      source_url = excluded.source_url,
+      updated_at = CURRENT_TIMESTAMP
+  `;
+  
+  return new Promise((resolve) => {
+    conn.run(sql, [
+      knowledge.id,
+      knowledge.title,
+      knowledge.content,
+      knowledge.type,
+      knowledge.projectId || null,
+      JSON.stringify(embedding || null),
+      JSON.stringify(knowledge.metadata || {}),
+      searchTokens,
+      sourceUrl || null
+    ], (err: any) => {
+      if (err) {
+        // UNIQUE制約違反の場合
+        if (err.message && err.message.includes('UNIQUE constraint failed')) {
+          resolve({ 
+            success: false, 
+            error: 'URL already exists in knowledge base',
+            duplicate: true 
+          });
+        } else {
+          console.error('Knowledge save error:', err);
+          resolve({ success: false, error: err.message });
+        }
+      } else {
+        resolve({ success: true, searchTokens, embedding: !!embedding });
+      }
+    });
+  });
 }
 
 /**

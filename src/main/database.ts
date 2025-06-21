@@ -8,6 +8,7 @@ import { setupSerendipitySearchHandlers } from './services/serendipity-search';
 import { setupCrawlerHandlers } from './services/web-crawler';
 import { setupAnythingBoxHandlers } from './services/anything-box';
 import { setupAgentHandlers } from './services/agent-handlers';
+import { setupPlotHandlers } from './services/plot-management';
 
 let db: duckdb.Database | null = null;
 let conn: duckdb.Connection | null = null;
@@ -32,6 +33,7 @@ export async function initializeDatabase(): Promise<void> {
     setupCrawlerHandlers(conn);
     setupAnythingBoxHandlers(conn);
     setupAgentHandlers(conn);
+    setupPlotHandlers(conn);
     
     console.log('Database initialized successfully at:', dbPath);
   } catch (error) {
@@ -202,15 +204,15 @@ function setupIPCHandlers(): void {
     const sourceUrl = knowledge.metadata?.url || knowledge.sourceUrl;
     if (sourceUrl) {
       const existingCheck = await new Promise<boolean>((resolve) => {
-        conn!.get(
-          'SELECT id FROM knowledge WHERE source_url = ?',
+        conn!.all(
+          'SELECT id FROM knowledge WHERE source_url = ? LIMIT 1',
           [sourceUrl],
-          (err, row) => {
+          (err, rows) => {
             if (err) {
               console.error('URL check error:', err);
               resolve(false);
             } else {
-              resolve(!!row);
+              resolve(rows && rows.length > 0);
             }
           }
         );

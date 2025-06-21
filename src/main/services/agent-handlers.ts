@@ -271,5 +271,6 @@ export function setupAgentHandlers(conn: any): void {
 
 // グローバル宣言の追加
 declare global {
+  // eslint-disable-next-line no-var
   var mainWindow: any;
 }

@@ -157,7 +157,7 @@ export async function generateImage(prompt: string, options?: {
       style: options?.style || 'vivid',
     });
     
-    return response.data[0].url || '';
+    return response.data?.[0]?.url || '';
   } catch (error) {
     console.error('Failed to generate image:', error);
     throw error;

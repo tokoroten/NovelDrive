@@ -1,24 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-declare global {
-  interface Window {
-    electronAPI: {
-      agents: {
-        create: (options: any) => Promise<any>;
-        startDiscussion: (options: any) => Promise<any>;
-        pauseSession: (sessionId: string) => Promise<any>;
-        resumeSession: (sessionId: string) => Promise<any>;
-        getSession: (sessionId: string) => Promise<any>;
-        getAllSessions: () => Promise<any>;
-        getDiscussionHistory: (options?: any) => Promise<any>;
-        onMessage: (callback: (data: any) => void) => void;
-        onSessionStarted: (callback: (data: any) => void) => void;
-        onSessionConcluded: (callback: (data: any) => void) => void;
-      };
-    };
-  }
-}
-
 interface AgentConfig {
   role: 'writer' | 'editor' | 'proofreader' | 'deputy_editor';
   personality: 'experimental' | 'traditional' | 'logical' | 'emotional' | 'commercial';

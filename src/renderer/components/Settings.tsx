@@ -1,17 +1,5 @@
 import React, { useState, useEffect } from 'react';
 
-declare global {
-  interface Window {
-    electronAPI: {
-      getVersion: () => Promise<string>;
-      settings: {
-        get: (key: string) => Promise<any>;
-        set: (key: string, value: any) => Promise<void>;
-      };
-    };
-  }
-}
-
 export function Settings() {
   const [openAIKey, setOpenAIKey] = useState('');
   const [isLoading, setIsLoading] = useState(false);

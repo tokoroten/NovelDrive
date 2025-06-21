@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Settings } from './components/Settings';
 import { AnythingBox } from './components/AnythingBox';
 import { AgentMeetingRoom } from './components/AgentMeetingRoom';
+import { PlotManagement } from './components/PlotManagement';
 
 export function App() {
   const [currentView, setCurrentView] = useState<string>('dashboard');
@@ -14,6 +15,8 @@ export function App() {
         return <AnythingBox />;
       case 'agent-meeting':
         return <AgentMeetingRoom />;
+      case 'plot-management':
+        return <PlotManagement />;
       default:
         return (
           <div>

@@ -1,19 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
 
-declare global {
-  interface Window {
-    electronAPI: {
-      anythingBox: {
-        process: (input: any) => Promise<any>;
-        history: (options?: any) => Promise<any>;
-      };
-      crawler: {
-        crawl: (url: string, depth: number, options?: any) => Promise<any>;
-      };
-    };
-  }
-}
-
 interface ProcessingResult {
   originalId: string;
   inspirationCount: number;
