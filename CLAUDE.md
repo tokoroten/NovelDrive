@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-NovelDrive (小説執筆エンジン) is an AI-powered novel writing engine that mimics human creative memory and ideation processes. The project is currently in the conceptual phase with implementation planned in TypeScript.
+NovelDrive is a two-layer creative writing platform that combines a serendipitous knowledge management system with a multi-agent novel creation engine. The project aims to mimic human creative memory and ideation processes through innovative AI integration.
 
 ## Technology Stack
 
@@ -14,6 +14,7 @@ NovelDrive (小説執筆エンジン) is an AI-powered novel writing engine that
 - **Japanese Processing**: TinySegmenter
 - **Vector Search**: Vectra or Voy (TypeScript native)
 - **Full-text Search**: DuckDB FTS with Japanese tokenizer
+- **AI APIs**: OpenAI API, Anthropic API (switchable)
 
 ## Development Commands
 
@@ -33,65 +34,85 @@ npm run typecheck  # Run TypeScript type checking
 
 ## Architecture Overview
 
+### Two-Layer Architecture
+
+**Layer 1: Creative Knowledge Management**
+- Serendipity-enabled knowledge base (Obsidian/Scrapbox-like)
+- Anything Box for capturing all types of information
+- Automatic node generation and linking
+- AI-powered inspiration extraction
+
+**Layer 2: Novel Creation Engine**
+- Multi-agent system for collaborative writing
+- Plot generation, discussion, writing, and proofreading
+- Interactive human intervention at any point
+
 ### Multi-Agent System
 The system consists of multiple AI agents working in hierarchy:
 1. **Editor-in-Chief** (User) - Makes final decisions
-2. **Deputy Editor AI** - Analyzes narrative, raises potential issues
-3. **Writer AI & Editor AI** - Collaborate through discussion
-4. **Critic AI** - Proofreads and verifies consistency
+2. **Deputy Editor AI** - Analyzes narrative, raises potential issues, quality evaluation
+3. **Writer AI & Editor AI** - Collaborate through discussion (Writer AI "moderately ignores" feedback)
+4. **Proofreader AI** - Detects contradictions and consistency issues
 
 ### Core Components
 
-1. **Memory & Emergence System**
-   - Hierarchical information abstraction (Detail → Episode → Theme → Meta)
-   - Time-decay based probabilistic access
-   - Association networks for creative connections
+1. **Anything Box System**
+   - Universal input for news, social media, papers, notes
+   - Automatic inspiration extraction and node creation
+   - Preserves both original content and creative seeds
+   - Vector embedding for serendipity search
 
-2. **Fact Tracking System**
-   - Character settings and development tracking
-   - Timeline and location management
-   - World-building rules and consistency checking
-   - Foreshadowing management
+2. **Serendipity Search**
+   - High-dimensional vector space manipulation
+   - Noise injection and dimensional perturbation
+   - "Middle distance" discovery for unexpected connections
+   - Time-aware retrieval for memory simulation
 
-3. **Idea Management System**
-   - "Anything Box" for unclassified ideas
-   - Idea maturation over time
-   - Chemical reaction generator for combining ideas
-   - Context-aware idea retrieval
+3. **Knowledge Management**
+   - Global knowledge (shared across all projects)
+   - Project-specific knowledge (characters, world settings)
+   - Automatic linking based on content analysis
+   - Visual graph representation
 
-4. **Data Storage**
-   - DuckDB for structured data and full-text search
-   - Vector embeddings for semantic similarity
-   - JSON storage for flexible schemas
+4. **Plot & Writing Management**
+   - Version control for plots (A → A' → A'')
+   - Multi-agent discussion and refinement
+   - Chapter-by-chapter writing with real-time checks
+   - Feedback loop to knowledge base
 
-## Implementation Phases
+## Key Features
 
-**Phase 1**: Foundation
-- Electron + TypeScript setup
-- DuckDB WASM integration
-- Basic idea management UI
+### Operating Modes
+- **Normal Mode**: Active only when app is open
+- **24-Hour Mode**: Background autonomous creation with quality filtering
 
-**Phase 2**: AI Implementation
-- Agent dialogue systems
-- Real-time consistency checking
-- Basic memory mechanisms
+### Workflow
+1. Human inputs information into Anything Box
+2. Writer AI discovers serendipitous connections for plots
+3. Multi-agent discussion refines the plot
+4. Human intervenes via chat to guide direction
+5. Writer AI writes chapter by chapter
+6. Completed work feeds back into Layer 1 knowledge
 
-**Phase 3**: Advanced Features
-- Vector search integration
-- Fuzzy memory implementation
-- Chemical reaction generator
-
-**Phase 4**: UX Enhancement
-- Polished UI
-- Performance optimization
-- User feedback integration
+### Main Screens
+1. Dashboard
+2. Anything Box
+3. Knowledge Graph
+4. Plot Management
+5. Agent Meeting Room
+6. Writing Editor
+7. Project Knowledge
+8. Idea Gacha
+9. Analytics Dashboard
+10. Settings
 
 ## Key Design Principles
 
-1. **Mimic Human Creativity**: Implement "vague memory" that allows for serendipitous connections
-2. **Japanese-First**: Optimize for Japanese text processing and writing conventions
-3. **Local-First**: All data processing happens locally for privacy and offline capability
-4. **Emergence Over Determinism**: Allow unexpected connections rather than rigid rule-following
+1. **Serendipity-First**: Writer AI always uses serendipity search to maintain creative diversity
+2. **Moderate Ignorance**: Writer AI "moderately ignores" feedback to preserve creativity
+3. **Japanese-First**: Optimize for Japanese text processing and writing conventions
+4. **Local-First**: All data processing happens locally for privacy and offline capability
+5. **Emergence Over Determinism**: Allow unexpected connections rather than rigid rule-following
 
 ## Important Considerations
 
@@ -102,4 +123,8 @@ The system consists of multiple AI agents working in hierarchy:
 
 ## Reference Documentation
 
-See `docs/concept.md` for the detailed project concept and design philosophy.
+- `docs/concept.md` - Detailed project concept and design philosophy
+- `docs/specifications.md` - Functional specifications
+- `docs/ai-behavior-spec.md` - AI agent behavior patterns
+- `docs/workflow.md` - Complete workflow documentation
+- `docs/screen-specifications.md` - Screen and UI specifications
