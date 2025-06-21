@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import { getSearchTokens, createDuckDBTokenizerFunction } from './services/japanese-tokenizer';
 import { generateEmbedding } from './services/openai-service';
 import { setupSerendipitySearchHandlers } from './services/serendipity-search';
+import { setupCrawlerHandlers } from './services/web-crawler';
 
 let db: duckdb.Database | null = null;
 let conn: duckdb.Connection | null = null;
@@ -26,6 +27,7 @@ export async function initializeDatabase(): Promise<void> {
     // IPCハンドラーの設定
     setupIPCHandlers();
     setupSerendipitySearchHandlers(conn);
+    setupCrawlerHandlers(conn);
     
     console.log('Database initialized successfully at:', dbPath);
   } catch (error) {
@@ -72,6 +74,7 @@ async function createInitialSchema(): Promise<void> {
       project_id VARCHAR,
       embedding TEXT,
       metadata TEXT,
+      source_url VARCHAR UNIQUE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -191,6 +194,33 @@ function setupIPCHandlers(): void {
   ipcMain.handle('knowledge:save', async (_, knowledge: any) => {
     if (!conn) throw new Error('Database connection not initialized');
     
+    // URLから生成された場合、既に存在しないかチェック
+    const sourceUrl = knowledge.metadata?.url || knowledge.sourceUrl;
+    if (sourceUrl) {
+      const existingCheck = await new Promise<boolean>((resolve) => {
+        conn!.get(
+          'SELECT id FROM knowledge WHERE source_url = ?',
+          [sourceUrl],
+          (err, row) => {
+            if (err) {
+              console.error('URL check error:', err);
+              resolve(false);
+            } else {
+              resolve(!!row);
+            }
+          }
+        );
+      });
+      
+      if (existingCheck) {
+        return { 
+          success: false, 
+          error: 'URL already exists in knowledge base',
+          duplicate: true 
+        };
+      }
+    }
+    
     // 検索用トークンを生成
     const titleTokens = getSearchTokens(knowledge.title || '');
     const contentTokens = getSearchTokens(knowledge.content || '');
@@ -207,8 +237,8 @@ function setupIPCHandlers(): void {
     }
     
     const sql = `
-      INSERT INTO knowledge (id, title, content, type, project_id, embedding, metadata, search_tokens)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO knowledge (id, title, content, type, project_id, embedding, metadata, search_tokens, source_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         title = excluded.title,
         content = excluded.content,
@@ -217,6 +247,7 @@ function setupIPCHandlers(): void {
         embedding = excluded.embedding,
         metadata = excluded.metadata,
         search_tokens = excluded.search_tokens,
+        source_url = excluded.source_url,
         updated_at = CURRENT_TIMESTAMP
     `;
     
@@ -229,11 +260,21 @@ function setupIPCHandlers(): void {
         knowledge.projectId || null,
         JSON.stringify(embedding || null),
         JSON.stringify(knowledge.metadata || {}),
-        searchTokens
+        searchTokens,
+        sourceUrl || null
       ], (err) => {
         if (err) {
-          console.error('Knowledge save error:', err);
-          reject(err);
+          // UNIQUE制約違反の場合
+          if (err.message && err.message.includes('UNIQUE constraint failed')) {
+            resolve({ 
+              success: false, 
+              error: 'URL already exists in knowledge base',
+              duplicate: true 
+            });
+          } else {
+            console.error('Knowledge save error:', err);
+            reject(err);
+          }
         } else {
           resolve({ success: true, searchTokens, embedding: !!embedding });
         }
