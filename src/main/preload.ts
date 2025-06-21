@@ -41,6 +41,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     chat: (messages: any[], options?: any) => 
       ipcRenderer.invoke('ai:chat', messages, options),
     embed: (text: string) => ipcRenderer.invoke('ai:embed', text),
+    generateImage: (prompt: string, options?: any) =>
+      ipcRenderer.invoke('ai:generateImage', prompt, options),
+    extractInspiration: (text: string, type: string) =>
+      ipcRenderer.invoke('ai:extractInspiration', text, type),
+    extractContent: (html: string, url: string) =>
+      ipcRenderer.invoke('ai:extractContent', html, url),
+  },
+  
+  // 検索関連
+  search: {
+    serendipity: (query: string, options?: any) =>
+      ipcRenderer.invoke('search:serendipity', query, options),
+    hybrid: (query: string, options?: any) =>
+      ipcRenderer.invoke('search:hybrid', query, options),
+    related: (itemId: string, options?: any) =>
+      ipcRenderer.invoke('search:related', itemId, options),
   },
   
   // Webクローラー関連

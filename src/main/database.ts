@@ -3,6 +3,8 @@ import * as duckdb from 'duckdb';
 import * as path from 'path';
 import * as fs from 'fs';
 import { getSearchTokens, createDuckDBTokenizerFunction } from './services/japanese-tokenizer';
+import { generateEmbedding } from './services/openai-service';
+import { setupSerendipitySearchHandlers } from './services/serendipity-search';
 
 let db: duckdb.Database | null = null;
 let conn: duckdb.Connection | null = null;
@@ -23,6 +25,7 @@ export async function initializeDatabase(): Promise<void> {
     
     // IPCハンドラーの設定
     setupIPCHandlers();
+    setupSerendipitySearchHandlers(conn);
     
     console.log('Database initialized successfully at:', dbPath);
   } catch (error) {
@@ -193,6 +196,16 @@ function setupIPCHandlers(): void {
     const contentTokens = getSearchTokens(knowledge.content || '');
     const searchTokens = [...new Set([...titleTokens, ...contentTokens])].join(' ');
     
+    // ベクトル埋め込みを生成（まだない場合）
+    let embedding = knowledge.embedding;
+    if (!embedding && knowledge.content) {
+      try {
+        embedding = await generateEmbedding(knowledge.title + ' ' + knowledge.content);
+      } catch (error) {
+        console.warn('Failed to generate embedding:', error);
+      }
+    }
+    
     const sql = `
       INSERT INTO knowledge (id, title, content, type, project_id, embedding, metadata, search_tokens)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -214,7 +227,7 @@ function setupIPCHandlers(): void {
         knowledge.content,
         knowledge.type,
         knowledge.projectId || null,
-        JSON.stringify(knowledge.embedding || null),
+        JSON.stringify(embedding || null),
         JSON.stringify(knowledge.metadata || {}),
         searchTokens
       ], (err) => {
@@ -222,7 +235,7 @@ function setupIPCHandlers(): void {
           console.error('Knowledge save error:', err);
           reject(err);
         } else {
-          resolve({ success: true, searchTokens });
+          resolve({ success: true, searchTokens, embedding: !!embedding });
         }
       });
     });
