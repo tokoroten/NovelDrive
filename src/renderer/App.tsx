@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Settings } from './components/Settings';
+import { AnythingBox } from './components/AnythingBox';
 
 export function App() {
   const [currentView, setCurrentView] = useState<string>('dashboard');
@@ -8,6 +9,8 @@ export function App() {
     switch (currentView) {
       case 'settings':
         return <Settings />;
+      case 'anything-box':
+        return <AnythingBox />;
       default:
         return (
           <div>

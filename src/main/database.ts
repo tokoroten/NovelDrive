@@ -6,6 +6,7 @@ import { getSearchTokens, createDuckDBTokenizerFunction } from './services/japan
 import { generateEmbedding } from './services/openai-service';
 import { setupSerendipitySearchHandlers } from './services/serendipity-search';
 import { setupCrawlerHandlers } from './services/web-crawler';
+import { setupAnythingBoxHandlers } from './services/anything-box';
 
 let db: duckdb.Database | null = null;
 let conn: duckdb.Connection | null = null;
@@ -28,6 +29,7 @@ export async function initializeDatabase(): Promise<void> {
     setupIPCHandlers();
     setupSerendipitySearchHandlers(conn);
     setupCrawlerHandlers(conn);
+    setupAnythingBoxHandlers(conn);
     
     console.log('Database initialized successfully at:', dbPath);
   } catch (error) {

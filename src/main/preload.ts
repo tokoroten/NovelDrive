@@ -64,4 +64,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     crawl: (url: string, depth: number, options?: any) =>
       ipcRenderer.invoke('crawler:crawl', url, depth, options),
   },
+  
+  // Anything Box関連
+  anythingBox: {
+    process: (input: any) =>
+      ipcRenderer.invoke('anythingBox:process', input),
+    history: (options?: any) =>
+      ipcRenderer.invoke('anythingBox:history', options),
+  },
 });
