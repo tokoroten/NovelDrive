@@ -32,7 +32,7 @@ NovelDriveは、人間の創造的な記憶と発想のプロセスを模倣し�
 - **日本語処理**: TinySegmenter
 - **ベクトル検索**: Vectra/Voy（TypeScriptネイティブ）
 - **全文検索**: DuckDB FTS + 日本語トークナイザー
-- **AI API**: OpenAI API、Anthropic API（切り替え可能）
+- **AI API**: OpenAI API
 
 ## コア機能
 

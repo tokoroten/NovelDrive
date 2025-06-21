@@ -2,6 +2,22 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 開発日誌を作成すること
+
+`dev_diary/yyyy-mm-dd_hhmm.md` の形式で開発日誌を作成してください。内容は以下の通りです。
+
+- **日付**: yyyy-mm-dd hh:mm
+- **作業内容**:
+  - 何をしたか
+  - どのような問題が発生したか
+  - どのように解決したか
+- **次回の予定**:
+
+- **感想**: 開発の進捗や学び
+- **気分**: なんかいい感じのことを書く
+- **愚痴**: なんかいい感じのことを書く
+
+
 ## Project Overview
 
 NovelDrive is a two-layer creative writing platform that combines a serendipitous knowledge management system with a multi-agent novel creation engine. The project aims to mimic human creative memory and ideation processes through innovative AI integration.
@@ -12,9 +28,9 @@ NovelDrive is a two-layer creative writing platform that combines a serendipitou
 - **Desktop Framework**: Electron
 - **Database**: DuckDB WASM
 - **Japanese Processing**: TinySegmenter
-- **Vector Search**: Vectra or Voy (TypeScript native)
+- **Vector Search**: DuckDB VSS extension
 - **Full-text Search**: DuckDB FTS with Japanese tokenizer
-- **AI APIs**: OpenAI API, Anthropic API (switchable)
+- **AI APIs**: OpenAI API (GPT-4, DALL-E)
 
 ## Development Commands
 
@@ -22,14 +38,14 @@ Since the project is not yet implemented, here are the planned/expected commands
 
 ```bash
 # Initial setup (once implemented)
-npm install
+pnpm install
 
 # Development
-npm run dev        # Start Electron app in development mode
-npm run build      # Build production version
-npm run test       # Run tests
-npm run lint       # Run ESLint
-npm run typecheck  # Run TypeScript type checking
+pnpm run dev        # Start Electron app in development mode
+pnpm run build      # Build production version
+pnpm run test       # Run tests
+pnpm run lint       # Run ESLint
+pnpm run typecheck  # Run TypeScript type checking
 ```
 
 ## Architecture Overview

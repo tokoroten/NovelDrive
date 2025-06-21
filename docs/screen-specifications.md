@@ -143,7 +143,7 @@
 
 ### 10. 設定画面
 - **API設定**
-  - OpenAI/Anthropic APIキー
+  - OpenAI APIキー
   - 使用モデル選択
 - **エージェント設定**
   - 各AIの性格パラメータ

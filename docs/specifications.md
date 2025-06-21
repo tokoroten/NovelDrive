@@ -170,6 +170,46 @@ NovelDriveは、知識ネットワーク型の創造的執筆プラットフォ�
 - メタデータフィルタリング（時期、タグ、カテゴリ）
 - ハイブリッド検索とリランキング
 
+#### ハイブリッド検索の実装
+参考: https://voluntas.ghost.io/duckdb-hybrid-search/
+
+1. **全文検索（FTS）**: BM25スコアリングで関連文書を取得
+2. **ベクトル検索（VSS）**: コサイン類似度で意味的に近い文書を取得
+3. **リランキング**: 両方の結果をマージして再評価
+
+#### リランキングアルゴリズム
+```sql
+-- 全文検索結果とベクトル検索結果を統合
+WITH fts_results AS (
+  SELECT id, content, bm25_score 
+  FROM nodes_fts 
+  WHERE nodes_fts MATCH ?
+),
+vss_results AS (
+  SELECT id, content, 
+    1 - array_cosine_distance(embeddings, ?::FLOAT[1024]) as similarity_score
+  FROM nodes
+  ORDER BY embeddings <=> ?::FLOAT[1024]
+  LIMIT 50
+),
+-- 結果をマージしてスコアを正規化
+merged_results AS (
+  SELECT 
+    COALESCE(f.id, v.id) as id,
+    COALESCE(f.content, v.content) as content,
+    COALESCE(f.bm25_score, 0) as fts_score,
+    COALESCE(v.similarity_score, 0) as vss_score,
+    -- ハイブリッドスコア計算
+    (0.3 * COALESCE(f.bm25_score, 0) + 
+     0.7 * COALESCE(v.similarity_score, 0)) as hybrid_score
+  FROM fts_results f
+  FULL OUTER JOIN vss_results v ON f.id = v.id
+)
+SELECT * FROM merged_results
+ORDER BY hybrid_score DESC
+LIMIT 20;
+```
+
 ## 4. UI/UX設計
 
 ### 4.1 画面構成
@@ -203,9 +243,8 @@ NovelDriveは、知識ネットワーク型の創造的執筆プラットフォ�
 
 ### 6.1 API統合
 - OpenAI API（GPT-4、DALL-E）
-- Anthropic API（Claude）
-- 設定での切り替え可能
 - Thread機能の活用
+- API設定の一元管理
 
 ### 6.2 パフォーマンス
 - Web Worker での重い処理
