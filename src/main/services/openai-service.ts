@@ -1,7 +1,21 @@
 import OpenAI from 'openai';
 import { ipcMain } from 'electron';
+import dotenv from 'dotenv';
+import { getApiUsageLogger, ApiUsageLog } from './api-usage-logger';
+import { initializePlotGenerationWorkflow } from './service-initializer';
+import { getDatabase } from '../database';
+
+// Load environment variables
+dotenv.config();
 
 let openai: OpenAI | null = null;
+
+// Auto-initialize from environment if available
+if (process.env.OPENAI_API_KEY) {
+  openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+}
 
 /**
  * OpenAI APIクライアントを初期化
@@ -15,6 +29,28 @@ export function initializeOpenAI(apiKey: string): void {
   openai = new OpenAI({
     apiKey: apiKey,
   });
+
+  // OpenAIが初期化されたら、依存するサービスを初期化
+  tryInitializeDependentServices();
+}
+
+/**
+ * OpenAIに依存するサービスの初期化を試行
+ */
+function tryInitializeDependentServices(): void {
+  if (!openai) return;
+
+  try {
+    const db = getDatabase();
+    const apiLogger = getApiUsageLogger();
+    
+    if (db && apiLogger) {
+      const conn = db.connect();
+      initializePlotGenerationWorkflow(openai, conn, apiLogger);
+    }
+  } catch (error) {
+    console.error('Failed to initialize dependent services:', error);
+  }
 }
 
 /**
@@ -25,6 +61,13 @@ export function updateApiKey(apiKey: string): void {
 }
 
 /**
+ * OpenAIクライアントのインスタンスを取得
+ */
+export function getOpenAI(): OpenAI | null {
+  return openai;
+}
+
+/**
  * テキストからベクトル埋め込みを生成
  */
 export async function generateEmbedding(text: string): Promise<number[] | null> {
@@ -32,14 +75,53 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
     throw new Error('OpenAI client not initialized. Please set API key in settings.');
   }
 
+  const startTime = Date.now();
+  const logger = getApiUsageLogger();
+  const model = 'text-embedding-3-small';
+  
+  const logData: ApiUsageLog = {
+    apiType: 'embedding',
+    provider: 'openai',
+    model,
+    operation: 'generateEmbedding',
+    status: 'success',
+    requestData: { text: text.substring(0, 100) } // 最初の100文字のみログに記録
+  };
+
   try {
     const response = await openai.embeddings.create({
-      model: 'text-embedding-3-small',
+      model,
       input: text,
     });
 
+    // トークン数を計算（概算）
+    const inputTokens = Math.ceil(text.length / 4);
+    
+    logData.inputTokens = inputTokens;
+    logData.totalTokens = inputTokens;
+    logData.durationMs = Date.now() - startTime;
+    logData.responseData = { 
+      dimensions: response.data[0].embedding.length,
+      model: response.model,
+      usage: response.usage
+    };
+    
+    // 使用状況をログに記録
+    await logger.log(logData).catch(err => 
+      console.error('Failed to log API usage:', err)
+    );
+
     return response.data[0].embedding;
   } catch (error) {
+    logData.status = 'error';
+    logData.errorMessage = error instanceof Error ? error.message : String(error);
+    logData.durationMs = Date.now() - startTime;
+    
+    // エラーをログに記録
+    await logger.log(logData).catch(err => 
+      console.error('Failed to log API error:', err)
+    );
+    
     console.error('Failed to generate embedding:', error);
     throw error;
   }
@@ -61,17 +143,63 @@ export async function generateChatCompletion(
     throw new Error('OpenAI client not initialized. Please set API key in settings.');
   }
 
+  const startTime = Date.now();
+  const logger = getApiUsageLogger();
+  const model = options?.model || 'gpt-4-turbo-preview';
+  
+  const logData: ApiUsageLog = {
+    apiType: 'chat',
+    provider: 'openai',
+    model,
+    operation: 'generateChatCompletion',
+    status: 'success',
+    requestData: {
+      messageCount: messages.length,
+      temperature: options?.temperature ?? 0.7,
+      maxTokens: options?.maxTokens,
+      topP: options?.topP ?? 1.0
+    }
+  };
+
   try {
     const response = await openai.chat.completions.create({
-      model: options?.model || 'gpt-4-turbo-preview',
+      model,
       messages: messages,
       temperature: options?.temperature ?? 0.7,
       max_tokens: options?.maxTokens,
       top_p: options?.topP ?? 1.0,
     });
 
+    // トークン使用量を記録
+    if (response.usage) {
+      logData.inputTokens = response.usage.prompt_tokens;
+      logData.outputTokens = response.usage.completion_tokens;
+      logData.totalTokens = response.usage.total_tokens;
+    }
+    
+    logData.durationMs = Date.now() - startTime;
+    logData.responseData = {
+      model: response.model,
+      finishReason: response.choices[0].finish_reason,
+      usage: response.usage
+    };
+    
+    // 使用状況をログに記録
+    await logger.log(logData).catch(err => 
+      console.error('Failed to log API usage:', err)
+    );
+
     return response.choices[0].message.content || '';
   } catch (error) {
+    logData.status = 'error';
+    logData.errorMessage = error instanceof Error ? error.message : String(error);
+    logData.durationMs = Date.now() - startTime;
+    
+    // エラーをログに記録
+    await logger.log(logData).catch(err => 
+      console.error('Failed to log API error:', err)
+    );
+    
     console.error('Failed to generate chat completion:', error);
     throw error;
   }
@@ -87,7 +215,7 @@ export async function extractMainContent(
   title: string;
   content: string;
   summary: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }> {
   if (!openai) {
     throw new Error('OpenAI client not initialized. Please set API key in settings.');
@@ -153,18 +281,59 @@ export async function generateImage(
     throw new Error('OpenAI client not initialized. Please set API key in settings.');
   }
 
+  const startTime = Date.now();
+  const logger = getApiUsageLogger();
+  const model = 'dall-e-3';
+  const size = options?.size || '1024x1024';
+  const quality = options?.quality || 'standard';
+  
+  const logData: ApiUsageLog = {
+    apiType: 'image',
+    provider: 'openai',
+    model,
+    operation: 'generateImage',
+    status: 'success',
+    requestData: {
+      prompt: prompt.substring(0, 100), // 最初の100文字のみログに記録
+      size,
+      quality,
+      style: options?.style || 'vivid'
+    },
+    metadata: { size, quality }
+  };
+
   try {
     const response = await openai.images.generate({
-      model: 'dall-e-3',
+      model,
       prompt: prompt,
       n: 1,
-      size: options?.size || '1024x1024',
-      quality: options?.quality || 'standard',
+      size,
+      quality,
       style: options?.style || 'vivid',
     });
 
+    logData.durationMs = Date.now() - startTime;
+    logData.responseData = {
+      revised_prompt: response.data?.[0]?.revised_prompt,
+      hasUrl: !!response.data?.[0]?.url
+    };
+    
+    // 使用状況をログに記録
+    await logger.log(logData).catch(err => 
+      console.error('Failed to log API usage:', err)
+    );
+
     return response.data?.[0]?.url || '';
   } catch (error) {
+    logData.status = 'error';
+    logData.errorMessage = error instanceof Error ? error.message : String(error);
+    logData.durationMs = Date.now() - startTime;
+    
+    // エラーをログに記録
+    await logger.log(logData).catch(err => 
+      console.error('Failed to log API error:', err)
+    );
+    
     console.error('Failed to generate image:', error);
     throw error;
   }
@@ -234,12 +403,41 @@ export async function createThread(metadata?: Record<string, any>): Promise<stri
     throw new Error('OpenAI client not initialized. Please set API key in settings.');
   }
 
+  const startTime = Date.now();
+  const logger = getApiUsageLogger();
+  
+  const logData: ApiUsageLog = {
+    apiType: 'thread',
+    provider: 'openai',
+    operation: 'createThread',
+    status: 'success',
+    requestData: { metadata }
+  };
+
   try {
     const thread = await openai.beta.threads.create({
       metadata,
     });
+    
+    logData.durationMs = Date.now() - startTime;
+    logData.responseData = { threadId: thread.id };
+    
+    // 使用状況をログに記録
+    await logger.log(logData).catch(err => 
+      console.error('Failed to log API usage:', err)
+    );
+    
     return thread.id;
   } catch (error) {
+    logData.status = 'error';
+    logData.errorMessage = error instanceof Error ? error.message : String(error);
+    logData.durationMs = Date.now() - startTime;
+    
+    // エラーをログに記録
+    await logger.log(logData).catch(err => 
+      console.error('Failed to log API error:', err)
+    );
+    
     console.error('Failed to create thread:', error);
     throw error;
   }
@@ -308,6 +506,17 @@ export async function runAssistant(
     throw new Error('OpenAI client not initialized. Please set API key in settings.');
   }
 
+  const startTime = Date.now();
+  const logger = getApiUsageLogger();
+  
+  const logData: ApiUsageLog = {
+    apiType: 'assistant',
+    provider: 'openai',
+    operation: 'runAssistant',
+    status: 'success',
+    requestData: { threadId, assistantId, hasInstructions: !!instructions }
+  };
+
   try {
     // Runを作成
     const run = await openai.beta.threads.runs.create(threadId, {
@@ -328,8 +537,38 @@ export async function runAssistant(
 
     // メッセージを取得
     const messages = await openai.beta.threads.messages.list(threadId);
+    
+    // 使用状況を記録（Assistants APIはトークン使用量を提供する場合がある）
+    if (runStatus.usage) {
+      logData.inputTokens = runStatus.usage.prompt_tokens;
+      logData.outputTokens = runStatus.usage.completion_tokens;
+      logData.totalTokens = runStatus.usage.total_tokens;
+    }
+    
+    logData.durationMs = Date.now() - startTime;
+    logData.responseData = {
+      runId: run.id,
+      status: runStatus.status,
+      messageCount: messages.data.length,
+      usage: runStatus.usage
+    };
+    
+    // 使用状況をログに記録
+    await logger.log(logData).catch(err => 
+      console.error('Failed to log API usage:', err)
+    );
+    
     return messages.data;
   } catch (error) {
+    logData.status = 'error';
+    logData.errorMessage = error instanceof Error ? error.message : String(error);
+    logData.durationMs = Date.now() - startTime;
+    
+    // エラーをログに記録
+    await logger.log(logData).catch(err => 
+      console.error('Failed to log API error:', err)
+    );
+    
     console.error('Failed to run assistant:', error);
     throw error;
   }

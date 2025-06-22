@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { ja } from 'date-fns/locale';
 
@@ -13,7 +13,7 @@ interface Chapter {
   characterCount: number;
   createdAt: string;
   updatedAt: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 interface WritingSession {
@@ -59,7 +59,7 @@ export function WritingEditor() {
   // 初期データの読み込み
   useEffect(() => {
     loadPlots();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // プロット選択時にチャプターを読み込み
   useEffect(() => {
@@ -86,7 +86,7 @@ export function WritingEditor() {
         clearTimeout(autoSaveTimeout.current);
       }
     };
-  }, [content, selectedChapter]);
+  }, [content, selectedChapter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 文字数・単語数のカウント
   useEffect(() => {
@@ -111,7 +111,7 @@ export function WritingEditor() {
         setSelectedPlot(result[0].id);
       }
     } catch (error) {
-      console.error('Failed to load plots:', error);
+      // Failed to load plots
     }
   };
 
@@ -125,7 +125,7 @@ export function WritingEditor() {
       `;
       const result = await window.electronAPI.database.query(sql, [plotId]);
       
-      const chaptersWithCounts = result.map((chapter: any) => ({
+      const chaptersWithCounts = result.map((chapter: Record<string, unknown>) => ({
         ...chapter,
         plotId: chapter.plot_id,
         createdAt: chapter.created_at,
@@ -137,7 +137,7 @@ export function WritingEditor() {
       
       setChapters(chaptersWithCounts);
     } catch (error) {
-      console.error('Failed to load chapters:', error);
+      // Failed to load chapters
     }
   };
 
@@ -164,7 +164,7 @@ export function WritingEditor() {
         setContent(created.content);
       }
     } catch (error) {
-      console.error('Failed to create chapter:', error);
+      // Failed to create chapter
     }
   };
 
@@ -190,7 +190,7 @@ export function WritingEditor() {
         )
       );
     } catch (error) {
-      console.error('Failed to save chapter:', error);
+      // Failed to save chapter
       setAutoSaveStatus('error');
     }
   };
@@ -243,7 +243,7 @@ export function WritingEditor() {
         setAgentSuggestions(prev => [...prev, ...suggestions]);
       }
     } catch (error) {
-      console.error('Failed to get AI suggestions:', error);
+      // Failed to get AI suggestions
     }
   };
 
@@ -356,6 +356,18 @@ export function WritingEditor() {
                     value={selectedChapter.title}
                     onChange={(e) => {
                       setSelectedChapter({ ...selectedChapter, title: e.target.value });
+                    }}
+                    onBlur={async () => {
+                      // Save title change
+                      if (selectedChapter && selectedChapter.title) {
+                        try {
+                          await window.electronAPI.chapters.update(selectedChapter.id, {
+                            title: selectedChapter.title,
+                          });
+                        } catch (error) {
+                          console.error('Failed to update title:', error);
+                        }
+                      }
                     }}
                     className="text-xl font-semibold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-primary-500 focus:outline-none px-1"
                   />

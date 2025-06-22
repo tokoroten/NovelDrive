@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron';
+import * as duckdb from 'duckdb';
 import { MultiAgentOrchestrator, AgentRole, PersonalityType } from './multi-agent-system';
 
 let orchestrator: MultiAgentOrchestrator | null = null;
@@ -6,7 +7,7 @@ let orchestrator: MultiAgentOrchestrator | null = null;
 /**
  * エージェントシステムのIPCハンドラーを設定
  */
-export function setupAgentHandlers(conn: any): void {
+export function setupAgentHandlers(conn: duckdb.Connection): void {
   // オーケストレーターの初期化
   orchestrator = new MultiAgentOrchestrator(conn);
 

@@ -1,7 +1,8 @@
-import * as TinySegmenter from 'tiny-segmenter';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const TinySegmenter = require('tiny-segmenter');
 
 // TinySegmenterのインスタンスを作成
-const segmenter = new (TinySegmenter as any)();
+const segmenter = new TinySegmenter();
 
 /**
  * 日本語テキストをトークン化する

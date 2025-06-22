@@ -1,11 +1,11 @@
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
+import * as duckdb from 'duckdb';
 import {
   createThread,
   createAssistant,
   addMessageToThread,
   runAssistant,
-  getThreadMessages,
   deleteThread,
 } from './openai-service';
 import { performSerendipitySearch } from './serendipity-search';
@@ -60,14 +60,14 @@ export class Agent extends EventEmitter {
   name: string;
   systemPrompt: string;
   temperature: number;
-  private conn: any; // DuckDB connection
+  private conn: duckdb.Connection;
   private threadId: string | null = null;
   private assistantId: string | null = null;
 
   constructor(
     role: AgentRole,
     personality: PersonalityType,
-    conn: any,
+    conn: duckdb.Connection,
     options?: {
       name?: string;
       temperature?: number;
@@ -244,7 +244,7 @@ ${roleSpecific[this.role]}
           });
         }
       } catch (error) {
-        console.error('Serendipity search error:', error);
+        // Serendipity search error
       }
     }
 
@@ -261,10 +261,13 @@ ${roleSpecific[this.role]}
     }
 
     // スレッドにメッセージを追加
-    await addMessageToThread(this.threadId!, contextMessage, 'user');
+    if (!this.threadId || !this.assistantId) {
+      throw new Error('Thread or assistant not initialized');
+    }
+    await addMessageToThread(this.threadId, contextMessage, 'user');
 
     // アシスタントを実行
-    const messages = await runAssistant(this.threadId!, this.assistantId!);
+    const messages = await runAssistant(this.threadId, this.assistantId);
 
     // 最新のアシスタントメッセージを取得
     const latestMessage = messages.find((msg) => msg.role === 'assistant');
@@ -300,7 +303,7 @@ ${roleSpecific[this.role]}
       try {
         await deleteThread(this.threadId);
       } catch (error) {
-        console.error('Failed to delete thread:', error);
+        // Failed to delete thread
       }
       this.threadId = null;
     }
@@ -332,9 +335,9 @@ ${roleSpecific[this.role]}
 export class MultiAgentOrchestrator extends EventEmitter {
   private agents: Map<string, Agent> = new Map();
   private sessions: Map<string, DiscussionSession> = new Map();
-  private conn: any;
+  private conn: duckdb.Connection;
 
-  constructor(conn: any) {
+  constructor(conn: duckdb.Connection) {
     super();
     this.conn = conn;
   }
@@ -348,7 +351,11 @@ export class MultiAgentOrchestrator extends EventEmitter {
     this.sessions.clear();
   }
 
-  async createAgent(role: AgentRole, personality: PersonalityType, options?: any): Promise<Agent> {
+  async createAgent(role: AgentRole, personality: PersonalityType, options?: {
+    name?: string;
+    temperature?: number;
+    customPrompt?: string;
+  }): Promise<Agent> {
     const agent = new Agent(role, personality, this.conn, options);
     await agent.initialize();
     this.agents.set(agent.id, agent);
@@ -394,7 +401,7 @@ export class MultiAgentOrchestrator extends EventEmitter {
           // メッセージ間の遅延（リアルタイム感を演出）
           await new Promise((resolve) => setTimeout(resolve, 1000));
         } catch (error) {
-          console.error(`Agent ${agent.name} error:`, error);
+          // Agent error
         }
       }
     }
@@ -479,7 +486,7 @@ export class MultiAgentOrchestrator extends EventEmitter {
           session.startTime,
           session.endTime || new Date(),
         ],
-        (err: any) => {
+        (err: Error | null) => {
           if (err) reject(err);
           else resolve();
         }

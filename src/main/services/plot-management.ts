@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { ipcMain } from 'electron';
+import * as duckdb from 'duckdb';
 
 export interface PlotNode {
   id: string;
@@ -71,9 +72,9 @@ export interface EmotionalBalance {
 }
 
 export class PlotManager {
-  private conn: any;
+  private conn: duckdb.Connection;
 
-  constructor(conn: any) {
+  constructor(conn: duckdb.Connection) {
     this.conn = conn;
   }
 
@@ -318,17 +319,17 @@ export class PlotManager {
    */
   async getPlot(plotId: string): Promise<PlotNode | null> {
     return new Promise((resolve, reject) => {
-      this.conn.get('SELECT * FROM plots WHERE id = ?', [plotId], (err: any, row: any) => {
-        if (err) reject(err);
-        else if (!row) resolve(null);
-        else {
-          resolve({
-            ...row,
-            structure: JSON.parse(row.structure),
-            createdAt: new Date(row.created_at),
-            updatedAt: new Date(row.updated_at),
-          });
-        }
+      this.conn.all('SELECT * FROM plots WHERE id = ?', [plotId], (err: any, rows: any[]) => {
+        if (err) return reject(err);
+        const row = rows?.[0];
+        if (!row) return resolve(null);
+        
+        resolve({
+          ...row,
+          structure: JSON.parse(row.structure),
+          createdAt: new Date(row.created_at),
+          updatedAt: new Date(row.updated_at),
+        });
       });
     });
   }
@@ -380,7 +381,7 @@ export class PlotManager {
 /**
  * IPCハンドラーの設定
  */
-export function setupPlotHandlers(conn: any): void {
+export function setupPlotHandlers(conn: duckdb.Connection): void {
   const manager = new PlotManager(conn);
 
   ipcMain.handle('plots:create', async (_, data) => {

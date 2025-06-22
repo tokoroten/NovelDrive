@@ -1,56 +1,80 @@
 import { ipcMain, app } from 'electron';
 import * as duckdb from 'duckdb';
 import * as path from 'path';
-import * as fs from 'fs';
 import { getSearchTokens, createDuckDBTokenizerFunction } from './services/japanese-tokenizer';
-import { generateEmbedding } from './services/openai-service';
+import { LocalEmbeddingService } from './services/local-embedding-service';
 import { setupSerendipitySearchHandlers } from './services/serendipity-search';
 import { setupCrawlerHandlers } from './services/web-crawler';
 import { setupAnythingBoxHandlers } from './services/anything-box';
 import { setupAgentHandlers } from './services/agent-handlers';
 import { setupPlotHandlers } from './services/plot-management';
 import { setupChapterHandlers } from './services/chapter-management';
+import { DatabaseMigration } from './services/database-migration';
+import { setupDuckDBVSS } from './services/duckdb-vss-setup';
+import { setupDatabaseHandlers } from './services/database-handlers';
+import { ApiUsageLogger } from './services/api-usage-logger';
+
+interface KnowledgeItem {
+  id: string;
+  title: string;
+  content: string;
+  type: string;
+  projectId?: string;
+  embedding?: number[];
+  metadata?: Record<string, unknown>;
+  sourceUrl?: string;
+}
 
 let db: duckdb.Database | null = null;
 let conn: duckdb.Connection | null = null;
 
 export async function initializeDatabase(): Promise<void> {
+  // データベースファイルのパスを設定
+  const dbPath = path.join(app.getPath('userData'), 'noveldrive.db');
+
+  // DuckDBインスタンスの作成
+  db = new duckdb.Database(dbPath);
+
+  // 接続の作成
+  conn = db.connect();
+
+  // マイグレーションの実行
+  const migration = new DatabaseMigration(db);
+  await migration.migrate();
+
+  // DuckDB VSSのセットアップ
   try {
-    // データベースファイルのパスを設定
-    const dbPath = path.join(app.getPath('userData'), 'noveldrive.db');
-
-    // DuckDBインスタンスの作成
-    db = new duckdb.Database(dbPath);
-
-    // 接続の作成
-    conn = db.connect();
-
-    // 初期スキーマの作成
-    await createInitialSchema();
-
-    // IPCハンドラーの設定
-    setupIPCHandlers();
-    setupSerendipitySearchHandlers(conn);
-    setupCrawlerHandlers(conn);
-    setupAnythingBoxHandlers(conn);
-    setupAgentHandlers(conn);
-    setupPlotHandlers(conn);
-    setupChapterHandlers(conn);
-
-    console.log('Database initialized successfully at:', dbPath);
+    await setupDuckDBVSS(conn);
   } catch (error) {
-    console.error('Failed to initialize database:', error);
-    throw error;
+    console.warn('DuckDB VSS setup failed (will use fallback):', error);
   }
+
+  // 初期スキーマの作成（互換性のため残す）
+  await createInitialSchema();
+
+  // ApiUsageLoggerの初期化
+  const apiLogger = new ApiUsageLogger(db);
+
+  // IPCハンドラーの設定
+  setupIPCHandlers();
+  setupDatabaseHandlers(conn);
+  setupSerendipitySearchHandlers(conn);
+  setupCrawlerHandlers(conn);
+  setupAnythingBoxHandlers(conn);
+  setupAgentHandlers(conn);
+  setupPlotHandlers(conn);
+  setupChapterHandlers(conn);
+  
+  // ApiUsageLoggerのハンドラー設定は初期化時に実行済み
 }
 
 async function createInitialSchema(): Promise<void> {
   if (!conn) throw new Error('Database connection not initialized');
 
   // promisifyして非同期処理を扱いやすくする
-  const runAsync = (sql: string): Promise<any> => {
+  const runAsync = (sql: string): Promise<void> => {
     return new Promise((resolve, reject) => {
-      conn!.run(sql, (err) => {
+      conn?.run(sql, (err) => {
         if (err) reject(err);
         else resolve(undefined);
       });
@@ -62,14 +86,14 @@ async function createInitialSchema(): Promise<void> {
     await runAsync(`INSTALL vss;`);
     await runAsync(`LOAD vss;`);
   } catch (error) {
-    console.log('VSS extension not available, skipping...');
+    // VSS extension not available, skipping...
   }
 
   try {
     await runAsync(`INSTALL fts;`);
     await runAsync(`LOAD fts;`);
   } catch (error) {
-    console.log('FTS extension not available, skipping...');
+    // FTS extension not available, skipping...
   }
 
   // ナレッジテーブル
@@ -180,13 +204,13 @@ async function createInitialSchema(): Promise<void> {
 
 function setupIPCHandlers(): void {
   // クエリ実行
-  ipcMain.handle('db:query', async (_, sql: string, params?: any[]) => {
+  ipcMain.handle('db:query', async (_, sql: string, params?: unknown[]) => {
     if (!conn) throw new Error('Database connection not initialized');
 
     return new Promise((resolve, reject) => {
-      conn!.all(sql, params || [], (err, rows) => {
+      conn?.all(sql, params || [], (err, rows) => {
         if (err) {
-          console.error('Database query error:', err);
+          // Database query error
           reject(err);
         } else {
           resolve(rows);
@@ -196,13 +220,13 @@ function setupIPCHandlers(): void {
   });
 
   // 実行（戻り値なし）
-  ipcMain.handle('db:execute', async (_, sql: string, params?: any[]) => {
+  ipcMain.handle('db:execute', async (_, sql: string, params?: unknown[]) => {
     if (!conn) throw new Error('Database connection not initialized');
 
     return new Promise((resolve, reject) => {
-      conn!.run(sql, params || [], (err) => {
+      conn?.run(sql, params || [], (err) => {
         if (err) {
-          console.error('Database execute error:', err);
+          // Database execute error
           reject(err);
         } else {
           resolve({ success: true });
@@ -217,19 +241,19 @@ function setupIPCHandlers(): void {
   });
 
   // ナレッジの保存（日本語トークン化込み）
-  ipcMain.handle('knowledge:save', async (_, knowledge: any) => {
+  ipcMain.handle('knowledge:save', async (_, knowledge: KnowledgeItem) => {
     if (!conn) throw new Error('Database connection not initialized');
 
     // URLから生成された場合、既に存在しないかチェック
     const sourceUrl = knowledge.metadata?.url || knowledge.sourceUrl;
     if (sourceUrl) {
       const existingCheck = await new Promise<boolean>((resolve) => {
-        conn!.all(
+        conn?.all(
           'SELECT id FROM knowledge WHERE source_url = ? LIMIT 1',
           [sourceUrl],
           (err, rows) => {
             if (err) {
-              console.error('URL check error:', err);
+              // URL check error
               resolve(false);
             } else {
               resolve(rows && rows.length > 0);
@@ -256,9 +280,11 @@ function setupIPCHandlers(): void {
     let embedding = knowledge.embedding;
     if (!embedding && knowledge.content) {
       try {
-        embedding = await generateEmbedding(knowledge.title + ' ' + knowledge.content);
+        const localService = LocalEmbeddingService.getInstance();
+        await localService.initialize();
+        embedding = await localService.generateEmbedding(knowledge.title + ' ' + knowledge.content);
       } catch (error) {
-        console.warn('Failed to generate embedding:', error);
+        // Failed to generate embedding
       }
     }
 
@@ -278,7 +304,7 @@ function setupIPCHandlers(): void {
     `;
 
     return new Promise((resolve, reject) => {
-      conn!.run(
+      conn?.run(
         sql,
         [
           knowledge.id,
@@ -301,7 +327,7 @@ function setupIPCHandlers(): void {
                 duplicate: true,
               });
             } else {
-              console.error('Knowledge save error:', err);
+              // Knowledge save error
               reject(err);
             }
           } else {
@@ -331,4 +357,8 @@ export async function closeDatabase(): Promise<void> {
       resolve();
     }
   });
+}
+
+export function getDatabase(): duckdb.Database | null {
+  return db;
 }

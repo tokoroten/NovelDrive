@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { formatDistanceToNow, startOfWeek, eachDayOfInterval, format } from 'date-fns';
-import { ja } from 'date-fns/locale';
+import { eachDayOfInterval, format } from 'date-fns';
 
 interface WritingStats {
   totalWords: number;
@@ -58,34 +57,37 @@ export function AnalyticsDashboard() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const loadAnalytics = async () => {
+      setIsLoading(true);
+      try {
+        await Promise.all([
+          loadWritingStats(),
+          loadKnowledgeStats(),
+          loadAgentStats(),
+          loadActivityData(),
+        ]);
+      } catch (error) {
+        // Failed to load analytics
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
     loadAnalytics();
-  }, [timeRange]);
+  }, [timeRange]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadAnalytics = async () => {
-    setIsLoading(true);
-    try {
-      await Promise.all([
-        loadWritingStats(),
-        loadKnowledgeStats(),
-        loadAgentStats(),
-        loadActivityData(),
-      ]);
-    } catch (error) {
-      console.error('Failed to load analytics:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const getTimeFilter = () => {
     const now = new Date();
     switch (timeRange) {
-      case 'week':
+      case 'week': {
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         return `created_at >= '${weekAgo.toISOString()}'`;
-      case 'month':
+      }
+      case 'month': {
         const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         return `created_at >= '${monthAgo.toISOString()}'`;
+      }
       default:
         return '1=1';
     }
@@ -144,7 +146,7 @@ export function AnalyticsDashboard() {
     const itemsByType: Record<string, number> = {};
     let totalItems = 0;
     
-    knowledgeResult.forEach((row: any) => {
+    knowledgeResult.forEach((row: { type: string; type_count: number }) => {
       itemsByType[row.type] = row.type_count;
       totalItems += row.type_count;
     });
@@ -202,7 +204,7 @@ export function AnalyticsDashboard() {
         averageMessagesPerDiscussion: avgMessages,
       });
     } catch (error) {
-      console.error('Failed to load agent stats:', error);
+      // Failed to load agent stats
     }
   };
 
@@ -216,7 +218,6 @@ export function AnalyticsDashboard() {
 
     for (const date of dates) {
       const dateStr = format(date, 'yyyy-MM-dd');
-      const nextDateStr = format(new Date(date.getTime() + 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
       
       // その日の執筆量
       const wordsSql = `
@@ -253,7 +254,7 @@ export function AnalyticsDashboard() {
           discussions: discussionResult[0]?.discussions || 0,
         });
       } catch (error) {
-        console.error(`Failed to load activity for ${dateStr}:`, error);
+        // Failed to load activity for date
         activityData.push({
           date: dateStr,
           words: 0,

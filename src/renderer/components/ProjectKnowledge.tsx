@@ -29,7 +29,7 @@ interface WorldSetting {
   category: string;
   name: string;
   description: string;
-  details: any;
+  details: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }
@@ -55,7 +55,7 @@ export function ProjectKnowledge() {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [worldSettings, setWorldSettings] = useState<WorldSetting[]>([]);
   const [terms, setTerms] = useState<Term[]>([]);
-  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [selectedItem, setSelectedItem] = useState<Character | WorldSetting | Term | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -63,20 +63,20 @@ export function ProjectKnowledge() {
   // 初期データの読み込み
   useEffect(() => {
     loadProjects();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // プロジェクト選択時にデータを読み込み
   useEffect(() => {
     if (selectedProject) {
       loadProjectData();
     }
-  }, [selectedProject, activeTab]);
+  }, [selectedProject, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadProjects = async () => {
     try {
       const sql = 'SELECT * FROM projects ORDER BY updated_at DESC';
       const result = await window.electronAPI.database.query(sql);
-      setProjects(result.map((p: any) => ({
+      setProjects(result.map((p: Record<string, unknown>) => ({
         ...p,
         createdAt: p.created_at,
         updatedAt: p.updated_at,
@@ -113,7 +113,7 @@ export function ProjectKnowledge() {
   const loadCharacters = async () => {
     const sql = 'SELECT * FROM characters WHERE project_id = ? ORDER BY name';
     const result = await window.electronAPI.database.query(sql, [selectedProject]);
-    setCharacters(result.map((c: any) => ({
+    setCharacters(result.map((c: Record<string, unknown>) => ({
       ...c,
       projectId: c.project_id,
       speechStyle: c.speech_style,
@@ -131,7 +131,7 @@ export function ProjectKnowledge() {
       ORDER BY category, name
     `;
     const result = await window.electronAPI.database.query(sql, [selectedProject]);
-    setWorldSettings(result.map((w: any) => ({
+    setWorldSettings(result.map((w: Record<string, unknown>) => ({
       ...w,
       projectId: w.project_id,
       details: JSON.parse(w.details || '{}'),
@@ -148,7 +148,7 @@ export function ProjectKnowledge() {
     `;
     const result = await window.electronAPI.database.query(sql, [selectedProject]);
     
-    setTerms(result.map((t: any) => {
+    setTerms(result.map((t: Record<string, unknown>) => {
       const metadata = JSON.parse(t.metadata || '{}');
       return {
         id: t.id,
@@ -217,48 +217,31 @@ export function ProjectKnowledge() {
     }
   };
 
-  const handleCreateWorldSetting = async (data: Partial<WorldSetting>) => {
-    try {
-      const knowledge = {
-        title: data.name,
-        content: data.description,
-        type: 'world_setting',
-        projectId: selectedProject,
-        metadata: {
-          category: data.category,
-          details: data.details || {},
-        },
-      };
-      
-      await window.electronAPI.knowledge.save(knowledge);
-      await loadWorldSettings();
-      setShowCreateModal(false);
-    } catch (error) {
-      console.error('Failed to create world setting:', error);
-    }
-  };
+  // Removed unused functions: handleCreateWorldSetting and handleCreateTerm
+  // These can be re-implemented when needed
 
-  const handleCreateTerm = async (data: Partial<Term>) => {
-    try {
-      const knowledge = {
-        title: data.term,
-        content: data.definition,
-        type: 'term',
-        projectId: selectedProject,
-        metadata: {
-          reading: data.reading,
-          category: data.category || '一般',
-          usage: data.usage,
-        },
-      };
-      
-      await window.electronAPI.knowledge.save(knowledge);
-      await loadTerms();
-      setShowCreateModal(false);
-    } catch (error) {
-      console.error('Failed to create term:', error);
-    }
-  };
+  // Commented out for future implementation
+  // const _handleCreateTerm = async (_data: Partial<Term>) => {
+  //   try {
+  //     const knowledge = {
+  //       title: _data.term,
+  //       content: _data.definition,
+  //       type: 'term',
+  //       projectId: selectedProject,
+  //       metadata: {
+  //         reading: _data.reading,
+  //         category: _data.category || '一般',
+  //         usage: _data.usage,
+  //       },
+  //     };
+  //     
+  //     await window.electronAPI.knowledge.save(knowledge);
+  //     await loadTerms();
+  //     setShowCreateModal(false);
+  //   } catch (error) {
+  //     console.error('Failed to create term:', error);
+  //   }
+  // };
 
   const filteredItems = () => {
     const query = searchQuery.toLowerCase();
@@ -479,7 +462,7 @@ export function ProjectKnowledge() {
         <div className="p-4 overflow-y-auto h-[calc(100%-200px)]">
           {selectedProject ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredItems().map((item: any) => {
+              {filteredItems().map((item) => {
                 switch (activeTab) {
                   case 'characters':
                     return renderCharacterCard(item as Character);

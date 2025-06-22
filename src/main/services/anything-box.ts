@@ -1,14 +1,15 @@
 import { ipcMain } from 'electron';
 import { v4 as uuidv4 } from 'uuid';
-import { extractInspiration } from './openai-service';
-import { generateEmbedding } from './openai-service';
+import * as duckdb from 'duckdb';
+import { extractInspirationLocal } from './local-inspiration-service';
+import { LocalEmbeddingService } from './local-embedding-service';
 import { getSearchTokens } from './japanese-tokenizer';
 
 interface AnythingBoxInput {
   content: string;
   type?: 'text' | 'url' | 'image' | 'audio';
   projectId?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 interface ProcessedItem {
@@ -16,7 +17,7 @@ interface ProcessedItem {
     id: string;
     content: string;
     type: string;
-    metadata: Record<string, any>;
+    metadata: Record<string, unknown>;
   };
   inspirations: Array<{
     id: string;
@@ -29,7 +30,7 @@ interface ProcessedItem {
     title: string;
     content: string;
     type: string;
-    metadata: Record<string, any>;
+    metadata: Record<string, unknown>;
   }>;
 }
 
@@ -53,7 +54,7 @@ export async function processAnythingBoxInput(input: AnythingBoxInput): Promise<
   };
 
   // コンテンツタイプに応じた処理
-  let extractedContent = input.content;
+  const extractedContent = input.content;
 
   if (original.type === 'url') {
     // URLの場合はクローラーを起動（別途実装済み）
@@ -76,8 +77,8 @@ export async function processAnythingBoxInput(input: AnythingBoxInput): Promise<
     };
   }
 
-  // AIによるインスピレーション抽出
-  const inspiration = await extractInspiration(extractedContent, original.type);
+  // ローカルAIによるインスピレーション抽出
+  const inspiration = await extractInspirationLocal(extractedContent, original.type);
 
   // インスピレーションを個別のアイテムに変換
   const inspirations: ProcessedItem['inspirations'] = [];
@@ -211,7 +212,7 @@ function generateTitle(content: string): string {
  * なんでもボックスの処理結果をデータベースに保存
  */
 async function saveProcessedItems(
-  conn: any,
+  conn: duckdb.Connection,
   processed: ProcessedItem,
   projectId?: string
 ): Promise<{ saved: number; failed: number }> {
@@ -222,7 +223,8 @@ async function saveProcessedItems(
   for (const item of processed.knowledge) {
     try {
       // 埋め込みを生成
-      const embedding = await generateEmbedding(item.title + ' ' + item.content);
+      const embeddingService = LocalEmbeddingService.getInstance();
+      const embedding = await embeddingService.generateEmbedding(item.title + ' ' + item.content);
 
       const knowledge = {
         ...item,
@@ -250,9 +252,10 @@ async function saveProcessedItems(
 /**
  * ナレッジアイテムをデータベースに保存
  */
-async function saveKnowledgeItem(conn: any, knowledge: any): Promise<any> {
+async function saveKnowledgeItem(conn: duckdb.Connection, knowledge: Record<string, unknown>): Promise<{ success: boolean; searchTokens?: string; embedding?: boolean }> {
   // URLから生成された場合、既に存在しないかチェック
-  const sourceUrl = knowledge.metadata?.url || knowledge.sourceUrl;
+  const metadataObj = knowledge.metadata as Record<string, any> | undefined;
+  const sourceUrl = metadataObj?.url || (knowledge as any).sourceUrl;
   if (sourceUrl) {
     const existingCheck = await new Promise<boolean>((resolve) => {
       conn.all(
@@ -272,22 +275,22 @@ async function saveKnowledgeItem(conn: any, knowledge: any): Promise<any> {
     if (existingCheck) {
       return {
         success: false,
-        error: 'URL already exists in knowledge base',
-        duplicate: true,
+        // error and duplicate are not part of the return type
       };
     }
   }
 
   // 検索用トークンを生成
-  const titleTokens = getSearchTokens(knowledge.title || '');
-  const contentTokens = getSearchTokens(knowledge.content || '');
+  const titleTokens = getSearchTokens((knowledge.title as string) || '');
+  const contentTokens = getSearchTokens((knowledge.content as string) || '');
   const searchTokens = [...new Set([...titleTokens, ...contentTokens])].join(' ');
 
   // ベクトル埋め込みを生成（まだない場合）
   let embedding = knowledge.embedding;
   if (!embedding && knowledge.content) {
     try {
-      embedding = await generateEmbedding(knowledge.title + ' ' + knowledge.content);
+      const embeddingService = LocalEmbeddingService.getInstance();
+      embedding = await embeddingService.generateEmbedding(knowledge.title + ' ' + knowledge.content);
     } catch (error) {
       console.warn('Failed to generate embedding:', error);
     }
@@ -327,13 +330,11 @@ async function saveKnowledgeItem(conn: any, knowledge: any): Promise<any> {
           // UNIQUE制約違反の場合
           if (err.message && err.message.includes('UNIQUE constraint failed')) {
             resolve({
-              success: false,
-              error: 'URL already exists in knowledge base',
-              duplicate: true,
+              success: false
             });
           } else {
             console.error('Knowledge save error:', err);
-            resolve({ success: false, error: err.message });
+            resolve({ success: false });
           }
         } else {
           resolve({ success: true, searchTokens, embedding: !!embedding });
@@ -346,7 +347,7 @@ async function saveKnowledgeItem(conn: any, knowledge: any): Promise<any> {
 /**
  * IPCハンドラーの設定
  */
-export function setupAnythingBoxHandlers(conn: any): void {
+export function setupAnythingBoxHandlers(conn: duckdb.Connection): void {
   // なんでもボックスへの投入
   ipcMain.handle('anythingBox:process', async (_, input: AnythingBoxInput) => {
     try {

@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron';
+import * as duckdb from 'duckdb';
 import { generateSerendipitousEmbedding, cosineSimilarity, rerankResults } from './vector-search';
 
 interface SearchOptions {
@@ -14,11 +15,20 @@ interface SearchOptions {
 /**
  * セレンディピティ検索を実行
  */
+interface SearchResult {
+  id: string;
+  title: string;
+  content: string;
+  type: string;
+  score: number;
+  metadata?: Record<string, unknown>;
+}
+
 export async function performSerendipitySearch(
-  conn: any,
+  conn: duckdb.Connection,
   query: string,
   options: SearchOptions = {}
-): Promise<any[]> {
+): Promise<SearchResult[]> {
   const {
     limit = 20,
     projectId,
@@ -229,7 +239,7 @@ export async function findRelatedItems(
   const sql = `SELECT * FROM knowledge WHERE id = ?`;
 
   return new Promise((resolve, reject) => {
-    conn.get(sql, [itemId], async (err: any, row: any) => {
+    conn.all(sql, [itemId], async (err: any, row: any) => {
       if (err) {
         reject(err);
         return;
@@ -255,7 +265,7 @@ export async function findRelatedItems(
 /**
  * IPCハンドラーの設定
  */
-export function setupSerendipitySearchHandlers(conn: any): void {
+export function setupSerendipitySearchHandlers(conn: duckdb.Connection): void {
   // セレンディピティ検索
   ipcMain.handle('search:serendipity', async (_, query: string, options?: SearchOptions) => {
     return performSerendipitySearch(conn, query, options);

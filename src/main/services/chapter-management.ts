@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron';
 import { v4 as uuidv4 } from 'uuid';
+import * as duckdb from 'duckdb';
 
 interface Chapter {
   id?: string;
@@ -10,7 +11,7 @@ interface Chapter {
   status: 'draft' | 'writing' | 'review' | 'completed';
   wordCount: number;
   characterCount: number;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 interface WritingSuggestionContext {
@@ -23,7 +24,7 @@ interface WritingSuggestionContext {
 /**
  * チャプターハンドラーの設定
  */
-export function setupChapterHandlers(conn: any): void {
+export function setupChapterHandlers(conn: duckdb.Connection): void {
   // チャプター作成
   ipcMain.handle('chapters:create', async (_, chapter: Omit<Chapter, 'id'>) => {
     const id = uuidv4();
@@ -138,7 +139,7 @@ export function setupChapterHandlers(conn: any): void {
     const sql = 'SELECT * FROM chapters WHERE id = ?';
 
     return new Promise((resolve, reject) => {
-      conn.get(sql, [id], (err: any, row: any) => {
+      conn.all(sql, [id], (err: any, row: any) => {
         if (err) {
           reject(err);
         } else if (row) {
@@ -194,9 +195,9 @@ export function setupChapterHandlers(conn: any): void {
         // プロット情報を取得
         const plotSql = 'SELECT * FROM plots WHERE id = ?';
         const plot = await new Promise<any>((resolve, reject) => {
-          conn.get(plotSql, [context.plotId], (err: any, row: any) => {
-            if (err) reject(err);
-            else resolve(row);
+          conn.all(plotSql, [context.plotId], (err: any, rows: any[]) => {
+            if (err) return reject(err);
+            resolve(rows?.[0]);
           });
         });
 

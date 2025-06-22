@@ -1,9 +1,17 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 
 interface ProcessingResult {
   originalId: string;
   inspirationCount: number;
   knowledgeCount: number;
+}
+
+interface SavedKnowledge {
+  id: string;
+  title: string;
+  content: string;
+  type: string;
+  createdAt: string;
 }
 
 export function AnythingBox() {
@@ -12,9 +20,11 @@ export function AnythingBox() {
   const [result, setResult] = useState<ProcessingResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [recentEntries, setRecentEntries] = useState<SavedKnowledge[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (!content.trim()) return;
 
     setIsProcessing(true);
@@ -39,11 +49,11 @@ export function AnythingBox() {
       }
     } catch (err) {
       setError('エラーが発生しました');
-      console.error(err);
+      // Error processing input
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [content]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -71,7 +81,7 @@ export function AnythingBox() {
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
       // TODO: ファイル処理の実装
-      console.log('Dropped files:', files);
+      // Dropped files
     }
   }, []);
 
@@ -81,7 +91,7 @@ export function AnythingBox() {
     for (const item of items) {
       if (item.type.startsWith('image/')) {
         // TODO: 画像処理の実装
-        console.log('Pasted image:', item.type);
+        // Pasted image
       }
     }
   }, []);
@@ -93,8 +103,32 @@ export function AnythingBox() {
         handleSubmit();
       }
     },
-    [content]
+    [handleSubmit] // eslint-disable-line react-hooks/exhaustive-deps
   );
+
+  // Load recent entries on component mount
+  useEffect(() => {
+    loadRecentHistory();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadRecentHistory = async () => {
+    setIsLoadingHistory(true);
+    try {
+      const history = await window.electronAPI.anythingBox.history({ limit: 5 });
+      setRecentEntries(history);
+    } catch (err) {
+      console.error('Failed to load history:', err);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  // Reload history after successful processing
+  useEffect(() => {
+    if (result) {
+      loadRecentHistory();
+    }
+  }, [result]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -214,6 +248,39 @@ export function AnythingBox() {
           </li>
         </ul>
       </div>
+
+      {/* 最近の入力履歴 */}
+      {recentEntries.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-lg font-semibold text-secondary-800 mb-3">最近の処理</h3>
+          {isLoadingHistory ? (
+            <div className="text-gray-500">読み込み中...</div>
+          ) : (
+            <div className="space-y-3">
+              {recentEntries.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={() => setContent(entry.content)}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-medium text-gray-800">{entry.title}</h4>
+                    <span className="text-xs text-gray-500">
+                      {new Date(entry.createdAt).toLocaleString('ja-JP')}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 line-clamp-2">{entry.content}</p>
+                  <div className="mt-2">
+                    <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded">
+                      {entry.type}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

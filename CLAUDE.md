@@ -4,9 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 開発日誌を作成すること
 
-`dev_diary/yyyy-mm-dd_hhmm.md` の形式で開発日誌を作成してください。内容は以下の通りです。
+`dev_diary/yyyy-mm-dd_HHMM.md` の形式で開発日誌を作成してください。内容は以下の通りです。
+日時は、timeコマンドを使用して、自動的に生成されるようにしてください。
 
-- **日付**: yyyy-mm-dd hh:mm
+```bash
+date +"%Y-%m-%d %H:%M"
+```
+
+- **日付**: yyyy-mm-dd HH:MM
 - **作業内容**:
   - 何をしたか
   - どのような問題が発生したか
@@ -16,7 +21,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **感想**: 開発の進捗や学び
 - **気分**: なんかいい感じのことを書く
 - **愚痴**: なんかいい感じのことを書く
-
 
 ## Project Overview
 
@@ -53,18 +57,22 @@ pnpm run typecheck  # Run TypeScript type checking
 ### Two-Layer Architecture
 
 **Layer 1: Creative Knowledge Management**
+
 - Serendipity-enabled knowledge base (Obsidian/Scrapbox-like)
 - Anything Box for capturing all types of information
 - Automatic node generation and linking
 - AI-powered inspiration extraction
 
 **Layer 2: Novel Creation Engine**
+
 - Multi-agent system for collaborative writing
 - Plot generation, discussion, writing, and proofreading
 - Interactive human intervention at any point
 
 ### Multi-Agent System
+
 The system consists of multiple AI agents working in hierarchy:
+
 1. **Editor-in-Chief** (User) - Makes final decisions
 2. **Deputy Editor AI** - Analyzes narrative, raises potential issues, quality evaluation
 3. **Writer AI & Editor AI** - Collaborate through discussion (Writer AI "moderately ignores" feedback)
@@ -73,18 +81,21 @@ The system consists of multiple AI agents working in hierarchy:
 ### Core Components
 
 1. **Anything Box System**
+
    - Universal input for news, social media, papers, notes
    - Automatic inspiration extraction and node creation
    - Preserves both original content and creative seeds
    - Vector embedding for serendipity search
 
 2. **Serendipity Search**
+
    - High-dimensional vector space manipulation
    - Noise injection and dimensional perturbation
    - "Middle distance" discovery for unexpected connections
    - Time-aware retrieval for memory simulation
 
 3. **Knowledge Management**
+
    - Global knowledge (shared across all projects)
    - Project-specific knowledge (characters, world settings)
    - Automatic linking based on content analysis
@@ -99,10 +110,12 @@ The system consists of multiple AI agents working in hierarchy:
 ## Key Features
 
 ### Operating Modes
+
 - **Normal Mode**: Active only when app is open
 - **24-Hour Mode**: Background autonomous creation with quality filtering
 
 ### Workflow
+
 1. Human inputs information into Anything Box
 2. Writer AI discovers serendipitous connections for plots
 3. Multi-agent discussion refines the plot
@@ -111,6 +124,7 @@ The system consists of multiple AI agents working in hierarchy:
 6. Completed work feeds back into Layer 1 knowledge
 
 ### Main Screens
+
 1. Dashboard
 2. Anything Box
 3. Knowledge Graph
@@ -150,6 +164,7 @@ The system consists of multiple AI agents working in hierarchy:
 開発作業を進める際は、TodoWrite/TodoReadツールを使用してTODOリストを作成・管理してください。
 
 ### TODOリスト管理の原則
+
 1. **常にTODOリストを確認**: 作業開始時、作業中、作業終了時にTodoReadで確認
 2. **即座に更新**: タスクの状態が変わったらすぐにTodoWriteで更新
 3. **適切な粒度**: タスクは具体的で実行可能な単位に分割
@@ -157,17 +172,20 @@ The system consists of multiple AI agents working in hierarchy:
 5. **進捗の可視化**: in_progressは常に1つのみ
 
 ### タスクのライフサイクル
+
 1. `pending`: 未着手のタスク
 2. `in_progress`: 現在作業中（同時に1つのみ）
 3. `completed`: 完了したタスク
 
 ### コミットのタイミング
+
 - 論理的な機能単位が完成したとき
 - 大きな変更を加えた後
 - テストが通った後
 - 作業を中断する前
 
 ### 自律的な開発フロー
+
 1. TodoReadでタスクを確認
 2. 優先度の高いタスクを選択
 3. タスクをin_progressに更新
@@ -187,6 +205,7 @@ The system consists of multiple AI agents working in hierarchy:
 この指針に従って、自律的に開発を進めてください。
 
 ### リファクタリングのタイミング
+
 - 3-5個のタスクを完了した後
 - 同じパターンのコードが3箇所以上ある場合
 - コンポーネントが100行を超えた場合

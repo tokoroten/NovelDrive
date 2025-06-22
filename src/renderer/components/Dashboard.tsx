@@ -33,9 +33,13 @@ export function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Debug: Check if electronAPI is available
+    console.log('window.electronAPI:', window.electronAPI);
+    console.log('window.electronAPI.database:', window.electronAPI?.database);
+    
     loadDashboardData();
     generateInspirationOfTheDay();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadDashboardData = async () => {
     setIsLoading(true);
@@ -53,15 +57,29 @@ export function Dashboard() {
 
   const loadStats = async () => {
     try {
+      // Check if database API is available
+      if (!window.electronAPI?.database?.query) {
+        console.warn('Database API not available, using default values');
+        setStats({
+          totalKnowledge: 0,
+          recentKnowledge: 0,
+          totalChapters: 0,
+          totalWords: 0,
+          activeProjects: 0,
+          recentDiscussions: 0,
+        });
+        return;
+      }
+
       // 知識統計
       const knowledgeCountSql = 'SELECT COUNT(*) as total FROM knowledge';
       const recentKnowledgeSql = "SELECT COUNT(*) as recent FROM knowledge WHERE created_at >= datetime('now', '-24 hours')";
       
       // チャプター統計
-      const chapterStatsSql = 'SELECT COUNT(*) as total_chapters, SUM(word_count) as total_words FROM chapters';
+      const chapterStatsSql = 'SELECT COUNT(*) as total_chapters, COALESCE(SUM(word_count), 0) as total_words FROM chapters';
       
       // プロジェクト統計
-      const projectCountSql = 'SELECT COUNT(*) as total FROM projects';
+      const projectCountSql = "SELECT COUNT(*) as total FROM projects WHERE status = 'active'";
       
       // 議論統計
       const recentDiscussionsSql = "SELECT COUNT(*) as recent FROM agent_discussions WHERE created_at >= datetime('now', '-7 days')";
@@ -84,11 +102,27 @@ export function Dashboard() {
       });
     } catch (error) {
       console.error('Failed to load stats:', error);
+      // Set default values on error
+      setStats({
+        totalKnowledge: 0,
+        recentKnowledge: 0,
+        totalChapters: 0,
+        totalWords: 0,
+        activeProjects: 0,
+        recentDiscussions: 0,
+      });
     }
   };
 
   const loadRecentActivities = async () => {
     try {
+      // Check if database API is available
+      if (!window.electronAPI?.database?.query) {
+        console.warn('Database API not available for recent activities');
+        setRecentActivities([]);
+        return;
+      }
+
       const activities: RecentActivity[] = [];
 
       // 最近の知識
@@ -102,11 +136,11 @@ export function Dashboard() {
       
       knowledgeResults.forEach((item: any) => {
         activities.push({
-          id: item.id,
+          id: item.id as string,
           type: 'knowledge',
-          title: item.title,
-          description: item.content.substring(0, 100) + '...',
-          timestamp: item.created_at,
+          title: item.title as string,
+          description: (item.content as string).substring(0, 100) + '...',
+          timestamp: item.created_at as string,
         });
       });
 
@@ -121,11 +155,11 @@ export function Dashboard() {
       
       chapterResults.forEach((item: any) => {
         activities.push({
-          id: item.id,
+          id: item.id as string,
           type: 'chapter',
-          title: item.title,
-          description: `${item.word_count}語の章を作成`,
-          timestamp: item.created_at,
+          title: item.title as string,
+          description: `${item.word_count || 0}語の章を作成`,
+          timestamp: item.created_at as string,
         });
       });
 
@@ -140,9 +174,16 @@ export function Dashboard() {
 
   const generateInspirationOfTheDay = async () => {
     try {
+      // Check if database API is available
+      if (!window.electronAPI?.database?.query) {
+        console.warn('Database API not available for inspiration');
+        setInspirationOfTheDay('今日も素晴らしい物語を書きましょう！');
+        return;
+      }
+
       // ランダムな知識を取得
       const randomKnowledgeSql = `
-        SELECT title, content
+        SELECT title, content, type
         FROM knowledge
         WHERE type IN ('inspiration', 'theme', 'idea')
         ORDER BY RANDOM()
@@ -151,7 +192,10 @@ export function Dashboard() {
       const result = await window.electronAPI.database.query(randomKnowledgeSql);
       
       if (result.length > 0) {
-        setInspirationOfTheDay(result[0].content || result[0].title);
+        const item = result[0];
+        // Content or title, whichever is more suitable
+        const inspiration = item.content && item.content.length > 10 ? item.content : item.title;
+        setInspirationOfTheDay(inspiration);
       } else {
         // デフォルトのインスピレーション
         const defaultInspirations = [
@@ -160,6 +204,8 @@ export function Dashboard() {
           '小さなアイデアが、大きな冒険の始まり',
           'キャラクターの声に耳を傾けてみよう',
           '今日はどんな世界を創造しますか？',
+          'セレンディピティが新たな物語を紡ぐ',
+          '想像力は無限の可能性を秘めている',
         ];
         setInspirationOfTheDay(
           defaultInspirations[Math.floor(Math.random() * defaultInspirations.length)]
@@ -269,7 +315,10 @@ export function Dashboard() {
         <h2 className="text-xl font-semibold mb-4">クイックアクション</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <button
-            onClick={() => window.location.hash = '#anything-box'}
+            onClick={() => {
+              const event = new CustomEvent('navigate', { detail: { screen: 'anything-box' } });
+              window.dispatchEvent(event);
+            }}
             className="p-4 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors text-center"
           >
             <div className="text-3xl mb-2">📥</div>
@@ -278,7 +327,10 @@ export function Dashboard() {
           </button>
 
           <button
-            onClick={() => window.location.hash = '#writing-editor'}
+            onClick={() => {
+              const event = new CustomEvent('navigate', { detail: { screen: 'writing-editor' } });
+              window.dispatchEvent(event);
+            }}
             className="p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors text-center"
           >
             <div className="text-3xl mb-2">📝</div>
@@ -287,7 +339,10 @@ export function Dashboard() {
           </button>
 
           <button
-            onClick={() => window.location.hash = '#idea-gacha'}
+            onClick={() => {
+              const event = new CustomEvent('navigate', { detail: { screen: 'idea-gacha' } });
+              window.dispatchEvent(event);
+            }}
             className="p-4 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors text-center"
           >
             <div className="text-3xl mb-2">🎲</div>
@@ -296,7 +351,10 @@ export function Dashboard() {
           </button>
 
           <button
-            onClick={() => window.location.hash = '#agent-meeting'}
+            onClick={() => {
+              const event = new CustomEvent('navigate', { detail: { screen: 'agent-meeting' } });
+              window.dispatchEvent(event);
+            }}
             className="p-4 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors text-center"
           >
             <div className="text-3xl mb-2">🤝</div>

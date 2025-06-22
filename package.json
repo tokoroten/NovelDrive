@@ -5,7 +5,7 @@
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "concurrently \"npm run dev:main\" \"npm run dev:renderer\"",
-    "dev:main": "tsc -w -p tsconfig.main.json",
+    "dev:main": "tsc -w -p tsconfig.main.dev.json",
     "dev:renderer": "vite",
     "build": "npm run build:main && npm run build:renderer && electron-builder",
     "build:main": "tsc -p tsconfig.main.json",
@@ -15,7 +15,16 @@
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:db": "ts-node src/main/commands/test-database.ts",
+    "test:vss": "ts-node --project tsconfig.node.json src/main/commands/test-vss.ts",
+    "test:search": "ts-node --project tsconfig.node.json src/main/commands/test-search.ts",
+    "test:local-embedding": "tsx src/main/commands/test-local-embedding.ts",
+    "test:agents": "tsx src/main/commands/test-multi-agent-discussion.ts",
+    "test:summarization": "tsx src/main/commands/test-summarization.ts",
+    "test:anything-box": "tsx src/main/commands/test-anything-box.ts",
+    "db:migrate": "ts-node src/main/commands/migrate-database.ts",
+    "db:seed": "ts-node src/main/commands/seed-database.ts"
   },
   "keywords": [
     "electron",
@@ -26,7 +35,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@types/node": "^20.11.0",
+    "@types/node": "^20.19.1",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.2.18",
     "@types/uuid": "^9.0.7",
@@ -44,12 +53,15 @@
     "postcss": "^8.4.33",
     "prettier": "^3.2.4",
     "tailwindcss": "^3.4.1",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.20.3",
     "typescript": "^5.3.3",
     "vite": "^5.0.11",
     "vite-plugin-electron": "^0.15.5",
     "vite-plugin-electron-renderer": "^0.14.5"
   },
   "dependencies": {
+    "@xenova/transformers": "^2.17.2",
     "date-fns": "^4.1.0",
     "dotenv": "^16.3.1",
     "duckdb": "^0.10.0",

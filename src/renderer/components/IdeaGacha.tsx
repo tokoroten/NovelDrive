@@ -6,11 +6,11 @@ interface GachaResult {
   id: string;
   timestamp: string;
   elements: {
-    character?: any;
-    theme?: any;
-    situation?: any;
-    keyword?: any;
-    worldSetting?: any;
+    character?: Record<string, unknown>;
+    theme?: Record<string, unknown>;
+    situation?: Record<string, unknown>;
+    keyword?: Record<string, unknown>;
+    worldSetting?: Record<string, unknown>;
   };
   generatedIdea: string;
   saved: boolean;
@@ -31,13 +31,13 @@ export function IdeaGacha() {
   const [showHistory, setShowHistory] = useState(false);
   const [gachaMode, setGachaMode] = useState<'random' | 'themed' | 'character'>('random');
   const [selectedProject, setSelectedProject] = useState<string>('');
-  const [projects, setProjects] = useState<any[]>([]);
-  const [animationStep, setAnimationStep] = useState(0);
+  const [projects, setProjects] = useState<unknown[]>([]);
+  const [, setAnimationStep] = useState(0);
 
   useEffect(() => {
     loadProjects();
     loadHistory();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadProjects = async () => {
     try {
@@ -62,7 +62,7 @@ export function IdeaGacha() {
   };
 
   const getRandomElements = async () => {
-    const elements: any = {};
+    const elements: GachaResult['elements'] = {};
 
     try {
       // ランダムにキャラクターを取得
@@ -117,7 +117,7 @@ export function IdeaGacha() {
         selectedProject ? [selectedProject] : []
       );
       if (keywordResult.length > 0) {
-        elements.keyword = keywordResult.map((k: any) => k.title).join('、');
+        elements.keyword = keywordResult.map((k: Record<string, unknown>) => k.title).join('、');
       }
 
       // ランダムに世界設定を取得
@@ -141,7 +141,7 @@ export function IdeaGacha() {
     }
   };
 
-  const generateIdea = async (elements: any) => {
+  const generateIdea = async (elements: GachaResult['elements']) => {
     let prompt = 'この要素から短い物語のアイデアを生成してください：\n\n';
 
     if (elements.character) {
@@ -348,7 +348,7 @@ export function IdeaGacha() {
 
           <select
             value={gachaMode}
-            onChange={(e) => setGachaMode(e.target.value as any)}
+            onChange={(e) => setGachaMode(e.target.value as 'random' | 'themed' | 'character')}
             className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="random">完全ランダム</option>

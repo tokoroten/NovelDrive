@@ -1,4 +1,4 @@
-import { generateEmbedding } from './openai-service';
+import { LocalEmbeddingService } from './local-embedding-service';
 
 /**
  * コサイン類似度を計算
@@ -131,9 +131,12 @@ export function calculateCentroid(vectors: number[][]): number[] {
  * ナレッジ間の意味的距離を計算
  */
 export async function calculateSemanticDistance(text1: string, text2: string): Promise<number> {
+  const localService = LocalEmbeddingService.getInstance();
+  await localService.initialize();
+  
   const [embedding1, embedding2] = await Promise.all([
-    generateEmbedding(text1),
-    generateEmbedding(text2),
+    localService.generateEmbedding(text1),
+    localService.generateEmbedding(text2),
   ]);
 
   if (!embedding1 || !embedding2) {
@@ -151,7 +154,10 @@ export async function generateSerendipitousEmbedding(
   text: string,
   serendipityLevel: number = 0.3
 ): Promise<number[] | null> {
-  const baseEmbedding = await generateEmbedding(text);
+  const localService = LocalEmbeddingService.getInstance();
+  await localService.initialize();
+  
+  const baseEmbedding = await localService.generateEmbedding(text);
 
   if (!baseEmbedding) {
     return null;

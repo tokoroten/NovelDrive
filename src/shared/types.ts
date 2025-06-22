@@ -1,5 +1,71 @@
 // 共通の型定義
 
+// API通信用の型定義
+export interface ChatMessage {
+  role: string;
+  content: string;
+}
+
+export interface ChatOptions {
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+}
+
+export interface ImageOptions {
+  size?: string;
+  quality?: string;
+  style?: string;
+}
+
+export interface SearchOptions {
+  projectId?: string;
+  limit?: number;
+  serendipityLevel?: number;
+}
+
+export interface CrawlOptions {
+  depth?: number;
+  maxPages?: number;
+}
+
+export interface AgentConfig {
+  role: string;
+  personality: string;
+  name?: string;
+}
+
+export interface DiscussionParams {
+  topic: string;
+  agentConfigs: AgentConfig[];
+  maxRounds?: number;
+}
+
+export interface WritingContext {
+  plotId: string;
+  chapterTitle: string;
+  previousContent: string;
+  chapterOrder: number;
+}
+
+export interface PlotData {
+  projectId: string;
+  title: string;
+  synopsis: string;
+  structure: string;
+  parentVersion?: string;
+}
+
+export interface ChapterData {
+  title: string;
+  content: string;
+  plotId: string;
+  order: number;
+  status: string;
+  wordCount: number;
+  characterCount: number;
+}
+
 export interface Knowledge {
   id: string;
   title: string;
@@ -7,7 +73,7 @@ export interface Knowledge {
   type: 'note' | 'article' | 'social' | 'inspiration' | 'character' | 'world';
   projectId?: string;
   embedding?: number[];
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -104,11 +170,16 @@ export interface AIAgent {
 
 export interface AgentDiscussion {
   id: string;
-  plotId: string;
+  plotId?: string;
+  topic: string;
   participants: string[]; // agent IDs
   messages: DiscussionMessage[];
   conclusion?: string;
+  summary?: string;
   status: 'active' | 'concluded' | 'paused';
+  messageCount: number;
+  startTime: string;
+  endTime?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -116,9 +187,41 @@ export interface AgentDiscussion {
 export interface DiscussionMessage {
   id: string;
   agentId: string;
+  agentRole: string;
+  agentName?: string;
   content: string;
   timestamp: Date;
   inReplyTo?: string;
+  metadata?: {
+    confidence?: number;
+    emotionalTone?: string;
+    thinkingTime?: number;
+    replyTo?: string;
+  };
+}
+
+export interface AgentStatus {
+  id: string;
+  role: string;
+  name?: string;
+  status: 'active' | 'thinking' | 'finished' | 'idle';
+  lastActivity?: string;
+  messageCount: number;
+}
+
+export interface DiscussionProgress {
+  currentRound: number;
+  maxRounds: number;
+  completedRounds: number;
+  participantProgress: Record<string, number>;
+  overallProgress: number;
+}
+
+export interface HumanIntervention {
+  id: string;
+  content: string;
+  timestamp: string;
+  impact: 'low' | 'medium' | 'high';
 }
 
 export interface SearchResult {
@@ -126,4 +229,112 @@ export interface SearchResult {
   score: number;
   matchType: 'exact' | 'semantic' | 'serendipity';
   highlights?: string[];
+}
+
+export interface PlotGenerationRequest {
+  theme: string;
+  genre: string;
+  targetAudience?: string;
+  initialIdea?: string;
+  constraints?: string[];
+  projectId: string;
+  humanUserId?: string;
+}
+
+// Autonomous Mode Types
+export interface AutonomousConfig {
+  enabled: boolean;
+  interval: number; // minutes between operations
+  qualityThreshold: number; // 0-100, minimum quality score to save content
+  maxConcurrentOperations: number;
+  maxDailyOperations: number;
+  timeSlots: TimeSlot[]; // when autonomous mode can run
+  resourceLimits: ResourceLimits;
+  contentTypes: AutonomousContentType[];
+}
+
+export interface TimeSlot {
+  start: string; // HH:MM format
+  end: string; // HH:MM format
+  enabled: boolean;
+}
+
+export interface ResourceLimits {
+  maxCpuUsage: number; // percentage
+  maxMemoryUsage: number; // MB
+  maxApiCallsPerHour: number;
+  maxTokensPerOperation: number;
+}
+
+export type AutonomousContentType = 'plot' | 'character' | 'worldSetting' | 'inspiration';
+
+export interface AutonomousOperation {
+  id: string;
+  type: AutonomousContentType;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  projectId?: string;
+  startTime: Date;
+  endTime?: Date;
+  result?: AutonomousOperationResult;
+  error?: string;
+  metrics: OperationMetrics;
+}
+
+export interface AutonomousOperationResult {
+  contentId: string;
+  qualityScore: number;
+  confidence: number;
+  saved: boolean;
+  content: any; // depends on content type
+}
+
+export interface OperationMetrics {
+  duration: number; // milliseconds
+  tokensUsed: number;
+  apiCalls: number;
+  cpuUsage: number;
+  memoryUsage: number;
+}
+
+export interface QualityAssessment {
+  overallScore: number; // 0-100
+  criteria: QualityCriterion[];
+  recommendation: 'save' | 'discard' | 'review';
+  reasoning: string;
+}
+
+export interface QualityCriterion {
+  name: string;
+  score: number; // 0-100
+  weight: number; // importance multiplier
+  details?: string;
+}
+
+export interface AutonomousStatus {
+  enabled: boolean;
+  currentOperation?: AutonomousOperation;
+  queueLength: number;
+  lastOperationTime?: Date;
+  todayCount: number;
+  totalOperations: number;
+  successRate: number; // percentage
+  systemHealth: SystemHealth;
+}
+
+export interface SystemHealth {
+  cpuUsage: number; // percentage
+  memoryUsage: number; // MB
+  diskSpace: number; // MB available
+  networkLatency: number; // ms
+  healthy: boolean;
+}
+
+export interface AutonomousLog {
+  id: string;
+  timestamp: Date;
+  level: 'info' | 'warn' | 'error' | 'debug';
+  category: 'operation' | 'quality' | 'resource' | 'system';
+  message: string;
+  operationId?: string;
+  metadata?: Record<string, any>;
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { PlotGenerationWorkflow } from './PlotGenerationWorkflow';
 
 interface PlotNode {
   id: string;
@@ -7,13 +8,13 @@ interface PlotNode {
   parentVersion: string | null;
   title: string;
   synopsis: string;
-  structure: any;
+  structure: Record<string, unknown>;
   status: 'draft' | 'reviewing' | 'approved' | 'rejected';
   createdAt: string;
   updatedAt: string;
   createdBy: string;
   metadata?: {
-    emotionalBalance?: any;
+    emotionalBalance?: Record<string, unknown>;
     conflictLevel?: number;
     paceScore?: number;
     originScore?: number;
@@ -32,11 +33,12 @@ export function PlotManagement() {
     acts: 3,
   });
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
+  const [showWorkflow, setShowWorkflow] = useState(false);
   const projectId = 'default-project'; // TODO: プロジェクト選択機能
 
   useEffect(() => {
     loadPlotHistory();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadPlotHistory = async () => {
     try {
@@ -45,7 +47,7 @@ export function PlotManagement() {
         setPlots(response.plots);
       }
     } catch (error) {
-      console.error('Failed to load plot history:', error);
+      // Failed to load plot history
     }
   };
 
@@ -84,7 +86,7 @@ export function PlotManagement() {
         setSelectedPlot(response.plot);
       }
     } catch (error) {
-      console.error('Failed to create plot:', error);
+      // Failed to create plot
     }
   };
 
@@ -99,7 +101,7 @@ export function PlotManagement() {
         setSelectedPlot(response.plot);
       }
     } catch (error) {
-      console.error('Failed to fork plot:', error);
+      // Failed to fork plot
     }
   };
 
@@ -121,10 +123,10 @@ export function PlotManagement() {
 
       if (response.success) {
         // エージェント会議室へ遷移するか、通知を表示
-        console.log('Discussion started:', response.session);
+        // Discussion started
       }
     } catch (error) {
-      console.error('Failed to start AI discussion:', error);
+      // Failed to start AI discussion
     }
   };
 
@@ -135,9 +137,37 @@ export function PlotManagement() {
         await loadPlotHistory();
       }
     } catch (error) {
-      console.error('Failed to update plot status:', error);
+      // Failed to update plot status
     }
   };
+
+  const handleWorkflowPlotGenerated = (plotId: string) => {
+    // プロット生成完了時の処理
+    loadPlotHistory();
+    
+    // 生成されたプロットを選択状態にする
+    setTimeout(async () => {
+      try {
+        const response = await window.electronAPI.plots.get(plotId);
+        if (response.success) {
+          setSelectedPlot(response.plot);
+          setShowWorkflow(false);
+        }
+      } catch (error) {
+        // Failed to load generated plot
+      }
+    }, 1000);
+  };
+
+  if (showWorkflow) {
+    return (
+      <PlotGenerationWorkflow
+        projectId={projectId}
+        onPlotGenerated={handleWorkflowPlotGenerated}
+        onClose={() => setShowWorkflow(false)}
+      />
+    );
+  }
 
   const renderPlotTree = () => {
     // バージョンツリーを構築
@@ -218,10 +248,16 @@ export function PlotManagement() {
                   {viewMode === 'tree' ? 'リスト表示' : 'ツリー表示'}
                 </button>
                 <button
+                  onClick={() => setShowWorkflow(true)}
+                  className="px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700"
+                >
+                  AI生成
+                </button>
+                <button
                   onClick={() => setIsCreating(true)}
                   className="px-3 py-1 bg-primary-600 text-white rounded text-sm hover:bg-primary-700"
                 >
-                  新規作成
+                  手動作成
                 </button>
               </div>
             </div>

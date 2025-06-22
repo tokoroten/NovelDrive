@@ -21,7 +21,7 @@ interface KnowledgeItem {
   content: string;
   type: string;
   projectId?: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   createdAt: string;
   similarity?: number;
 }
@@ -32,7 +32,14 @@ interface GraphData {
 }
 
 // カスタムノードコンポーネント
-const KnowledgeNode = ({ data }: { data: any }) => {
+interface KnowledgeNodeData {
+  label: string;
+  type: string;
+  content: string;
+  selected?: boolean;
+}
+
+const KnowledgeNode = ({ data }: { data: KnowledgeNodeData }) => {
   const getNodeColor = (type: string) => {
     const colors: Record<string, string> = {
       inspiration: '#8B5CF6', // 紫
@@ -83,7 +90,7 @@ export function KnowledgeGraph() {
   // 初期データの読み込み
   useEffect(() => {
     loadKnowledgeGraph();
-  }, [viewMode, projectId]);
+  }, [viewMode, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadKnowledgeGraph = async () => {
     setIsLoading(true);
@@ -99,7 +106,7 @@ export function KnowledgeGraph() {
         const params = viewMode === 'project' ? [projectId] : [];
 
         const result = await window.electronAPI.database.query(sql, params);
-        knowledgeItems = result.map((item: any) => ({
+        knowledgeItems = result.map((item: Record<string, unknown>) => ({
           ...item,
           metadata: JSON.parse(item.metadata || '{}'),
           createdAt: item.created_at,
@@ -219,7 +226,7 @@ export function KnowledgeGraph() {
       });
 
       // 検索結果からグラフを構築
-      const knowledgeItems: KnowledgeItem[] = results.map((item: any) => ({
+      const knowledgeItems: KnowledgeItem[] = results.map((item: Record<string, unknown>) => ({
         ...item,
         similarity: item.score,
       }));
@@ -374,9 +381,9 @@ export function KnowledgeGraph() {
               </p>
             </div>
 
-            {selectedNodeData.similarity && (
+            {selectedNodeData.similarity !== undefined && (
               <div>
-                <span className="text-sm font-medium text-gray-600">類似度</span>
+                <span className="text-sm font-medium text-gray-600">関連度スコア</span>
                 <p className="text-gray-800">{Math.round(selectedNodeData.similarity * 100)}%</p>
               </div>
             )}

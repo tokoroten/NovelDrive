@@ -3,6 +3,7 @@ import { URL } from 'url';
 import { extractMainContent, generateEmbedding } from './openai-service';
 import { v4 as uuidv4 } from 'uuid';
 import { getSearchTokens } from './japanese-tokenizer';
+import * as duckdb from 'duckdb';
 
 interface CrawlOptions {
   maxDepth: number;
@@ -17,7 +18,7 @@ interface CrawlResult {
   title: string;
   content: string;
   summary: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   links: string[];
   depth: number;
   timestamp: Date;
@@ -218,7 +219,7 @@ class WebCrawler {
  * クロール結果をナレッジとして保存
  */
 async function saveAsKnowledge(
-  conn: any,
+  conn: duckdb.Connection,
   results: CrawlResult[],
   projectId?: string
 ): Promise<{ saved: number; failed: number; skipped: number }> {
@@ -249,7 +250,7 @@ async function saveAsKnowledge(
 
       if (saveResult.success) {
         saved++;
-      } else if (saveResult.duplicate) {
+      } else if ((saveResult as any).duplicate) {
         skipped++;
         console.log(`Skipped duplicate URL: ${result.url}`);
       } else {
@@ -267,8 +268,9 @@ async function saveAsKnowledge(
 /**
  * クロール結果をデータベースに保存
  */
-async function saveKnowledgeFromCrawl(conn: any, knowledge: any): Promise<any> {
-  const sourceUrl = knowledge.metadata?.url || knowledge.sourceUrl;
+async function saveKnowledgeFromCrawl(conn: duckdb.Connection, knowledge: Record<string, unknown>): Promise<{ success: boolean; searchTokens?: string; embedding?: boolean }> {
+  const metadataObj = knowledge.metadata as Record<string, any> | undefined;
+  const sourceUrl = metadataObj?.url || (knowledge as any).sourceUrl;
 
   // URLの重複チェック
   const existingCheck = await new Promise<boolean>((resolve) => {
@@ -288,22 +290,20 @@ async function saveKnowledgeFromCrawl(conn: any, knowledge: any): Promise<any> {
 
   if (existingCheck) {
     return {
-      success: false,
-      error: 'URL already exists in knowledge base',
-      duplicate: true,
+      success: false
     };
   }
 
   // 検索用トークンを生成
-  const titleTokens = getSearchTokens(knowledge.title || '');
-  const contentTokens = getSearchTokens(knowledge.content || '');
+  const titleTokens = getSearchTokens((knowledge.title as string) || '');
+  const contentTokens = getSearchTokens((knowledge.content as string) || '');
   const searchTokens = [...new Set([...titleTokens, ...contentTokens])].join(' ');
 
   // ベクトル埋め込みを生成
   let embedding = knowledge.embedding;
   if (!embedding && knowledge.content) {
     try {
-      embedding = await generateEmbedding(knowledge.title + ' ' + knowledge.content);
+      embedding = await generateEmbedding((knowledge.title as string) + ' ' + (knowledge.content as string));
     } catch (error) {
       console.warn('Failed to generate embedding:', error);
     }
@@ -332,13 +332,11 @@ async function saveKnowledgeFromCrawl(conn: any, knowledge: any): Promise<any> {
         if (err) {
           if (err.message && err.message.includes('UNIQUE constraint failed')) {
             resolve({
-              success: false,
-              error: 'URL already exists in knowledge base',
-              duplicate: true,
+              success: false
             });
           } else {
             console.error('Knowledge save error:', err);
-            resolve({ success: false, error: err.message });
+            resolve({ success: false });
           }
         } else {
           resolve({ success: true });
@@ -351,7 +349,7 @@ async function saveKnowledgeFromCrawl(conn: any, knowledge: any): Promise<any> {
 /**
  * IPCハンドラーの設定
  */
-export function setupCrawlerHandlers(conn: any): void {
+export function setupCrawlerHandlers(conn: duckdb.Connection): void {
   ipcMain.handle('crawler:crawl', async (_, url: string, depth: number, options?: any) => {
     try {
       const crawler = new WebCrawler({
