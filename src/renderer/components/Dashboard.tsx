@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { ja } from 'date-fns/locale';
+import { performanceMonitor } from '../utils/performance';
+import { ProjectCreation } from './ProjectCreation';
 
 interface DashboardStats {
   totalKnowledge: number;
@@ -31,6 +33,7 @@ export function Dashboard() {
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [inspirationOfTheDay, setInspirationOfTheDay] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+  const [showProjectCreation, setShowProjectCreation] = useState(false);
 
   useEffect(() => {
     // Debug: Check if electronAPI is available
@@ -41,19 +44,21 @@ export function Dashboard() {
     generateInspirationOfTheDay();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     setIsLoading(true);
     try {
-      await Promise.all([
-        loadStats(),
-        loadRecentActivities(),
-      ]);
+      await performanceMonitor.measureAsync('Dashboard Data Load', async () => {
+        await Promise.all([
+          loadStats(),
+          loadRecentActivities(),
+        ]);
+      });
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   const loadStats = async () => {
     try {
@@ -255,10 +260,23 @@ export function Dashboard() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6" data-testid="dashboard">
+      {/* プロジェクト作成モーダル */}
+      {showProjectCreation && (
+        <ProjectCreation
+          onClose={() => setShowProjectCreation(false)}
+          onProjectCreated={(projectId) => {
+            setShowProjectCreation(false);
+            // プロジェクト詳細画面に遷移
+            const event = new CustomEvent('navigate', { detail: { screen: 'plot-management', projectId } });
+            window.dispatchEvent(event);
+          }}
+        />
+      )}
+
       {/* ウェルカムセクション */}
       <div className="bg-gradient-to-r from-primary-600 to-secondary-600 rounded-lg shadow-lg p-8 text-white">
-        <h1 className="text-3xl font-bold mb-4">NovelDriveへようこそ</h1>
+        <h1 className="text-3xl font-bold mb-4" data-testid="dashboard-title">NovelDriveへようこそ</h1>
         <p className="text-lg mb-6">
           今日も素晴らしい物語を創造しましょう。セレンディピティがあなたを待っています。
         </p>
@@ -366,7 +384,7 @@ export function Dashboard() {
 
       {/* 最近のアクティビティ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white rounded-lg shadow-md p-6" data-testid="recent-inspirations">
           <h2 className="text-xl font-semibold mb-4">最近のアクティビティ</h2>
           <div className="space-y-3">
             {recentActivities.map((activity) => (
@@ -387,6 +405,18 @@ export function Dashboard() {
           </div>
         </div>
 
+        <div className="bg-white rounded-lg shadow-md p-6" data-testid="recent-projects">
+          <h2 className="text-xl font-semibold mb-4">プロジェクト</h2>
+          <button 
+            className="w-full px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 mb-4"
+            data-testid="create-project-button"
+            onClick={() => setShowProjectCreation(true)}
+          >
+            新規プロジェクト作成
+          </button>
+          <p className="text-sm text-gray-600 text-center">クリックして新しい小説プロジェクトを作成しましょう</p>
+        </div>
+        
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold mb-4">AIエージェント活動</h2>
           <div className="space-y-4">

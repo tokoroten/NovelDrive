@@ -231,6 +231,18 @@ export interface SearchResult {
   highlights?: string[];
 }
 
+export interface KnowledgeItem {
+  id: string;
+  title: string;
+  content: string;
+  type: string;
+  projectId?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  similarity?: number;
+  embedding?: number[];
+}
+
 export interface PlotGenerationRequest {
   theme: string;
   genre: string;

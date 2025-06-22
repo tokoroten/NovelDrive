@@ -17,12 +17,17 @@ import {
 export interface IKnowledgeRepository {
   save(knowledge: Knowledge): Promise<void>;
   findById(id: string): Promise<Knowledge | null>;
+  findByIds(ids: string[]): Promise<Knowledge[]>;
   findByProjectId(projectId: string): Promise<Knowledge[]>;
   findByType(type: string): Promise<Knowledge[]>;
   search(query: string, options?: {
     projectId?: string;
     type?: string;
     limit?: number;
+  }): Promise<Knowledge[]>;
+  searchSimilar(embedding: number[], options?: {
+    limit?: number;
+    threshold?: number;
   }): Promise<Knowledge[]>;
   delete(id: string): Promise<void>;
   exists(id: string): Promise<boolean>;
@@ -82,11 +87,11 @@ export interface IWorldSettingRepository {
  * Unit of Work パターンのインターフェース
  */
 export interface IUnitOfWork {
-  knowledge: IKnowledgeRepository;
-  plots: IPlotRepository;
-  projects: IProjectRepository;
-  characters: ICharacterRepository;
-  worldSettings: IWorldSettingRepository;
+  knowledgeRepository: IKnowledgeRepository;
+  plotRepository: IPlotRepository;
+  projectRepository: IProjectRepository;
+  characterRepository: ICharacterRepository;
+  worldSettingRepository: IWorldSettingRepository;
   
   beginTransaction(): Promise<void>;
   commit(): Promise<void>;

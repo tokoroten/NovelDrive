@@ -49,8 +49,11 @@ export async function initializeDatabase(): Promise<void> {
     console.warn('DuckDB VSS setup failed (will use fallback):', error);
   }
 
-  // 初期スキーマの作成（互換性のため残す）
-  await createInitialSchema();
+  // データベース最適化
+  // インデックスはマイグレーションで作成されるため、ここでは不要
+
+  // スキーマの作成はすべてマイグレーションで管理
+  // createInitialSchema()は不要
 
   // ApiUsageLoggerの初期化
   const apiLogger = new ApiUsageLogger(db);
@@ -68,139 +71,8 @@ export async function initializeDatabase(): Promise<void> {
   // ApiUsageLoggerのハンドラー設定は初期化時に実行済み
 }
 
-async function createInitialSchema(): Promise<void> {
-  if (!conn) throw new Error('Database connection not initialized');
-
-  // promisifyして非同期処理を扱いやすくする
-  const runAsync = (sql: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      conn?.run(sql, (err) => {
-        if (err) reject(err);
-        else resolve(undefined);
-      });
-    });
-  };
-
-  // VSSとFTS拡張のインストール
-  try {
-    await runAsync(`INSTALL vss;`);
-    await runAsync(`LOAD vss;`);
-  } catch (error) {
-    // VSS extension not available, skipping...
-  }
-
-  try {
-    await runAsync(`INSTALL fts;`);
-    await runAsync(`LOAD fts;`);
-  } catch (error) {
-    // FTS extension not available, skipping...
-  }
-
-  // ナレッジテーブル
-  await runAsync(`
-    CREATE TABLE IF NOT EXISTS knowledge (
-      id VARCHAR PRIMARY KEY,
-      title VARCHAR NOT NULL,
-      content TEXT NOT NULL,
-      type VARCHAR NOT NULL,
-      project_id VARCHAR,
-      embedding TEXT,
-      metadata TEXT,
-      source_url VARCHAR UNIQUE,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-
-  // プロジェクトテーブル
-  await runAsync(`
-    CREATE TABLE IF NOT EXISTS projects (
-      id VARCHAR PRIMARY KEY,
-      title VARCHAR NOT NULL,
-      description TEXT,
-      genre TEXT,
-      target_audience VARCHAR,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-
-  // キャラクターテーブル
-  await runAsync(`
-    CREATE TABLE IF NOT EXISTS characters (
-      id VARCHAR PRIMARY KEY,
-      project_id VARCHAR NOT NULL,
-      name VARCHAR NOT NULL,
-      profile TEXT,
-      personality TEXT,
-      speech_style TEXT,
-      background TEXT,
-      dialogue_samples TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (project_id) REFERENCES projects(id)
-    );
-  `);
-
-  // プロットテーブル
-  await runAsync(`
-    CREATE TABLE IF NOT EXISTS plots (
-      id VARCHAR PRIMARY KEY,
-      project_id VARCHAR NOT NULL,
-      version VARCHAR NOT NULL,
-      parent_version VARCHAR,
-      title VARCHAR NOT NULL,
-      synopsis TEXT,
-      structure TEXT,
-      status VARCHAR NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (project_id) REFERENCES projects(id)
-    );
-  `);
-
-  // エージェント議論テーブル
-  await runAsync(`
-    CREATE TABLE IF NOT EXISTS agent_discussions (
-      id VARCHAR PRIMARY KEY,
-      plot_id VARCHAR NOT NULL,
-      participants TEXT,
-      messages TEXT,
-      conclusion TEXT,
-      status VARCHAR NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (plot_id) REFERENCES plots(id)
-    );
-  `);
-
-  // チャプターテーブル
-  await runAsync(`
-    CREATE TABLE IF NOT EXISTS chapters (
-      id VARCHAR PRIMARY KEY,
-      plot_id VARCHAR NOT NULL,
-      title VARCHAR NOT NULL,
-      content TEXT,
-      "order" INTEGER NOT NULL,
-      status VARCHAR NOT NULL DEFAULT 'draft',
-      word_count INTEGER DEFAULT 0,
-      character_count INTEGER DEFAULT 0,
-      metadata TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (plot_id) REFERENCES plots(id)
-    );
-  `);
-
-  // 日本語検索用のカラムを追加
-  const tokenizerSQL = createDuckDBTokenizerFunction();
-  const statements = tokenizerSQL.split(';').filter((s) => s.trim());
-  for (const statement of statements) {
-    if (statement.trim()) {
-      await runAsync(statement);
-    }
-  }
-}
+// 初期スキーマの作成関数は不要になったため削除
+// すべてのスキーマ管理はDatabaseMigrationクラスで行う
 
 function setupIPCHandlers(): void {
   // クエリ実行

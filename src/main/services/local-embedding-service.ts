@@ -2,6 +2,7 @@ import { ipcMain, app } from 'electron';
 import path from 'path';
 import os from 'os';
 import * as fs from 'fs';
+import { tokenize } from './japanese-tokenizer';
 
 // Dynamic import for @xenova/transformers to handle ESM
 async function loadTransformers() {
@@ -245,6 +246,61 @@ export class LocalEmbeddingService {
     }
     
     return dotProduct / (normA * normB);
+  }
+
+  /**
+   * 類似したembeddingを検索
+   */
+  findSimilar(
+    target: number[], 
+    embeddings: number[][], 
+    topK: number, 
+    threshold?: number
+  ): Array<{ index: number; score: number }> {
+    const scores = embeddings.map((embedding, index) => ({
+      index,
+      score: this.cosineSimilarity(target, embedding)
+    }));
+
+    // スコアでソート
+    scores.sort((a, b) => b.score - a.score);
+
+    // 閾値でフィルタ
+    let results = scores;
+    if (threshold !== undefined) {
+      results = scores.filter(item => item.score >= threshold);
+    }
+
+    // topK件を返す
+    return results.slice(0, topK);
+  }
+
+  /**
+   * テキストからキーワードを抽出
+   */
+  extractKeywords(text: string, topK: number): string[] {
+    if (!text || text.trim().length === 0) {
+      return [];
+    }
+
+    // 日本語トークナイザーを使用
+    const tokens = tokenize(text);
+    
+    // 頻度をカウント
+    const frequency = new Map<string, number>();
+    tokens.forEach(token => {
+      if (token.length > 1) { // 1文字の単語は除外
+        frequency.set(token, (frequency.get(token) || 0) + 1);
+      }
+    });
+
+    // 頻度でソート
+    const sorted = Array.from(frequency.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, topK)
+      .map(([token]) => token);
+
+    return sorted;
   }
   
   /**

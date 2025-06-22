@@ -28,8 +28,8 @@ export class PlotApplicationService {
     createdBy?: string;
   }): Promise<Plot> {
     // バージョン番号を生成
-    const existingPlots = await this.uow.plots.findByProjectId(data.projectId);
-    const existingVersions = existingPlots.map(p => p.version);
+    const existingPlots = await this.uow.plotRepository.findByProjectId(data.projectId);
+    const existingVersions = existingPlots.map((p: Plot) => p.version);
     const version = this.versioningService.generateVersion(existingVersions, data.parentVersion);
 
     const plot = new Plot(
@@ -46,7 +46,7 @@ export class PlotApplicationService {
       data.createdBy || 'human'
     );
 
-    await this.uow.plots.save(plot);
+    await this.uow.plotRepository.save(plot);
     return plot;
   }
 
@@ -59,7 +59,7 @@ export class PlotApplicationService {
     structure?: PlotStructure;
     createdBy?: string;
   }): Promise<Plot> {
-    const parentPlot = await this.uow.plots.findById(plotId);
+    const parentPlot = await this.uow.plotRepository.findById(plotId);
     if (!parentPlot) {
       throw new Error('Parent plot not found');
     }
@@ -82,13 +82,13 @@ export class PlotApplicationService {
     synopsis?: string;
     structure?: PlotStructure;
   }): Promise<Plot> {
-    const plot = await this.uow.plots.findById(id);
+    const plot = await this.uow.plotRepository.findById(id);
     if (!plot) {
       throw new Error('Plot not found');
     }
 
     plot.updateContent(updates);
-    await this.uow.plots.save(plot);
+    await this.uow.plotRepository.save(plot);
     return plot;
   }
 
@@ -96,13 +96,13 @@ export class PlotApplicationService {
    * プロットのステータスを更新
    */
   async updatePlotStatus(id: string, status: 'draft' | 'reviewing' | 'approved' | 'rejected'): Promise<Plot> {
-    const plot = await this.uow.plots.findById(id);
+    const plot = await this.uow.plotRepository.findById(id);
     if (!plot) {
       throw new Error('Plot not found');
     }
 
     plot.updateStatus(status);
-    await this.uow.plots.save(plot);
+    await this.uow.plotRepository.save(plot);
     return plot;
   }
 
@@ -114,7 +114,7 @@ export class PlotApplicationService {
     conflictLevel: number;
     paceScore: number;
   }> {
-    const plot = await this.uow.plots.findById(plotId);
+    const plot = await this.uow.plotRepository.findById(plotId);
     if (!plot) {
       throw new Error('Plot not found');
     }
@@ -130,7 +130,7 @@ export class PlotApplicationService {
    * プロットを取得
    */
   async getPlot(id: string): Promise<Plot> {
-    const plot = await this.uow.plots.findById(id);
+    const plot = await this.uow.plotRepository.findById(id);
     if (!plot) {
       throw new Error('Plot not found');
     }
@@ -141,14 +141,14 @@ export class PlotApplicationService {
    * プロジェクトのプロット履歴を取得
    */
   async getPlotHistory(projectId: string): Promise<Plot[]> {
-    return this.uow.plots.findByProjectId(projectId);
+    return this.uow.plotRepository.findByProjectId(projectId);
   }
 
   /**
    * プロットのバージョンツリーを取得
    */
   async getPlotVersionTree(projectId: string): Promise<any> {
-    const plots = await this.uow.plots.findByProjectId(projectId);
+    const plots = await this.uow.plotRepository.findByProjectId(projectId);
     return this.versioningService.buildVersionTree(plots);
   }
 
@@ -156,17 +156,17 @@ export class PlotApplicationService {
    * プロットを削除
    */
   async deletePlot(id: string): Promise<void> {
-    const exists = await this.uow.plots.exists(id);
+    const exists = await this.uow.plotRepository.exists(id);
     if (!exists) {
       throw new Error('Plot not found');
     }
 
     // 子バージョンがある場合は削除不可
-    const children = await this.uow.plots.findChildren(id);
+    const children = await this.uow.plotRepository.findChildren(id);
     if (children.length > 0) {
       throw new Error('Cannot delete plot with child versions');
     }
 
-    await this.uow.plots.delete(id);
+    await this.uow.plotRepository.delete(id);
   }
 }

@@ -5,8 +5,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Knowledge } from '../../domain/entities';
 import { IUnitOfWork } from '../../domain/repositories';
-import { IEmbeddingService } from '../../services/interfaces';
-import { SerendipityService } from '../../domain/services';
+import { IEmbeddingService, SerendipityService } from '../../domain/services';
 
 export class KnowledgeApplicationService {
   private serendipityService: SerendipityService;
@@ -48,9 +47,11 @@ export class KnowledgeApplicationService {
       knowledge.setEmbedding(embedding);
     } catch (error) {
       console.error('Failed to generate embedding:', error);
+      throw error;
     }
 
-    await this.uow.knowledge.save(knowledge);
+    await this.uow.knowledgeRepository.save(knowledge);
+    await this.uow.commit();
     return knowledge;
   }
 
@@ -63,7 +64,7 @@ export class KnowledgeApplicationService {
     type?: string;
     metadata?: Record<string, any>;
   }): Promise<Knowledge> {
-    const knowledge = await this.uow.knowledge.findById(id);
+    const knowledge = await this.uow.knowledgeRepository.findById(id);
     if (!knowledge) {
       throw new Error('Knowledge not found');
     }
@@ -87,7 +88,8 @@ export class KnowledgeApplicationService {
       }
     }
 
-    await this.uow.knowledge.save(knowledge);
+    await this.uow.knowledgeRepository.save(knowledge);
+    await this.uow.commit();
     return knowledge;
   }
 
@@ -104,7 +106,7 @@ export class KnowledgeApplicationService {
       return this.serendipitySearch(query, options);
     }
 
-    return this.uow.knowledge.search(query, options);
+    return this.uow.knowledgeRepository.search(query, options);
   }
 
   /**
@@ -127,7 +129,7 @@ export class KnowledgeApplicationService {
 
     // TODO: ベクトル検索の実装
     // 現在は通常の検索にフォールバック
-    const results = await this.uow.knowledge.search(query, options);
+    const results = await this.uow.knowledgeRepository.search(query, options);
     
     // ランダムに並び替えてセレンディピティを演出
     return results.sort(() => Math.random() - 0.5);
@@ -137,19 +139,19 @@ export class KnowledgeApplicationService {
    * 知識を削除
    */
   async deleteKnowledge(id: string): Promise<void> {
-    const exists = await this.uow.knowledge.exists(id);
+    const exists = await this.uow.knowledgeRepository.exists(id);
     if (!exists) {
       throw new Error('Knowledge not found');
     }
 
-    await this.uow.knowledge.delete(id);
+    await this.uow.knowledgeRepository.delete(id);
   }
 
   /**
    * 知識を取得
    */
   async getKnowledge(id: string): Promise<Knowledge> {
-    const knowledge = await this.uow.knowledge.findById(id);
+    const knowledge = await this.uow.knowledgeRepository.findById(id);
     if (!knowledge) {
       throw new Error('Knowledge not found');
     }
@@ -160,7 +162,7 @@ export class KnowledgeApplicationService {
    * プロジェクトの知識を取得
    */
   async getProjectKnowledge(projectId: string): Promise<Knowledge[]> {
-    return this.uow.knowledge.findByProjectId(projectId);
+    return this.uow.knowledgeRepository.findByProjectId(projectId);
   }
 
   /**
@@ -175,7 +177,7 @@ export class KnowledgeApplicationService {
     metadata?: Record<string, any>;
   }): Promise<Knowledge> {
     // URL重複チェック
-    const exists = await this.uow.knowledge.existsByUrl(data.url);
+    const exists = await this.uow.knowledgeRepository.existsByUrl(data.url);
     if (exists) {
       throw new Error('URL already exists in knowledge base');
     }
@@ -189,6 +191,28 @@ export class KnowledgeApplicationService {
     return this.createKnowledge({
       ...data,
       metadata
+    });
+  }
+
+  /**
+   * 類似した知識を検索
+   */
+  async findSimilarKnowledge(knowledgeId: string, options?: {
+    limit?: number;
+    threshold?: number;
+  }): Promise<Knowledge[]> {
+    const knowledge = await this.uow.knowledgeRepository.findById(knowledgeId);
+    if (!knowledge) {
+      throw new Error('Knowledge not found');
+    }
+
+    if (!knowledge.embedding) {
+      throw new Error('Knowledge has no embedding');
+    }
+
+    return this.uow.knowledgeRepository.searchSimilar(knowledge.embedding, {
+      limit: options?.limit || 10,
+      threshold: options?.threshold
     });
   }
 }

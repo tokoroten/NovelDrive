@@ -236,6 +236,61 @@ export class KnowledgeRepository implements IKnowledgeRepository {
     });
   }
 
+  async searchSimilar(embedding: number[], options?: {
+    limit?: number;
+    threshold?: number;
+  }): Promise<Knowledge[]> {
+    return withPooledConnection(this.pool, async (conn) => {
+      // TODO: DuckDB VSSを使用したベクトル類似検索の実装
+      // 現在は全件取得して類似度計算（パフォーマンス改善必要）
+      return new Promise((resolve, reject) => {
+        conn.all(
+          'SELECT * FROM knowledge WHERE embedding IS NOT NULL',
+          [],
+          (err, rows: any[]) => {
+            if (err) return reject(err);
+            
+            const knowledgeItems = (rows || []).map(row => this.mapRowToKnowledge(row));
+            
+            // 類似度を計算してソート
+            const withSimilarity = knowledgeItems
+              .filter(k => k.embedding !== null)
+              .map(k => ({
+                knowledge: k,
+                similarity: this.cosineSimilarity(embedding, k.embedding!)
+              }))
+              .filter(item => !options?.threshold || item.similarity >= options.threshold)
+              .sort((a, b) => b.similarity - a.similarity)
+              .slice(0, options?.limit || 10);
+            
+            resolve(withSimilarity.map(item => item.knowledge));
+          }
+        );
+      });
+    });
+  }
+
+  private cosineSimilarity(a: number[], b: number[]): number {
+    if (a.length !== b.length) return 0;
+    
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+    
+    normA = Math.sqrt(normA);
+    normB = Math.sqrt(normB);
+    
+    if (normA === 0 || normB === 0) return 0;
+    
+    return dotProduct / (normA * normB);
+  }
+
   private async existsInTransaction(conn: any, id: string): Promise<boolean> {
     return new Promise((resolve, reject) => {
       conn.all(

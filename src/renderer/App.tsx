@@ -1,14 +1,25 @@
-import React, { useState } from 'react';
-import { Settings } from './components/Settings';
-import { AnythingBox } from './components/AnythingBox';
-import { AgentMeetingRoom } from './components/AgentMeetingRoom';
-import { PlotManagement } from './components/PlotManagement';
-import { KnowledgeGraph } from './components/KnowledgeGraph';
-import { WritingEditor } from './components/WritingEditor';
-import { ProjectKnowledge } from './components/ProjectKnowledge';
-import { IdeaGacha } from './components/IdeaGacha';
-import { AnalyticsDashboard } from './components/AnalyticsDashboard';
+import React, { useState, lazy, Suspense } from 'react';
 import { Dashboard } from './components/Dashboard';
+
+// 遅延読み込みコンポーネント
+const Settings = lazy(() => import('./components/Settings').then(m => ({ default: m.Settings })));
+const AnythingBox = lazy(() => import('./components/AnythingBox').then(m => ({ default: m.AnythingBox })));
+const AgentMeetingRoom = lazy(() => import('./components/AgentMeetingRoom').then(m => ({ default: m.AgentMeetingRoom })));
+const PlotManagement = lazy(() => import('./components/PlotManagement').then(m => ({ default: m.PlotManagement })));
+const KnowledgeGraph = lazy(() => import('./components/KnowledgeGraph').then(m => ({ default: m.KnowledgeGraph })));
+const WritingEditor = lazy(() => import('./components/WritingEditor').then(m => ({ default: m.WritingEditor })));
+const ProjectKnowledge = lazy(() => import('./components/ProjectKnowledge').then(m => ({ default: m.ProjectKnowledge })));
+const IdeaGacha = lazy(() => import('./components/IdeaGacha').then(m => ({ default: m.IdeaGacha })));
+const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard').then(m => ({ default: m.AnalyticsDashboard })));
+
+// ローディングコンポーネント
+function LoadingSpinner() {
+  return (
+    <div className="flex items-center justify-center h-full">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+    </div>
+  );
+}
 
 export function App() {
   const [currentView, setCurrentView] = useState<string>('dashboard');
@@ -49,7 +60,7 @@ export function App() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
-      <nav className="w-64 bg-secondary-900 text-white p-5 overflow-y-auto">
+      <nav className="w-64 bg-secondary-900 text-white p-5 overflow-y-auto" data-testid="nav-menu">
         <h1 className="text-2xl font-bold text-center mb-8">NovelDrive</h1>
         <ul className="space-y-2">
           <li>
@@ -58,6 +69,7 @@ export function App() {
               className={`w-full px-4 py-3 text-left rounded transition-colors hover:bg-secondary-800 ${
                 currentView === 'dashboard' ? 'bg-secondary-800' : ''
               }`}
+              data-testid="nav-dashboard"
             >
               ダッシュボード
             </button>
@@ -68,6 +80,7 @@ export function App() {
               className={`w-full px-4 py-3 text-left rounded transition-colors hover:bg-secondary-800 ${
                 currentView === 'anything-box' ? 'bg-secondary-800' : ''
               }`}
+              data-testid="nav-anything-box"
             >
               Anything Box
             </button>
@@ -78,6 +91,7 @@ export function App() {
               className={`w-full px-4 py-3 text-left rounded transition-colors hover:bg-secondary-800 ${
                 currentView === 'knowledge-graph' ? 'bg-secondary-800' : ''
               }`}
+              data-testid="nav-knowledge-graph"
             >
               知識グラフ
             </button>
@@ -156,7 +170,11 @@ export function App() {
       </nav>
 
       <main className="flex-1 overflow-y-auto p-8">
-        <div className="max-w-7xl mx-auto">{renderView()}</div>
+        <div className="max-w-7xl mx-auto">
+          <Suspense fallback={<LoadingSpinner />}>
+            {renderView()}
+          </Suspense>
+        </div>
       </main>
     </div>
   );

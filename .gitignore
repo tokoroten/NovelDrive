@@ -85,3 +85,15 @@ coverage/
 
 # Yarn Integrity file
 .yarn-integrity
+
+# E2E Tests
+playwright-report/
+test-results/
+screenshots/
+e2e/screenshots/
+
+# Database
+*.db-journal
+*.db-wal
+*.db-shm
+data/

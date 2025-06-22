@@ -8,21 +8,21 @@ import { DuckDBKnowledgeRepository } from './knowledge-repository';
 import { DuckDBPlotRepository } from './plot-repository';
 
 export class DuckDBUnitOfWork implements IUnitOfWork {
-  public readonly knowledge: IKnowledgeRepository;
-  public readonly plots: IPlotRepository;
-  public readonly projects: IProjectRepository;
-  public readonly characters: ICharacterRepository;
-  public readonly worldSettings: IWorldSettingRepository;
+  public readonly knowledgeRepository: IKnowledgeRepository;
+  public readonly plotRepository: IPlotRepository;
+  public readonly projectRepository: IProjectRepository;
+  public readonly characterRepository: ICharacterRepository;
+  public readonly worldSettingRepository: IWorldSettingRepository;
   
   private inTransaction = false;
 
   constructor(private conn: duckdb.Connection) {
-    this.knowledge = new DuckDBKnowledgeRepository(conn);
-    this.plots = new DuckDBPlotRepository(conn);
+    this.knowledgeRepository = new DuckDBKnowledgeRepository(conn);
+    this.plotRepository = new DuckDBPlotRepository(conn);
     // TODO: Implement other repositories
-    this.projects = {} as IProjectRepository;
-    this.characters = {} as ICharacterRepository;
-    this.worldSettings = {} as IWorldSettingRepository;
+    this.projectRepository = {} as IProjectRepository;
+    this.characterRepository = {} as ICharacterRepository;
+    this.worldSettingRepository = {} as IWorldSettingRepository;
   }
 
   async beginTransaction(): Promise<void> {

@@ -6,6 +6,17 @@
 import { Plot, PlotStructure, EmotionalTone } from '../entities';
 
 /**
+ * 埋め込みサービスインターフェース
+ */
+export interface IEmbeddingService {
+  generateEmbedding(text: string): Promise<number[]>;
+  generateEmbeddings(texts: string[]): Promise<number[][]>;
+  cosineSimilarity(a: number[], b: number[]): number;
+  findSimilar(target: number[], embeddings: number[][], topK: number, threshold?: number): Array<{ index: number; score: number }>;
+  extractKeywords(text: string, topK: number): string[];
+}
+
+/**
  * プロットバージョニングサービス
  */
 export class PlotVersioningService {

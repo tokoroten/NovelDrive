@@ -62,9 +62,14 @@ export function normalizeTokens(tokens: string[]): string[] {
 export function getSearchTokens(text: string): string[] {
   const tokens = tokenize(text);
   const normalized = normalizeTokens(tokens);
-
-  // 重複を除去
-  return [...new Set(normalized)];
+  
+  // n-gramを生成
+  const bigrams = generateNgrams(tokens, 2);
+  const trigrams = generateNgrams(tokens, 3);
+  
+  // すべてを結合して重複を除去
+  const allTokens = [...normalized, ...bigrams, ...trigrams];
+  return [...new Set(allTokens)];
 }
 
 /**
@@ -82,6 +87,40 @@ export function generateNgrams(tokens: string[], n: number = 2): string[] {
   }
 
   return ngrams;
+}
+
+/**
+ * テキストからキーワードを抽出する
+ * @param text 元のテキスト
+ * @param topK 抽出するキーワードの最大数
+ * @returns キーワードとスコアの配列
+ */
+export function extractKeywords(text: string, topK: number = 5): Array<{ token: string; score: number }> {
+  if (!text || text.trim().length === 0) {
+    return [];
+  }
+
+  const tokens = tokenize(text);
+  const normalized = normalizeTokens(tokens);
+
+  // トークンの頻度をカウント
+  const frequency = new Map<string, number>();
+  normalized.forEach(token => {
+    if (token.length > 1) { // 1文字のトークンは除外
+      frequency.set(token, (frequency.get(token) || 0) + 1);
+    }
+  });
+
+  // 頻度でソートしてトップKを取得
+  const sorted = Array.from(frequency.entries())
+    .map(([token, count]) => ({
+      token,
+      score: count / tokens.length // 正規化されたスコア
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topK);
+
+  return sorted;
 }
 
 /**

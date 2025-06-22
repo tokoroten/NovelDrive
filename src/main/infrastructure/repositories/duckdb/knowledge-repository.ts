@@ -147,6 +147,29 @@ export class DuckDBKnowledgeRepository implements IKnowledgeRepository {
     });
   }
 
+  async findByIds(ids: string[]): Promise<Knowledge[]> {
+    if (ids.length === 0) return [];
+    
+    const placeholders = ids.map(() => '?').join(',');
+    const sql = `SELECT * FROM knowledge WHERE id IN (${placeholders})`;
+    
+    return new Promise((resolve, reject) => {
+      this.conn.all(sql, ids, (err, rows: any[]) => {
+        if (err) return reject(err);
+        resolve((rows || []).map(row => this.mapRowToKnowledge(row)));
+      });
+    });
+  }
+
+  async searchSimilar(embedding: number[], options?: {
+    limit?: number;
+    threshold?: number;
+  }): Promise<Knowledge[]> {
+    // TODO: Implement vector similarity search with DuckDB VSS extension
+    // For now, return empty array
+    return [];
+  }
+
   private mapRowToKnowledge(row: any): Knowledge {
     return new Knowledge(
       row.id,

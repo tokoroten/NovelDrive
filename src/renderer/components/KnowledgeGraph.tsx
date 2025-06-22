@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import ReactFlow, {
   Node,
   Edge,
@@ -12,74 +12,85 @@ import ReactFlow, {
   MarkerType,
   NodeTypes,
   Position,
+  useReactFlow,
+  ReactFlowProvider,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-
-interface KnowledgeItem {
-  id: string;
-  title: string;
-  content: string;
-  type: string;
-  projectId?: string;
-  metadata?: Record<string, unknown>;
-  createdAt: string;
-  similarity?: number;
-}
+import { motion, AnimatePresence } from 'framer-motion';
+import AnimatedKnowledgeNode from './graph/AnimatedKnowledgeNode';
+import { 
+  applyLayout, 
+  LayoutType,
+  ForceDirectedLayout,
+  HierarchicalLayout,
+  CircularLayout
+} from '../utils/graphLayout';
+import {
+  calculateHybridRelations,
+  clusterNodes,
+} from '../utils/graphRelations';
+import {
+  filterNodesInViewport,
+  throttleNodesByImportance,
+  optimizeEdges,
+  debounce,
+  GraphPerformanceMonitor,
+} from '../utils/graphPerformance';
+import { KnowledgeItem } from '../../shared/types';
 
 interface GraphData {
   nodes: Node[];
   edges: Edge[];
 }
 
-// カスタムノードコンポーネント
-interface KnowledgeNodeData {
-  label: string;
-  type: string;
-  content: string;
-  selected?: boolean;
-  similarity?: number;
-}
-
-const KnowledgeNode = ({ data }: { data: KnowledgeNodeData }) => {
-  const getNodeColor = (type: string) => {
-    const colors: Record<string, string> = {
-      inspiration: '#8B5CF6', // 紫
-      article: '#3B82F6', // 青
-      idea: '#10B981', // 緑
-      url: '#F59E0B', // 黄
-      image: '#EF4444', // 赤
-      audio: '#EC4899', // ピンク
-      default: '#6B7280', // グレー
-    };
-    return colors[type] || colors.default;
+// シンプルなノード（パフォーマンスモード用）
+const SimpleNode = ({ data }: { data: any }) => {
+  const colors: Record<string, string> = {
+    inspiration: '#8B5CF6',
+    article: '#3B82F6',
+    idea: '#10B981',
+    url: '#F59E0B',
+    image: '#EF4444',
+    audio: '#EC4899',
+    default: '#6B7280',
   };
-
-  const nodeColor = getNodeColor(data.type);
-
+  const color = colors[data.type] || colors.default;
+  
   return (
-    <div
-      className="px-4 py-3 shadow-lg rounded-lg border-2 bg-white transition-all hover:shadow-xl"
-      style={{ borderColor: nodeColor }}
-    >
-      <div className="flex items-center gap-2 mb-1">
-        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: nodeColor }} />
-        <span className="text-xs text-gray-500">{data.type}</span>
+    <div 
+      className="w-3 h-3 rounded-full border-2 border-white shadow-md"
+      style={{ backgroundColor: color }}
+      title={data.label}
+    />
+  );
+};
+
+// ドットノード（極小表示用）
+const DotNode = ({ data }: { data: any }) => {
+  return <div className="w-2 h-2 bg-gray-400 rounded-full" title={data.label} />;
+};
+
+// クラスタノード
+const ClusterNode = ({ data }: { data: any }) => {
+  return (
+    <div className="px-4 py-3 bg-gray-100 rounded-xl border-2 border-gray-300 shadow-lg">
+      <div className="text-center">
+        <div className="text-2xl mb-1">📁</div>
+        <div className="text-sm font-medium">{data.label}</div>
+        <div className="text-xs text-gray-500 mt-1">{data.memberCount}件</div>
       </div>
-      <div className="font-medium text-sm text-gray-800 max-w-[200px]">{data.label}</div>
-      {data.similarity && (
-        <div className="text-xs text-gray-500 mt-1">
-          類似度: {Math.round(data.similarity * 100)}%
-        </div>
-      )}
     </div>
   );
 };
 
 const nodeTypes: NodeTypes = {
-  knowledge: KnowledgeNode,
+  knowledge: AnimatedKnowledgeNode,
+  simple: SimpleNode,
+  dot: DotNode,
+  cluster: ClusterNode,
 };
 
-export function KnowledgeGraph() {
+function KnowledgeGraphInner() {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
@@ -87,11 +98,39 @@ export function KnowledgeGraph() {
   const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState<'all' | 'project' | 'search'>('all');
   const [projectId] = useState('default-project'); // TODO: プロジェクト選択機能
+  const [layoutType, setLayoutType] = useState<LayoutType>('force-directed');
+  const [performanceMode, setPerformanceMode] = useState(false);
+  const [showClusters, setShowClusters] = useState(false);
+  const [realtimeUpdate, setRealtimeUpdate] = useState(false);
+  
+  const reactFlowInstance = useReactFlow();
+  const performanceMonitor = useRef(new GraphPerformanceMonitor());
+  const updateIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // 初期データの読み込み
   useEffect(() => {
     loadKnowledgeGraph();
-  }, [viewMode, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [viewMode, projectId, layoutType]); // eslint-disable-line react-hooks/exhaustive-deps
+  
+  // リアルタイム更新の設定
+  useEffect(() => {
+    if (realtimeUpdate) {
+      updateIntervalRef.current = setInterval(() => {
+        loadKnowledgeGraph();
+      }, 5000); // 5秒ごとに更新
+    } else {
+      if (updateIntervalRef.current) {
+        clearInterval(updateIntervalRef.current);
+        updateIntervalRef.current = null;
+      }
+    }
+    
+    return () => {
+      if (updateIntervalRef.current) {
+        clearInterval(updateIntervalRef.current);
+      }
+    };
+  }, [realtimeUpdate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadKnowledgeGraph = async () => {
     setIsLoading(true);
@@ -130,86 +169,55 @@ export function KnowledgeGraph() {
   };
 
   const buildGraphData = async (items: KnowledgeItem[]): Promise<GraphData> => {
-    const nodes: Node[] = [];
-    const edges: Edge[] = [];
-    const nodePositions = new Map<string, { x: number; y: number }>();
+    // ノードを作成
+    let nodes: Node[] = items.map(item => ({
+      id: item.id,
+      type: performanceMode ? 'simple' : 'knowledge',
+      position: { x: 0, y: 0 }, // 初期位置（後でレイアウトで更新）
+      data: {
+        label: item.title,
+        type: item.type,
+        content: item.content,
+        metadata: item.metadata,
+        similarity: item.similarity,
+        connectionCount: 0,
+      },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+    }));
 
-    // 円形レイアウトでノードを配置
-    const centerX = 400;
-    const centerY = 300;
-    const radius = 250;
-
-    items.forEach((item, index) => {
-      const angle = (index / items.length) * 2 * Math.PI;
-      const x = centerX + radius * Math.cos(angle);
-      const y = centerY + radius * Math.sin(angle);
-
-      nodePositions.set(item.id, { x, y });
-
-      nodes.push({
-        id: item.id,
-        type: 'knowledge',
-        position: { x, y },
-        data: {
-          label: item.title,
-          type: item.type,
-          content: item.content,
-          metadata: item.metadata,
-          similarity: item.similarity,
-        },
-        sourcePosition: Position.Right,
-        targetPosition: Position.Left,
-      });
+    // エッジを計算（ハイブリッド方式）
+    const edges = await calculateHybridRelations(items);
+    
+    // 接続数を計算
+    edges.forEach(edge => {
+      const sourceNode = nodes.find(n => n.id === edge.source);
+      const targetNode = nodes.find(n => n.id === edge.target);
+      if (sourceNode) sourceNode.data.connectionCount++;
+      if (targetNode) targetNode.data.connectionCount++;
     });
 
-    // 関連性に基づいてエッジを生成
-    if (items.length > 1 && items.length < 50) {
-      // アイテム数が適度な場合のみ関連性を計算
-      for (let i = 0; i < items.length; i++) {
-        for (let j = i + 1; j < items.length; j++) {
-          const item1 = items[i];
-          const item2 = items[j];
+    // クラスタリング
+    if (showClusters && nodes.length > 20) {
+      const clusters = clusterNodes(items, edges);
+      // TODO: クラスタノードの追加
+    }
 
-          // メタデータやタイプに基づく関連性チェック
-          let isRelated = false;
-          let relationStrength = 0.5;
+    // レイアウトを適用
+    nodes = applyLayout(nodes, edges, layoutType, {
+      iterations: 50,
+      nodeRepulsion: 2000,
+      edgeAttraction: 0.05,
+    });
 
-          // 同じプロジェクトのアイテム
-          if (item1.projectId && item1.projectId === item2.projectId) {
-            isRelated = true;
-            relationStrength = 0.7;
-          }
-
-          // 同じソースURL
-          if (item1.metadata?.url && item1.metadata.url === item2.metadata?.url) {
-            isRelated = true;
-            relationStrength = 0.9;
-          }
-
-          // インスピレーションとその元
-          if (item1.metadata?.sourceId === item2.id || item2.metadata?.sourceId === item1.id) {
-            isRelated = true;
-            relationStrength = 1.0;
-          }
-
-          if (isRelated) {
-            edges.push({
-              id: `${item1.id}-${item2.id}`,
-              source: item1.id,
-              target: item2.id,
-              animated: relationStrength > 0.7,
-              style: {
-                stroke: `rgba(107, 114, 128, ${relationStrength})`,
-                strokeWidth: relationStrength * 3,
-              },
-              markerEnd: {
-                type: MarkerType.ArrowClosed,
-                color: '#6B7280',
-              },
-            });
-          }
-        }
-      }
+    // パフォーマンス最適化
+    if (performanceMode && nodes.length > 100) {
+      // 重要度でノードを間引く
+      nodes = throttleNodesByImportance(nodes, edges, 100);
+      // 表示ノードに関連するエッジのみを残す
+      const visibleNodeIds = new Set(nodes.map(n => n.id));
+      const optimizedEdges = optimizeEdges(edges, visibleNodeIds, 200);
+      return { nodes, edges: optimizedEdges };
     }
 
     return { nodes, edges };
@@ -259,7 +267,22 @@ export function KnowledgeGraph() {
 
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
     setSelectedNode(node.id);
-  }, []);
+    
+    // 関連ノードをハイライト
+    const connectedEdges = edges.filter(e => e.source === node.id || e.target === node.id);
+    const connectedNodeIds = new Set(
+      connectedEdges.flatMap(e => [e.source, e.target]).filter(id => id !== node.id)
+    );
+    
+    setNodes(nds => nds.map(n => ({
+      ...n,
+      data: {
+        ...n.data,
+        isHighlighted: connectedNodeIds.has(n.id),
+        selected: n.id === node.id,
+      },
+    })));
+  }, [edges, setNodes]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -280,37 +303,72 @@ export function KnowledgeGraph() {
         <div className="p-4 border-b border-gray-200">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold">知識グラフ</h3>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setViewMode('all')}
-                className={`px-3 py-1 rounded text-sm ${
-                  viewMode === 'all'
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
+            <div className="flex items-center gap-4">
+              {/* レイアウト選択 */}
+              <select
+                value={layoutType}
+                onChange={(e) => setLayoutType(e.target.value as LayoutType)}
+                className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
-                すべて
-              </button>
-              <button
-                onClick={() => setViewMode('project')}
-                className={`px-3 py-1 rounded text-sm ${
-                  viewMode === 'project'
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              >
-                プロジェクト
-              </button>
-              <button
-                onClick={() => setViewMode('search')}
-                className={`px-3 py-1 rounded text-sm ${
-                  viewMode === 'search'
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              >
-                検索
-              </button>
+                <option value="force-directed">力学的レイアウト</option>
+                <option value="hierarchical">階層レイアウト</option>
+                <option value="circular">円形レイアウト</option>
+              </select>
+              
+              {/* パフォーマンスモード */}
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={performanceMode}
+                  onChange={(e) => setPerformanceMode(e.target.checked)}
+                  className="rounded"
+                />
+                <span>高速モード</span>
+              </label>
+              
+              {/* リアルタイム更新 */}
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={realtimeUpdate}
+                  onChange={(e) => setRealtimeUpdate(e.target.checked)}
+                  className="rounded"
+                />
+                <span>自動更新</span>
+              </label>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setViewMode('all')}
+                  className={`px-3 py-1 rounded text-sm ${
+                    viewMode === 'all'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  すべて
+                </button>
+                <button
+                  onClick={() => setViewMode('project')}
+                  className={`px-3 py-1 rounded text-sm ${
+                    viewMode === 'project'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  プロジェクト
+                </button>
+                <button
+                  onClick={() => setViewMode('search')}
+                  className={`px-3 py-1 rounded text-sm ${
+                    viewMode === 'search'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  検索
+                </button>
+              </div>
             </div>
           </div>
 
@@ -350,9 +408,12 @@ export function KnowledgeGraph() {
               nodeTypes={nodeTypes}
               fitView
               attributionPosition="bottom-left"
+              minZoom={0.1}
+              maxZoom={2}
+              fitViewOptions={{ padding: 0.2 }}
             >
-              <Background />
-              <Controls />
+              <Background variant="dots" />
+              <Controls showInteractive={false} />
               <MiniMap
                 nodeColor={(node) => {
                   const colors: Record<string, string> = {
@@ -418,5 +479,15 @@ export function KnowledgeGraph() {
         </div>
       )}
     </div>
+  );
+}
+
+export function KnowledgeGraph() {
+  return (
+    <ReactFlowProvider>
+      <div data-testid="knowledge-graph-page">
+        <KnowledgeGraphInner />
+      </div>
+    </ReactFlowProvider>
   );
 }

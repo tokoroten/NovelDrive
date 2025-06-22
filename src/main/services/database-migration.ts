@@ -59,38 +59,31 @@ export class DatabaseMigration {
     
     await this.executeSQL(sql);
   }
-
+  
   /**
    * 実行済みマイグレーションの取得
    */
   private async getExecutedMigrations(): Promise<string[]> {
-    const sql = 'SELECT version FROM migrations ORDER BY version';
-    
     return new Promise((resolve, reject) => {
-      this.conn.all(sql, [], (err, rows) => {
+      this.conn.all('SELECT version FROM migrations', (err: Error | null, rows: any[]) => {
         if (err) {
-          // テーブルが存在しない場合は空配列を返す
-          if (err.message.includes('does not exist')) {
-            resolve([]);
-          } else {
-            reject(err);
-          }
+          // Migration table might not exist yet
+          resolve([]);
         } else {
-          resolve(rows.map((row: Record<string, unknown>) => row.version as string));
+          resolve(rows.map(row => row.version));
         }
       });
     });
   }
-
+  
   /**
-   * マイグレーションの記録
+   * マイグレーション実行の記録
    */
   private async recordMigration(version: string, name: string): Promise<void> {
     const sql = 'INSERT INTO migrations (version, name) VALUES (?, ?)';
-    
     await this.executeSQL(sql, [version, name]);
   }
-
+  
   /**
    * SQLの実行
    */
@@ -156,7 +149,8 @@ export class DatabaseMigration {
             metadata JSON DEFAULT '{}',
             embedding FLOAT[],
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
           )`,
           
           // 知識ベースのインデックス
@@ -176,7 +170,8 @@ export class DatabaseMigration {
             dialogue_samples TEXT,
             metadata JSON DEFAULT '{}',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
           )`,
           
           // キャラクターのインデックス
@@ -196,7 +191,8 @@ export class DatabaseMigration {
             created_by VARCHAR NOT NULL,
             metadata JSON DEFAULT '{}',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
           )`,
           
           // プロットのインデックス
@@ -209,20 +205,23 @@ export class DatabaseMigration {
             id VARCHAR PRIMARY KEY,
             project_id VARCHAR NOT NULL,
             plot_id VARCHAR NOT NULL,
-            chapter_number INTEGER NOT NULL,
+            "order" INTEGER NOT NULL,
             title VARCHAR NOT NULL,
             content TEXT NOT NULL,
             word_count INTEGER DEFAULT 0,
+            character_count INTEGER DEFAULT 0,
             status VARCHAR NOT NULL DEFAULT 'draft',
             version INTEGER DEFAULT 1,
             metadata JSON DEFAULT '{}',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+            FOREIGN KEY (plot_id) REFERENCES plots(id) ON DELETE CASCADE
           )`,
           
           // 章のインデックス
           'CREATE INDEX IF NOT EXISTS idx_chapters_status ON chapters(status)',
-          'CREATE UNIQUE INDEX IF NOT EXISTS uk_chapter_number ON chapters(project_id, plot_id, chapter_number)',
+          'CREATE UNIQUE INDEX IF NOT EXISTS uk_chapter_order ON chapters(project_id, plot_id, "order")',
           
           // エージェント議論テーブル
           `CREATE TABLE IF NOT EXISTS agent_discussions (
@@ -236,7 +235,10 @@ export class DatabaseMigration {
             participants JSON NOT NULL DEFAULT '[]',
             metadata JSON DEFAULT '{}',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+            FOREIGN KEY (plot_id) REFERENCES plots(id) ON DELETE CASCADE,
+            FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE
           )`,
           
           // エージェント議論のインデックス
@@ -252,7 +254,8 @@ export class DatabaseMigration {
             message TEXT NOT NULL,
             message_type VARCHAR NOT NULL DEFAULT 'text',
             metadata JSON DEFAULT '{}',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (discussion_id) REFERENCES agent_discussions(id) ON DELETE CASCADE
           )`,
           
           // エージェントメッセージのインデックス
@@ -267,7 +270,9 @@ export class DatabaseMigration {
             link_type VARCHAR NOT NULL DEFAULT 'related',
             strength FLOAT DEFAULT 0.5,
             metadata JSON DEFAULT '{}',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (source_id) REFERENCES knowledge(id) ON DELETE CASCADE,
+            FOREIGN KEY (target_id) REFERENCES knowledge(id) ON DELETE CASCADE
           )`,
           
           // 知識リンクのインデックス
@@ -472,7 +477,8 @@ export class DatabaseMigration {
             result TEXT,
             error TEXT,
             metrics TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
           )`,
 
           // 自律生成コンテンツ
@@ -483,7 +489,8 @@ export class DatabaseMigration {
             quality_score REAL,
             saved BOOLEAN DEFAULT FALSE,
             project_id TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
           )`,
 
           // 自律モードログ
@@ -495,31 +502,127 @@ export class DatabaseMigration {
             message TEXT NOT NULL,
             operation_id TEXT,
             metadata TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (operation_id) REFERENCES autonomous_operations(id) ON DELETE CASCADE
           )`,
 
-          // インデックス作成
-          `CREATE INDEX IF NOT EXISTS idx_autonomous_operations_type_status 
-            ON autonomous_operations(type, status)`,
-          `CREATE INDEX IF NOT EXISTS idx_autonomous_operations_created_at 
-            ON autonomous_operations(created_at)`,
-          `CREATE INDEX IF NOT EXISTS idx_autonomous_content_type_created_at 
-            ON autonomous_content(type, created_at)`,
-          `CREATE INDEX IF NOT EXISTS idx_autonomous_logs_level_category 
-            ON autonomous_logs(level, category)`,
-          `CREATE INDEX IF NOT EXISTS idx_autonomous_logs_timestamp 
-            ON autonomous_logs(timestamp)`,
-
-          // デフォルト設定の挿入
-          `INSERT OR IGNORE INTO app_settings (key, value) VALUES
-            ('autonomous_mode_enabled', 'false'),
-            ('autonomous_mode_initialized', 'true')`
+          // 自律モードインデックス
+          'CREATE INDEX IF NOT EXISTS idx_autonomous_ops_status ON autonomous_operations(status)',
+          'CREATE INDEX IF NOT EXISTS idx_autonomous_ops_project ON autonomous_operations(project_id)',
+          'CREATE INDEX IF NOT EXISTS idx_autonomous_logs_operation ON autonomous_logs(operation_id)',
+          'CREATE INDEX IF NOT EXISTS idx_autonomous_logs_level ON autonomous_logs(level)',
+          'CREATE INDEX IF NOT EXISTS idx_autonomous_content_project ON autonomous_content(project_id)',
+          'CREATE INDEX IF NOT EXISTS idx_autonomous_content_saved ON autonomous_content(saved)'
+        ]
+      },
+      {
+        version: '006',
+        name: 'fix_chapters_column_name',
+        sqls: [
+          // chaptersテーブルのchapter_numberカラムを"order"に変更するマイグレーション
+          // 既存のテーブルがある場合のみ実行
+          `DROP INDEX IF EXISTS uk_chapter_number`,
+          
+          // 新しいテーブル構造でchaptersテーブルを再作成
+          `CREATE TABLE IF NOT EXISTS chapters_new (
+            id VARCHAR PRIMARY KEY,
+            project_id VARCHAR NOT NULL,
+            plot_id VARCHAR NOT NULL,
+            "order" INTEGER NOT NULL,
+            title VARCHAR NOT NULL,
+            content TEXT NOT NULL,
+            word_count INTEGER DEFAULT 0,
+            character_count INTEGER DEFAULT 0,
+            status VARCHAR NOT NULL DEFAULT 'draft',
+            version INTEGER DEFAULT 1,
+            metadata JSON DEFAULT '{}',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+            FOREIGN KEY (plot_id) REFERENCES plots(id) ON DELETE CASCADE
+          )`,
+          
+          // 既存データのコピー（もしchapter_numberカラムが存在すれば）
+          `INSERT INTO chapters_new 
+            SELECT id, project_id, plot_id, 
+                   COALESCE("order", chapter_number, 1) as "order",
+                   title, content, word_count, character_count, 
+                   status, version, metadata, created_at, updated_at
+            FROM chapters`,
+          
+          // 古いテーブルを削除
+          `DROP TABLE chapters`,
+          
+          // 新しいテーブルをリネーム
+          `ALTER TABLE chapters_new RENAME TO chapters`,
+          
+          // インデックスの再作成
+          'CREATE INDEX IF NOT EXISTS idx_chapters_status ON chapters(status)',
+          'CREATE UNIQUE INDEX IF NOT EXISTS uk_chapter_order ON chapters(project_id, plot_id, "order")'
+        ]
+      },
+      {
+        version: '007',
+        name: 'add_search_tokens_columns',
+        sqls: [
+          // 日本語テキスト用の検索カラムを追加
+          'ALTER TABLE knowledge ADD COLUMN IF NOT EXISTS search_tokens TEXT',
+          'ALTER TABLE projects ADD COLUMN IF NOT EXISTS search_tokens TEXT',
+          'ALTER TABLE characters ADD COLUMN IF NOT EXISTS search_tokens TEXT',
+          'ALTER TABLE plots ADD COLUMN IF NOT EXISTS search_tokens TEXT',
+          'ALTER TABLE chapters ADD COLUMN IF NOT EXISTS search_tokens TEXT'
+        ]
+      },
+      {
+        version: '008',
+        name: 'embedding_type_consistency',
+        sqls: [
+          // embedding列の型をTEXTに統一（JSON文字列として保存）
+          `CREATE TABLE IF NOT EXISTS knowledge_new (
+            id VARCHAR PRIMARY KEY,
+            title VARCHAR NOT NULL,
+            content TEXT NOT NULL,
+            type VARCHAR NOT NULL,
+            project_id VARCHAR,
+            source_url VARCHAR,
+            source_id VARCHAR,
+            metadata JSON DEFAULT '{}',
+            embedding TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+          )`,
+          
+          // 既存データのコピー
+          `INSERT INTO knowledge_new 
+            SELECT id, title, content, type, project_id, source_url, source_id,
+                   metadata, 
+                   CASE 
+                     WHEN embedding IS NOT NULL THEN embedding::TEXT
+                     ELSE NULL
+                   END as embedding,
+                   created_at, updated_at
+            FROM knowledge`,
+          
+          // 古いテーブルを削除
+          `DROP TABLE knowledge`,
+          
+          // 新しいテーブルをリネーム
+          `ALTER TABLE knowledge_new RENAME TO knowledge`,
+          
+          // インデックスの再作成
+          'CREATE INDEX IF NOT EXISTS idx_knowledge_type ON knowledge(type)',
+          'CREATE INDEX IF NOT EXISTS idx_knowledge_project ON knowledge(project_id)',
+          'CREATE INDEX IF NOT EXISTS idx_knowledge_created ON knowledge(created_at DESC)'
         ]
       }
     ];
   }
 }
 
+/**
+ * マイグレーション定義
+ */
 interface Migration {
   version: string;
   name: string;

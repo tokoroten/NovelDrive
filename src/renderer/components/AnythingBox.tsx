@@ -131,8 +131,8 @@ export function AnythingBox() {
   }, [result]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h2 className="text-3xl font-bold text-secondary-800 mb-2">Anything Box</h2>
+    <div className="max-w-4xl mx-auto" data-testid="anything-box-page">
+      <h2 className="text-3xl font-bold text-secondary-800 mb-2" data-testid="anything-box-title">Anything Box</h2>
       <p className="text-secondary-600 mb-6">
         ニュース、SNS、アイデア、URL... なんでも放り込んでください。 AIが創作の種を見つけ出します。
       </p>
@@ -154,6 +154,7 @@ export function AnythingBox() {
           placeholder="テキスト、URL、アイデアをここに入力またはドラッグ&ドロップ..."
           className="w-full p-6 min-h-[300px] text-lg resize-none focus:outline-none bg-transparent"
           disabled={isProcessing}
+          data-testid="content-textarea"
         />
 
         {dragOver && (
@@ -170,6 +171,7 @@ export function AnythingBox() {
           <button
             onClick={handleSubmit}
             disabled={!content.trim() || isProcessing}
+            data-testid="submit-button"
             className={`px-6 py-2 rounded-md font-medium transition-colors ${
               !content.trim() || isProcessing
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'

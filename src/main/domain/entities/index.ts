@@ -31,9 +31,38 @@ export class Knowledge {
     this.embedding = embedding;
     this.updatedAt = new Date();
   }
+
+  static create(data: {
+    title: string;
+    content: string;
+    type: KnowledgeType;
+    projectId?: string | null;
+    embedding?: number[] | null;
+    metadata?: Record<string, any>;
+  }): Knowledge {
+    const id = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    return new Knowledge(
+      id,
+      data.title,
+      data.content,
+      data.type,
+      data.projectId || null,
+      data.embedding || null,
+      data.metadata || {},
+      new Date(),
+      new Date()
+    );
+  }
 }
 
-export type KnowledgeType = 'note' | 'article' | 'social' | 'inspiration' | 'character' | 'world';
+export enum KnowledgeType {
+  Note = 'note',
+  Article = 'article',
+  Social = 'social',
+  Inspiration = 'inspiration',
+  Character = 'character',
+  World = 'world'
+}
 
 /**
  * プロットエンティティ

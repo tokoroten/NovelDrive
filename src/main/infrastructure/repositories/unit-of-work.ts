@@ -33,35 +33,35 @@ export class UnitOfWork implements IUnitOfWork {
     });
   }
 
-  get knowledge(): IKnowledgeRepository {
+  get knowledgeRepository(): IKnowledgeRepository {
     if (!this._knowledge) {
       this._knowledge = new KnowledgeRepository(this.pool, this.eventBus);
     }
     return this._knowledge;
   }
 
-  get plots(): IPlotRepository {
+  get plotRepository(): IPlotRepository {
     if (!this._plots) {
       this._plots = new PlotRepository(this.pool, this.eventBus);
     }
     return this._plots;
   }
 
-  get projects(): IProjectRepository {
+  get projectRepository(): IProjectRepository {
     if (!this._projects) {
       this._projects = new ProjectRepository(this.pool, this.eventBus);
     }
     return this._projects;
   }
 
-  get characters(): ICharacterRepository {
+  get characterRepository(): ICharacterRepository {
     if (!this._characters) {
       this._characters = new CharacterRepository(this.pool, this.eventBus);
     }
     return this._characters;
   }
 
-  get worldSettings(): IWorldSettingRepository {
+  get worldSettingRepository(): IWorldSettingRepository {
     if (!this._worldSettings) {
       this._worldSettings = new WorldSettingRepository(this.pool, this.eventBus);
     }
@@ -126,35 +126,35 @@ class TransactionalUnitOfWork implements IUnitOfWork {
     private pool: ConnectionPool
   ) {}
 
-  get knowledge(): IKnowledgeRepository {
+  get knowledgeRepository(): IKnowledgeRepository {
     if (!this._knowledge) {
       this._knowledge = new KnowledgeRepository(this.pool, this.eventBus);
     }
     return this._knowledge;
   }
 
-  get plots(): IPlotRepository {
+  get plotRepository(): IPlotRepository {
     if (!this._plots) {
       this._plots = new PlotRepository(this.pool, this.eventBus);
     }
     return this._plots;
   }
 
-  get projects(): IProjectRepository {
+  get projectRepository(): IProjectRepository {
     if (!this._projects) {
       this._projects = new ProjectRepository(this.pool, this.eventBus);
     }
     return this._projects;
   }
 
-  get characters(): ICharacterRepository {
+  get characterRepository(): ICharacterRepository {
     if (!this._characters) {
       this._characters = new CharacterRepository(this.pool, this.eventBus);
     }
     return this._characters;
   }
 
-  get worldSettings(): IWorldSettingRepository {
+  get worldSettingRepository(): IWorldSettingRepository {
     if (!this._worldSettings) {
       this._worldSettings = new WorldSettingRepository(this.pool, this.eventBus);
     }

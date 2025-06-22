@@ -25,6 +25,30 @@ NovelDrive（ノベルドライブ）は、セレンディピティ駆動の知�
 - **AI API**: OpenAI API (GPT-4, DALL-E)
 - **ビジュアライゼーション**: React Flow
 
+## アーキテクチャ
+
+NovelDriveは、クリーンアーキテクチャの原則に基づいて設計されています：
+
+### レイヤー構造
+
+1. **Domain Layer** - ビジネスロジックとエンティティ
+   - 知識（Knowledge）、プロット（Plot）、キャラクター（Character）などのエンティティ
+   - リポジトリインターフェース
+   - ドメインイベント
+
+2. **Application Layer** - ユースケースとアプリケーションサービス
+   - 知識管理、プロット生成、エージェント議論などのサービス
+   - Unit of Workパターンの実装
+
+3. **Infrastructure Layer** - 外部システムとの統合
+   - DuckDBリポジトリ実装
+   - OpenAI API統合
+   - ローカル埋め込み生成（Transformers.js）
+
+4. **Presentation Layer** - UI
+   - React コンポーネント
+   - Electron IPC ハンドラー
+
 ## インストール
 
 ### 前提条件
@@ -55,7 +79,12 @@ cp .env.example .env
 OPENAI_API_KEY=your-api-key-here
 ```
 
-4. 開発サーバーを起動
+4. データベースをマイグレーション
+```bash
+npm run db:migrate
+```
+
+5. 開発サーバーを起動
 ```bash
 npm run dev
 ```
@@ -113,6 +142,15 @@ npm run lint
 
 # フォーマット
 npm run format
+
+# テスト実行
+npm run test              # 単体テスト
+npm run test:e2e          # E2Eテスト
+npm run test:coverage     # カバレッジレポート付きテスト
+
+# データベース操作
+npm run db:migrate        # マイグレーション実行
+npm run db:seed          # テストデータ投入
 ```
 
 ### プロジェクト構造
@@ -120,17 +158,46 @@ npm run format
 ```
 NovelDrive/
 ├── src/
-│   ├── main/           # Electronメインプロセス
-│   │   ├── services/   # バックエンドサービス
-│   │   └── database.ts # データベース初期化
-│   ├── renderer/       # Electronレンダラープロセス
-│   │   ├── components/ # Reactコンポーネント
-│   │   └── App.tsx     # メインアプリケーション
-│   └── shared/         # 共有型定義
-├── docs/              # ドキュメント
-├── dev_diary/         # 開発日誌
+│   ├── main/              # Electronメインプロセス
+│   │   ├── core/          # コアビジネスロジック
+│   │   │   ├── domain/    # ドメインエンティティ
+│   │   │   ├── events/    # ドメインイベント
+│   │   │   └── errors/    # カスタムエラー
+│   │   ├── services/      # アプリケーションサービス
+│   │   ├── repositories/  # リポジトリ実装
+│   │   ├── infrastructure/# 外部システム統合
+│   │   └── ipc/          # IPCハンドラー
+│   ├── renderer/         # Electronレンダラープロセス
+│   │   ├── components/   # Reactコンポーネント
+│   │   │   └── graph/    # グラフ関連コンポーネント
+│   │   ├── utils/       # ユーティリティ関数
+│   │   └── App.tsx      # メインアプリケーション
+│   └── shared/          # 共有型定義
+├── docs/               # ドキュメント
+├── dev_diary/          # 開発日誌
+├── e2e/                # E2Eテスト
+│   ├── tests/         # テストスペック
+│   ├── utils/         # テストヘルパー
+│   └── fixtures/      # テストデータ
+├── tests/             # 単体テスト
 └── CLAUDE.md          # AI開発アシスタント用ガイド
 ```
+
+### テスト
+
+本プロジェクトでは以下のテスト戦略を採用しています：
+
+1. **単体テスト** - Jest を使用したサービス層のテスト
+2. **E2Eテスト** - Playwright を使用したエンドツーエンドテスト
+3. **CI/CD** - GitHub Actions による自動テスト実行
+
+### 主な技術的特徴
+
+- **クリーンアーキテクチャ**: ビジネスロジックとインフラストラクチャの分離
+- **イベント駆動**: ドメインイベントによる疎結合な設計
+- **型安全性**: TypeScriptによる厳密な型チェック
+- **ローカルファースト**: 埋め込み生成などの処理をローカルで実行
+- **リアクティブUI**: React + Framer Motion による滑らかなアニメーション
 
 ## ライセンス
 

@@ -95,16 +95,16 @@ export function IdeaGacha() {
 
       // ランダムにシチュエーションを生成
       const situations = [
-        '深夜の図書館で',
-        '嵐の中の灯台で',
-        '廃墟となった遊園地で',
-        '満員電車の中で',
-        '雪山の山小屋で',
-        '夏祭りの屋台で',
-        '病院の屋上で',
-        '古い喫茶店で',
-        '地下鉄のホームで',
-        '学校の音楽室で',
+        '深夜の図書館',
+        '嵐の中の灯台',
+        '廃墟となった遊園地',
+        '満員電車の中',
+        '雪山の山小屋',
+        '夏祭りの屋台',
+        '病院の屋上',
+        '古い喫茶店',
+        '地下鉄のホーム',
+        '学校の音楽室',
       ];
       elements.situation = { content: situations[Math.floor(Math.random() * situations.length)] };
 
@@ -142,32 +142,82 @@ export function IdeaGacha() {
   };
 
   const generateIdea = async (elements: GachaResult['elements']) => {
-    let prompt = 'この要素から短い物語のアイデアを生成してください：\n\n';
-
-    if (elements.character) {
-      prompt += `キャラクター: ${elements.character.name} - ${elements.character.profile}\n`;
-    }
-    if (elements.theme) {
-      prompt += `テーマ: ${elements.theme.title}\n`;
-    }
-    if (elements.situation) {
-      prompt += `シチュエーション: ${elements.situation}\n`;
-    }
-    if (elements.keyword) {
-      prompt += `キーワード: ${elements.keyword}\n`;
-    }
-    if (elements.worldSetting) {
-      prompt += `世界設定: ${elements.worldSetting.title} - ${elements.worldSetting.content}\n`;
-    }
-
-    prompt += '\n50文字程度で、魅力的な物語のアイデアを一文で表現してください。';
+    // ローカル生成用のテンプレート
+    const templates = [
+      // キャラクター中心
+      '[キャラクター]が[シチュエーション]で[キーワード]と出会い、新たな物語が始まる',
+      '[キャラクター]の秘められた過去が[シチュエーション]で明らかになる',
+      '記憶を失った[キャラクター]が[シチュエーション]で自分の正体を探る',
+      
+      // テーマ中心
+      '[テーマ]をめぐって[シチュエーション]で起きる不思議な出来事',
+      '[テーマ]の力を持つ者たちが[シチュエーション]で運命的に出会う',
+      '[テーマ]に導かれて[キャラクター]が[シチュエーション]へ向かう',
+      
+      // シチュエーション中心
+      '[シチュエーション]で偶然出会った二人に起きる[テーマ]の物語',
+      '[シチュエーション]に閉じ込められた人々が[キーワード]を巡って対立する',
+      '[シチュエーション]で発見された[キーワード]が世界を変える',
+      
+      // キーワード中心
+      '[キーワード]を求めて[キャラクター]が冒険に出る',
+      '[キーワード]の謎を解く鍵が[シチュエーション]に隠されている',
+      '[キーワード]によって結ばれた運命の物語',
+    ];
 
     try {
-      const response = await window.electronAPI.ai.chat([
-        { role: 'system', content: 'あなたは創造的な物語作家です。' },
-        { role: 'user', content: prompt },
-      ]);
-      return response;
+      // ランダムにテンプレートを選択
+      const template = templates[Math.floor(Math.random() * templates.length)];
+      let idea = template;
+
+      // 要素を埋め込む
+      if (elements.character) {
+        idea = idea.replace('[キャラクター]', (elements.character as any).name || '謎の人物');
+      }
+      
+      if (elements.theme) {
+        idea = idea.replace('[テーマ]', (elements.theme as any).title || (elements.theme as any).content || '運命');
+      }
+      
+      if (elements.situation) {
+        const situationText = typeof elements.situation === 'string' 
+          ? elements.situation 
+          : (elements.situation as any).content || '不思議な場所';
+        idea = idea.replace(/\[シチュエーション\]/g, situationText);
+      }
+      
+      if (elements.keyword) {
+        const keywordText = typeof elements.keyword === 'string'
+          ? elements.keyword
+          : (elements.keyword as any).content || '秘密';
+        idea = idea.replace('[キーワード]', keywordText);
+      }
+      
+      if (elements.worldSetting) {
+        idea = idea.replace('[世界設定]', (elements.worldSetting as any).title || '異世界');
+      }
+      
+      // 残った置換文字を削除
+      idea = idea.replace(/\[[^\]]+\]/g, '');
+      
+      // 文を整える
+      idea = idea.replace(/の{2,}/g, 'の');
+      idea = idea.replace(/に{2,}/g, 'に');
+      idea = idea.replace(/で{2,}/g, 'で');
+      idea = idea.replace(/が{2,}/g, 'が');
+      idea = idea.replace(/\s+/g, ' ').trim();
+      
+      // 文末を整える
+      if (!idea.match(/[。！？]$/)) {
+        idea += '。';
+      }
+      
+      // 50文字を超える場合は短縮
+      if (idea.length > 50) {
+        idea = idea.substring(0, 47) + '...';
+      }
+
+      return idea;
     } catch (error) {
       console.error('Failed to generate idea:', error);
       return '謎めいた出会いが、運命を変える物語';
