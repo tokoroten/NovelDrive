@@ -7,12 +7,16 @@ import { KnowledgeGraph } from './components/KnowledgeGraph';
 import { WritingEditor } from './components/WritingEditor';
 import { ProjectKnowledge } from './components/ProjectKnowledge';
 import { IdeaGacha } from './components/IdeaGacha';
+import { AnalyticsDashboard } from './components/AnalyticsDashboard';
+import { Dashboard } from './components/Dashboard';
 
 export function App() {
   const [currentView, setCurrentView] = useState<string>('dashboard');
 
   const renderView = () => {
     switch (currentView) {
+      case 'dashboard':
+        return <Dashboard />;
       case 'settings':
         return <Settings />;
       case 'anything-box':
@@ -29,6 +33,8 @@ export function App() {
         return <ProjectKnowledge />;
       case 'idea-gacha':
         return <IdeaGacha />;
+      case 'analytics':
+        return <AnalyticsDashboard />;
       default:
         return (
           <div>
