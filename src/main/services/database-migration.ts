@@ -615,6 +615,103 @@ export class DatabaseMigration {
           'CREATE INDEX IF NOT EXISTS idx_knowledge_project ON knowledge(project_id)',
           'CREATE INDEX IF NOT EXISTS idx_knowledge_created ON knowledge(created_at DESC)'
         ]
+      },
+      {
+        version: '009',
+        name: 'autonomous_mode_enhanced_tables',
+        sqls: [
+          // 自律モード設定テーブル（AutonomousModeService用）
+          `CREATE TABLE IF NOT EXISTS autonomous_config (
+            project_id TEXT PRIMARY KEY,
+            config TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )`,
+          
+          // 自律モード活動ログテーブル（AutonomousModeService用）
+          `CREATE TABLE IF NOT EXISTS autonomous_activities (
+            id TEXT PRIMARY KEY,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            type TEXT NOT NULL, -- 'idea_generation' | 'plot_development' | 'chapter_writing' | 'discussion' | 'quality_check'
+            project_id TEXT NOT NULL,
+            status TEXT NOT NULL, -- 'success' | 'failed' | 'pending_approval'
+            content TEXT, -- JSON形式の結果データ
+            quality_score INTEGER, -- 品質スコア（0-100）
+            tokens_used INTEGER, -- 使用トークン数
+            error TEXT, -- エラーメッセージ（失敗時）
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+          )`,
+          
+          // インデックス作成
+          'CREATE INDEX IF NOT EXISTS idx_autonomous_activities_project_timestamp ON autonomous_activities(project_id, timestamp)',
+          'CREATE INDEX IF NOT EXISTS idx_autonomous_activities_type ON autonomous_activities(type)',
+          'CREATE INDEX IF NOT EXISTS idx_autonomous_activities_status ON autonomous_activities(status)',
+          
+          // テストデータ挿入（開発用）
+          `INSERT OR IGNORE INTO autonomous_config (project_id, config) VALUES 
+            ('test-project-1', '{"enabled":false,"projectId":"test-project-1","schedule":{"writingInterval":120,"ideaGenerationInterval":60,"discussionInterval":180},"quality":{"minQualityScore":65,"autoSaveThreshold":70,"requireHumanApproval":true},"limits":{"maxChaptersPerDay":3,"maxWordsPerSession":5000,"maxTokensPerDay":100000}}')`
+        ]
+      },
+      {
+        version: '010',
+        name: 'backup_history_table',
+        sqls: [
+          // バックアップ履歴テーブル
+          `CREATE TABLE IF NOT EXISTS backup_history (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            project_ids TEXT NOT NULL, -- JSON array
+            size INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            type TEXT NOT NULL, -- 'auto' | 'manual'
+            version TEXT NOT NULL,
+            checksum TEXT NOT NULL,
+            file_path TEXT NOT NULL
+          )`,
+          
+          // バックアップ履歴のインデックス
+          'CREATE INDEX IF NOT EXISTS idx_backup_history_created ON backup_history(created_at DESC)',
+          'CREATE INDEX IF NOT EXISTS idx_backup_history_type ON backup_history(type)',
+          
+          // バックアップ設定をapp_settingsに追加
+          `INSERT OR IGNORE INTO app_settings (key, value) VALUES 
+            ('backup_config', '{"enabled":true,"intervalHours":24,"maxBackups":10,"includeLogs":false,"compressBackups":true,"backupLocation":""}')`,
+        ]
+      },
+      {
+        version: '011',
+        name: 'version_history_table',
+        sqls: [
+          // バージョン履歴テーブル
+          `CREATE TABLE IF NOT EXISTS version_history (
+            id TEXT PRIMARY KEY,
+            document_id TEXT NOT NULL,
+            document_type TEXT NOT NULL, -- 'chapter' | 'plot' | 'character' | 'knowledge' | 'project'
+            version INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            metadata TEXT DEFAULT '{}', -- JSON
+            change_type TEXT NOT NULL, -- 'create' | 'update' | 'delete' | 'restore'
+            change_description TEXT,
+            author_id TEXT,
+            author_name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            previous_version_id TEXT,
+            checksum TEXT NOT NULL,
+            size INTEGER NOT NULL,
+            FOREIGN KEY (previous_version_id) REFERENCES version_history(id)
+          )`,
+          
+          // バージョン履歴のインデックス
+          'CREATE INDEX IF NOT EXISTS idx_version_history_document ON version_history(document_id)',
+          'CREATE INDEX IF NOT EXISTS idx_version_history_type ON version_history(document_type)',
+          'CREATE INDEX IF NOT EXISTS idx_version_history_created ON version_history(created_at DESC)',
+          'CREATE INDEX IF NOT EXISTS idx_version_history_version ON version_history(document_id, version)',
+          
+          // バージョン履歴設定をapp_settingsに追加
+          `INSERT OR IGNORE INTO app_settings (key, value) VALUES 
+            ('version_history_config', '{"maxVersionsPerDocument":50,"autoSaveVersions":true,"saveIntervalMinutes":5,"compressOldVersions":true,"retentionPolicyDays":365}')`,
+        ]
       }
     ];
   }

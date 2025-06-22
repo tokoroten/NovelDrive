@@ -1,0 +1,236 @@
+/* セレンディピティ検索の視覚効果用CSS */
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes twinkle {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes serendipity-wave {
+  0% {
+    transform: rotate(0deg) scale(1);
+    opacity: 0.8;
+  }
+  25% {
+    transform: rotate(90deg) scale(1.1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: rotate(180deg) scale(1.2);
+    opacity: 0.4;
+  }
+  75% {
+    transform: rotate(270deg) scale(1.1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+    opacity: 0.8;
+  }
+}
+
+@keyframes dimensional-shift {
+  0% {
+    transform: perspective(1000px) rotateX(0deg) rotateY(0deg);
+    filter: hue-rotate(0deg);
+  }
+  25% {
+    transform: perspective(1000px) rotateX(5deg) rotateY(5deg);
+    filter: hue-rotate(90deg);
+  }
+  50% {
+    transform: perspective(1000px) rotateX(0deg) rotateY(10deg);
+    filter: hue-rotate(180deg);
+  }
+  75% {
+    transform: perspective(1000px) rotateX(-5deg) rotateY(5deg);
+    filter: hue-rotate(270deg);
+  }
+  100% {
+    transform: perspective(1000px) rotateX(0deg) rotateY(0deg);
+    filter: hue-rotate(360deg);
+  }
+}
+
+@keyframes noise-injection {
+  0% {
+    filter: blur(0px) saturate(1);
+  }
+  25% {
+    filter: blur(1px) saturate(1.2);
+  }
+  50% {
+    filter: blur(0.5px) saturate(0.8);
+  }
+  75% {
+    filter: blur(1.5px) saturate(1.4);
+  }
+  100% {
+    filter: blur(0px) saturate(1);
+  }
+}
+
+/* バブル表示用の特殊効果 */
+.serendipity-bubble {
+  animation: float 6s ease-in-out infinite;
+}
+
+.serendipity-bubble:nth-child(2n) {
+  animation-delay: 1s;
+  animation-duration: 8s;
+}
+
+.serendipity-bubble:nth-child(3n) {
+  animation-delay: 2s;
+  animation-duration: 7s;
+}
+
+.serendipity-bubble.high-surprise {
+  animation: dimensional-shift 4s ease-in-out infinite;
+}
+
+.serendipity-bubble.noise-active {
+  animation: noise-injection 3s ease-in-out infinite;
+}
+
+/* 星座表示用の効果 */
+.constellation-node {
+  animation: twinkle 3s ease-in-out infinite;
+}
+
+.constellation-connection {
+  stroke-dasharray: 5, 5;
+  animation: shimmer 2s linear infinite;
+}
+
+/* グリッドパターン */
+.bg-grid-pattern {
+  background-image: 
+    linear-gradient(rgba(0,0,0,0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.1) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* セレンディピティレベルに応じた視覚効果 */
+.serendipity-low {
+  filter: brightness(0.9) saturate(0.8);
+}
+
+.serendipity-medium {
+  filter: brightness(1.1) saturate(1.2);
+  animation: serendipity-wave 8s ease-in-out infinite;
+}
+
+.serendipity-high {
+  filter: brightness(1.3) saturate(1.5);
+  animation: dimensional-shift 5s ease-in-out infinite;
+}
+
+/* 検索進行状況の視覚効果 */
+.search-progress-phase {
+  position: relative;
+  overflow: hidden;
+}
+
+.search-progress-phase::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+/* ホバー効果の強化 */
+.result-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+}
+
+.result-item:hover .serendipity-indicator {
+  animation: pulse 1s ease-in-out infinite;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+  .serendipity-bubble {
+    animation-duration: 4s;
+  }
+  
+  .constellation-node {
+    animation-duration: 2s;
+  }
+}
+
+/* アクセシビリティ対応 */
+@media (prefers-reduced-motion: reduce) {
+  .serendipity-bubble,
+  .constellation-node,
+  .search-progress-phase::before {
+    animation: none;
+  }
+  
+  .result-item:hover {
+    transform: none;
+  }
+}
+
+/* ダークモード対応 */
+@media (prefers-color-scheme: dark) {
+  .bg-grid-pattern {
+    background-image: 
+      linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px);
+  }
+  
+  .search-progress-phase::before {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.1),
+      transparent
+    );
+  }
+}

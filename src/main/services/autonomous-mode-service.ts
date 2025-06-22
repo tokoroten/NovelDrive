@@ -1,612 +1,657 @@
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import * as duckdb from 'duckdb';
-import { 
-  AutonomousConfig, 
-  AutonomousOperation, 
-  AutonomousStatus, 
-  AutonomousLog,
-  AutonomousContentType,
-  AutonomousOperationResult,
-  OperationMetrics,
-  SystemHealth,
-  TimeSlot
-} from '../../shared/types';
 import { MultiAgentOrchestrator } from './multi-agent-system';
-import { QualityFilterService } from './quality-filter-service';
-import { ResourceMonitor } from './resource-monitor';
-import { AutonomousLogger } from './autonomous-logger';
+import { performSerendipitySearch } from './serendipity-search';
 
+/**
+ * 24時間自律モードの設定
+ */
+export interface AutonomousModeConfig {
+  enabled: boolean;
+  projectId: string;
+  schedule: {
+    writingInterval: number; // 執筆間隔（分）
+    ideaGenerationInterval: number; // アイデア生成間隔（分）
+    discussionInterval: number; // 議論間隔（分）
+  };
+  quality: {
+    minQualityScore: number; // 最小品質スコア（0-100）
+    autoSaveThreshold: number; // 自動保存閾値
+    requireHumanApproval: boolean; // 人間の承認が必要か
+  };
+  limits: {
+    maxChaptersPerDay: number; // 1日の最大章数
+    maxWordsPerSession: number; // 1セッションの最大文字数
+    maxTokensPerDay: number; // 1日の最大トークン数
+  };
+}
+
+/**
+ * 自律モードの活動ログ
+ */
+export interface AutonomousActivity {
+  id: string;
+  timestamp: string;
+  type: 'idea_generation' | 'plot_development' | 'chapter_writing' | 'discussion' | 'quality_check';
+  projectId: string;
+  status: 'success' | 'failed' | 'pending_approval';
+  content: any;
+  qualityScore?: number;
+  tokensUsed?: number;
+  error?: string;
+}
+
+/**
+ * 24時間自律モードサービス
+ */
 export class AutonomousModeService extends EventEmitter {
-  private config: AutonomousConfig;
-  private isRunning = false;
-  private currentOperation: AutonomousOperation | null = null;
-  private operationQueue: AutonomousOperation[] = [];
-  private intervalId: NodeJS.Timeout | null = null;
-  private dailyOperationCount = 0;
-  private lastOperationTime: Date | null = null;
-  private totalOperations = 0;
-  private successfulOperations = 0;
-  
-  private conn: duckdb.Connection;
+  private static instance: AutonomousModeService;
+  private config: AutonomousModeConfig;
+  private isRunning: boolean = false;
   private orchestrator: MultiAgentOrchestrator;
-  private qualityFilter: QualityFilterService;
-  private resourceMonitor: ResourceMonitor;
-  private logger: AutonomousLogger;
+  private conn: duckdb.Connection;
+  private timers: Map<string, NodeJS.Timeout> = new Map();
+  private dailyTokenUsage: number = 0;
+  private lastResetDate: string;
 
-  constructor(conn: duckdb.Connection, orchestrator: MultiAgentOrchestrator) {
+  private constructor(conn: duckdb.Connection) {
     super();
     this.conn = conn;
-    this.orchestrator = orchestrator;
-    this.qualityFilter = new QualityFilterService(conn);
-    this.resourceMonitor = new ResourceMonitor();
-    this.logger = new AutonomousLogger(conn);
+    this.orchestrator = new MultiAgentOrchestrator(conn);
+    this.lastResetDate = new Date().toISOString().split('T')[0];
     
-    // Default configuration
+    // デフォルト設定
     this.config = {
       enabled: false,
-      interval: 30, // 30 minutes
-      qualityThreshold: 65, // 65% minimum quality
-      maxConcurrentOperations: 1,
-      maxDailyOperations: 48, // 48 operations per day max
-      timeSlots: [
-        { start: '09:00', end: '18:00', enabled: true }, // daytime
-        { start: '22:00', end: '06:00', enabled: false } // night time disabled by default
-      ],
-      resourceLimits: {
-        maxCpuUsage: 70, // 70% max CPU
-        maxMemoryUsage: 2048, // 2GB max memory
-        maxApiCallsPerHour: 100,
-        maxTokensPerOperation: 4000
+      projectId: '',
+      schedule: {
+        writingInterval: 120, // 2時間ごと
+        ideaGenerationInterval: 60, // 1時間ごと
+        discussionInterval: 180, // 3時間ごと
       },
-      contentTypes: ['plot', 'character', 'worldSetting', 'inspiration']
+      quality: {
+        minQualityScore: 65,
+        autoSaveThreshold: 70,
+        requireHumanApproval: true,
+      },
+      limits: {
+        maxChaptersPerDay: 3,
+        maxWordsPerSession: 5000,
+        maxTokensPerDay: 100000,
+      },
     };
-
-    // Reset daily counter at midnight
-    this.scheduleDaily(() => {
-      this.dailyOperationCount = 0;
-      this.logger.log('info', 'system', 'Daily operation counter reset');
-    });
   }
 
-  async initialize(): Promise<void> {
-    await this.logger.initialize();
-    await this.qualityFilter.initialize();
-    await this.resourceMonitor.initialize();
-    
-    // Load configuration from database
-    await this.loadConfiguration();
-    
-    this.logger.log('info', 'system', 'Autonomous mode service initialized');
-  }
-
-  async start(): Promise<void> {
-    if (this.isRunning) {
-      this.logger.log('warn', 'system', 'Autonomous mode already running');
-      return;
+  static getInstance(conn: duckdb.Connection): AutonomousModeService {
+    if (!AutonomousModeService.instance) {
+      AutonomousModeService.instance = new AutonomousModeService(conn);
     }
+    return AutonomousModeService.instance;
+  }
 
-    if (!this.config.enabled) {
-      this.logger.log('info', 'system', 'Autonomous mode is disabled');
+  /**
+   * 設定を更新
+   */
+  async updateConfig(config: Partial<AutonomousModeConfig>): Promise<void> {
+    this.config = { ...this.config, ...config };
+    
+    // 設定をデータベースに保存
+    await this.saveConfig();
+    
+    // 実行中の場合は再スケジュール
+    if (this.isRunning) {
+      this.stop();
+      await this.start();
+    }
+    
+    this.emit('configUpdated', this.config);
+  }
+
+  /**
+   * 自律モードを開始
+   */
+  async start(): Promise<void> {
+    if (this.isRunning || !this.config.enabled) {
       return;
     }
 
     this.isRunning = true;
-    
-    // Start the main operation loop
-    this.intervalId = setInterval(async () => {
-      await this.processOperationCycle();
-    }, this.config.interval * 60 * 1000); // Convert minutes to milliseconds
-
-    this.logger.log('info', 'system', `Autonomous mode started with ${this.config.interval} minute intervals`);
     this.emit('started');
+
+    // 各タスクをスケジュール
+    this.scheduleTask('writing', this.config.schedule.writingInterval);
+    this.scheduleTask('ideaGeneration', this.config.schedule.ideaGenerationInterval);
+    this.scheduleTask('discussion', this.config.schedule.discussionInterval);
+
+    // 日次リセットをスケジュール
+    this.scheduleDailyReset();
+
+    this.logActivity({
+      type: 'idea_generation',
+      status: 'success',
+      content: { message: '24時間自律モードを開始しました' },
+    });
   }
 
-  async stop(): Promise<void> {
+  /**
+   * 自律モードを停止
+   */
+  stop(): void {
     if (!this.isRunning) {
       return;
     }
 
     this.isRunning = false;
     
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-    }
-
-    // Cancel current operation if running
-    if (this.currentOperation && this.currentOperation.status === 'running') {
-      this.currentOperation.status = 'cancelled';
-      this.currentOperation.endTime = new Date();
-      await this.saveOperation(this.currentOperation);
-    }
-
-    // Clear queue
-    this.operationQueue = [];
-    this.currentOperation = null;
-
-    this.logger.log('info', 'system', 'Autonomous mode stopped');
+    // すべてのタイマーをクリア
+    this.timers.forEach(timer => clearInterval(timer));
+    this.timers.clear();
+    
     this.emit('stopped');
   }
 
-  private async processOperationCycle(): Promise<void> {
-    try {
-      // Check if we should run at this time
-      if (!this.isWithinTimeSlot()) {
+  /**
+   * タスクをスケジュール
+   */
+  private scheduleTask(taskType: string, intervalMinutes: number): void {
+    const timer = setInterval(async () => {
+      if (!this.checkTokenLimit()) {
         return;
       }
 
-      // Check system health
-      const systemHealth = await this.resourceMonitor.getLastHealth();
-      if (!systemHealth.healthy) {
-        this.logger.log('warn', 'system', 'System health check failed, skipping operation', undefined, { health: systemHealth });
-        return;
+      try {
+        switch (taskType) {
+          case 'writing':
+            await this.performWritingSession();
+            break;
+          case 'ideaGeneration':
+            await this.performIdeaGeneration();
+            break;
+          case 'discussion':
+            await this.performDiscussion();
+            break;
+        }
+      } catch (error) {
+        console.error(`Autonomous task failed: ${taskType}`, error);
+        this.logActivity({
+          type: taskType as any,
+          status: 'failed',
+          content: { error: error instanceof Error ? error.message : 'Unknown error' },
+        });
       }
+    }, intervalMinutes * 60 * 1000);
 
-      // Check daily limits
-      if (this.dailyOperationCount >= this.config.maxDailyOperations) {
-        this.logger.log('info', 'system', 'Daily operation limit reached');
-        return;
-      }
-
-      // Check if we have capacity for new operations
-      if (this.currentOperation) {
-        return; // Already running an operation
-      }
-
-      // Generate new operation or process queue
-      const operation = this.operationQueue.shift() || await this.generateOperation();
-      if (!operation) {
-        return;
-      }
-
-      await this.executeOperation(operation);
-      
-    } catch (error) {
-      this.logger.log('error', 'system', 'Error in operation cycle', undefined, { error: error instanceof Error ? error.message : String(error) });
-    }
+    this.timers.set(taskType, timer);
   }
 
-  private async generateOperation(): Promise<AutonomousOperation | null> {
-    // Randomly select content type based on configuration
-    const contentTypes = this.config.contentTypes;
-    if (contentTypes.length === 0) {
-      return null;
+  /**
+   * 執筆セッションを実行
+   */
+  private async performWritingSession(): Promise<void> {
+    const chaptersToday = await this.getChaptersWrittenToday();
+    if (chaptersToday >= this.config.limits.maxChaptersPerDay) {
+      return;
     }
 
-    const contentType = contentTypes[Math.floor(Math.random() * contentTypes.length)];
+    // 最新のプロットを取得
+    const plot = await this.getLatestPlot();
+    if (!plot) {
+      return;
+    }
+
+    // 執筆するチャプターを決定
+    const nextChapter = await this.determineNextChapter(plot.id);
+    if (!nextChapter) {
+      return;
+    }
+
+    // セレンディピティ検索でインスピレーションを取得
+    const inspirations = await performSerendipitySearch(this.conn, nextChapter.title, {
+      projectId: this.config.projectId,
+      limit: 10,
+      serendipityLevel: 0.7,
+    });
+
+    // マルチエージェントで執筆
+    const agents = await this.createWritingAgents();
+    const writingSession = await this.orchestrator.startDiscussion(
+      `${nextChapter.title}の執筆`,
+      agents,
+      {
+        projectId: this.config.projectId,
+        maxRounds: 3,
+      }
+    );
+
+    // 品質評価
+    const qualityScore = await this.evaluateContent(writingSession.summary || '');
     
-    const operation: AutonomousOperation = {
+    const activity: Partial<AutonomousActivity> = {
+      type: 'chapter_writing',
+      content: {
+        chapterId: nextChapter.id,
+        sessionId: writingSession.id,
+        content: writingSession.summary,
+        wordCount: writingSession.summary?.length || 0,
+      },
+      qualityScore,
+      tokensUsed: this.estimateTokens(writingSession),
+    };
+
+    if (qualityScore >= this.config.quality.minQualityScore) {
+      if (qualityScore >= this.config.quality.autoSaveThreshold && !this.config.quality.requireHumanApproval) {
+        // 自動保存
+        await this.saveChapterContent(nextChapter.id, writingSession.summary || '');
+        activity.status = 'success';
+      } else {
+        // 人間の承認待ち
+        activity.status = 'pending_approval';
+      }
+    } else {
+      activity.status = 'failed';
+    }
+
+    this.logActivity(activity as AutonomousActivity);
+    this.dailyTokenUsage += activity.tokensUsed || 0;
+  }
+
+  /**
+   * アイデア生成セッションを実行
+   */
+  private async performIdeaGeneration(): Promise<void> {
+    // ランダムなキーワードでセレンディピティ検索
+    const randomKeywords = await this.getRandomKeywords();
+    const searchResults = await performSerendipitySearch(this.conn, randomKeywords.join(' '), {
+      projectId: this.config.projectId,
+      limit: 20,
+      serendipityLevel: 0.9, // 高いセレンディピティレベル
+    });
+
+    // アイデア生成エージェントを作成
+    const agents = await this.createIdeaGenerationAgents();
+    const ideaSession = await this.orchestrator.startDiscussion(
+      '新しいプロットアイデアの探索',
+      agents,
+      {
+        projectId: this.config.projectId,
+        maxRounds: 2,
+      }
+    );
+
+    const activity: AutonomousActivity = {
       id: uuidv4(),
-      type: contentType,
-      status: 'pending',
-      startTime: new Date(),
-      metrics: {
-        duration: 0,
-        tokensUsed: 0,
-        apiCalls: 0,
-        cpuUsage: 0,
-        memoryUsage: 0
-      }
+      timestamp: new Date().toISOString(),
+      type: 'idea_generation',
+      projectId: this.config.projectId,
+      status: 'success',
+      content: {
+        keywords: randomKeywords,
+        ideas: ideaSession.summary,
+        searchResults: searchResults.map(r => ({ id: r.id, title: r.title })),
+      },
+      tokensUsed: this.estimateTokens(ideaSession),
     };
 
-    this.logger.log('info', 'operation', `Generated new ${contentType} operation`, operation.id);
-    return operation;
+    this.logActivity(activity);
+    this.dailyTokenUsage += activity.tokensUsed || 0;
   }
 
-  private async executeOperation(operation: AutonomousOperation): Promise<void> {
-    this.currentOperation = operation;
-    operation.status = 'running';
-    operation.startTime = new Date();
+  /**
+   * 議論セッションを実行
+   */
+  private async performDiscussion(): Promise<void> {
+    // 最近の活動から議論トピックを決定
+    const recentActivities = await this.getRecentActivities();
+    const discussionTopic = this.generateDiscussionTopic(recentActivities);
 
-    const startTime = Date.now();
-    const startMetrics = await this.resourceMonitor.getCurrentMetrics();
-
-    try {
-      this.logger.log('info', 'operation', `Starting ${operation.type} operation`, operation.id);
-
-      let result: AutonomousOperationResult;
-
-      switch (operation.type) {
-        case 'plot':
-          result = await this.generatePlot(operation);
-          break;
-        case 'character':
-          result = await this.generateCharacter(operation);
-          break;
-        case 'worldSetting':
-          result = await this.generateWorldSetting(operation);
-          break;
-        case 'inspiration':
-          result = await this.generateInspiration(operation);
-          break;
-        default:
-          throw new Error(`Unknown operation type: ${operation.type}`);
+    // 議論エージェントを作成
+    const agents = await this.createDiscussionAgents();
+    const discussionSession = await this.orchestrator.startDiscussion(
+      discussionTopic,
+      agents,
+      {
+        projectId: this.config.projectId,
+        maxRounds: 4,
       }
+    );
 
-      // Calculate metrics
-      const endTime = Date.now();
-      const endMetrics = await this.resourceMonitor.getCurrentMetrics();
-      
-      operation.metrics = {
-        duration: endTime - startTime,
-        tokensUsed: result.content.tokensUsed || 0,
-        apiCalls: result.content.apiCalls || 0,
-        cpuUsage: Math.max(0, endMetrics.cpuUsage - startMetrics.cpuUsage),
-        memoryUsage: Math.max(0, endMetrics.memoryUsage - startMetrics.memoryUsage)
-      };
+    const activity: AutonomousActivity = {
+      id: uuidv4(),
+      timestamp: new Date().toISOString(),
+      type: 'discussion',
+      projectId: this.config.projectId,
+      status: 'success',
+      content: {
+        topic: discussionTopic,
+        summary: discussionSession.summary,
+        decisions: discussionSession.decisions,
+      },
+      tokensUsed: this.estimateTokens(discussionSession),
+    };
 
-      // Quality assessment
-      const qualityAssessment = await this.qualityFilter.assessQuality(result.content, operation.type);
-      result.qualityScore = qualityAssessment.overallScore;
-      result.saved = qualityAssessment.recommendation === 'save' && qualityAssessment.overallScore >= this.config.qualityThreshold;
+    this.logActivity(activity);
+    this.dailyTokenUsage += activity.tokensUsed || 0;
+  }
 
-      if (result.saved) {
-        await this.saveGeneratedContent(result.content, operation.type);
-        this.successfulOperations++;
-        this.logger.log('info', 'operation', `High quality ${operation.type} saved`, operation.id, {
-          qualityScore: result.qualityScore,
-          threshold: this.config.qualityThreshold
-        });
-      } else {
-        this.logger.log('info', 'operation', `${operation.type} discarded due to low quality`, operation.id, {
-          qualityScore: result.qualityScore,
-          threshold: this.config.qualityThreshold,
-          recommendation: qualityAssessment.recommendation
-        });
-      }
+  /**
+   * 執筆用エージェントを作成
+   */
+  private async createWritingAgents() {
+    return [
+      await this.orchestrator.createAgent('writer', 'experimental', {
+        name: '深夜の作家AI',
+        temperature: 0.8,
+      }),
+      await this.orchestrator.createAgent('editor', 'logical', {
+        name: '夜間編集AI',
+        temperature: 0.5,
+      }),
+    ];
+  }
 
-      operation.result = result;
-      operation.status = 'completed';
-      operation.endTime = new Date();
+  /**
+   * アイデア生成用エージェントを作成
+   */
+  private async createIdeaGenerationAgents() {
+    return [
+      await this.orchestrator.createAgent('writer', 'experimental', {
+        name: '夢見る作家AI',
+        temperature: 0.9,
+      }),
+      await this.orchestrator.createAgent('writer', 'emotional', {
+        name: '感性作家AI',
+        temperature: 0.8,
+      }),
+    ];
+  }
 
-      this.dailyOperationCount++;
-      this.totalOperations++;
-      this.lastOperationTime = new Date();
+  /**
+   * 議論用エージェントを作成
+   */
+  private async createDiscussionAgents() {
+    return [
+      await this.orchestrator.createAgent('deputy_editor', 'logical'),
+      await this.orchestrator.createAgent('editor', 'commercial'),
+      await this.orchestrator.createAgent('proofreader', 'traditional'),
+    ];
+  }
 
-      this.emit('operationCompleted', operation);
+  /**
+   * コンテンツの品質を評価
+   */
+  private async evaluateContent(content: string): Promise<number> {
+    // 簡易的な品質評価
+    let score = 50; // 基本スコア
 
-    } catch (error) {
-      operation.status = 'failed';
-      operation.error = error instanceof Error ? error.message : String(error);
-      operation.endTime = new Date();
-      
-      this.logger.log('error', 'operation', `Operation failed: ${error instanceof Error ? error.message : String(error)}`, operation.id);
-      this.emit('operationFailed', operation);
-      
-    } finally {
-      await this.saveOperation(operation);
-      this.currentOperation = null;
+    // 文字数
+    if (content.length > 1000) score += 10;
+    if (content.length > 3000) score += 10;
+
+    // 段落数
+    const paragraphs = content.split('\n\n').filter(p => p.trim());
+    if (paragraphs.length > 3) score += 10;
+
+    // 会話文の存在
+    if (content.includes('「') && content.includes('」')) score += 10;
+
+    // 描写の豊かさ（形容詞的表現）
+    const descriptivePatterns = ['ような', 'ように', 'まるで', 'あたかも'];
+    const descriptiveCount = descriptivePatterns.filter(p => content.includes(p)).length;
+    score += descriptiveCount * 5;
+
+    return Math.min(100, score);
+  }
+
+  /**
+   * トークン数を推定
+   */
+  private estimateTokens(session: any): number {
+    // 簡易的なトークン推定（日本語は1文字≒2トークン）
+    const totalText = session.messages?.reduce((acc: string, msg: any) => acc + msg.content, '') || '';
+    return Math.floor(totalText.length * 2);
+  }
+
+  /**
+   * トークン制限をチェック
+   */
+  private checkTokenLimit(): boolean {
+    const today = new Date().toISOString().split('T')[0];
+    if (today !== this.lastResetDate) {
+      this.dailyTokenUsage = 0;
+      this.lastResetDate = today;
     }
+
+    return this.dailyTokenUsage < this.config.limits.maxTokensPerDay;
   }
 
-  private async generatePlot(operation: AutonomousOperation): Promise<AutonomousOperationResult> {
-    // Use serendipity search to find inspiration
-    const inspirationResults = await this.findInspiration('plot');
-    const theme = this.extractTheme(inspirationResults);
-    
-    // Create agents for plot generation
-    const writerAgent = await this.orchestrator.createAgent('writer', 'experimental');
-    const editorAgent = await this.orchestrator.createAgent('editor', 'logical');
-    
-    // Generate plot through agent discussion
-    const session = await this.orchestrator.startDiscussion(
-      `新しいプロットを作成してください。テーマ: ${theme}`,
-      [writerAgent, editorAgent],
-      { maxRounds: 3 }
-    );
-
-    const plotContent = this.extractPlotFromSession(session);
-    
-    return {
-      contentId: uuidv4(),
-      qualityScore: 0, // Will be assessed later
-      confidence: 0.8,
-      saved: false,
-      content: {
-        type: 'plot',
-        theme,
-        plotContent,
-        session: session.summary,
-        tokensUsed: this.calculateTokensUsed(session),
-        apiCalls: session.messages.length
-      }
-    };
-  }
-
-  private async generateCharacter(operation: AutonomousOperation): Promise<AutonomousOperationResult> {
-    const inspirationResults = await this.findInspiration('character');
-    const characterTrait = this.extractCharacterTrait(inspirationResults);
-    
-    const writerAgent = await this.orchestrator.createAgent('writer', 'emotional');
-    
-    const session = await this.orchestrator.startDiscussion(
-      `${characterTrait}という特徴を持つ魅力的なキャラクターを作成してください。`,
-      [writerAgent],
-      { maxRounds: 2 }
-    );
-
-    const characterContent = this.extractCharacterFromSession(session);
-    
-    return {
-      contentId: uuidv4(),
-      qualityScore: 0,
-      confidence: 0.7,
-      saved: false,
-      content: {
-        type: 'character',
-        trait: characterTrait,
-        characterContent,
-        session: session.summary,
-        tokensUsed: this.calculateTokensUsed(session),
-        apiCalls: session.messages.length
-      }
-    };
-  }
-
-  private async generateWorldSetting(operation: AutonomousOperation): Promise<AutonomousOperationResult> {
-    const inspirationResults = await this.findInspiration('worldSetting');
-    const worldConcept = this.extractWorldConcept(inspirationResults);
-    
-    const writerAgent = await this.orchestrator.createAgent('writer', 'logical');
-    
-    const session = await this.orchestrator.startDiscussion(
-      `${worldConcept}をベースにした世界設定を作成してください。`,
-      [writerAgent],
-      { maxRounds: 2 }
-    );
-
-    const worldContent = this.extractWorldFromSession(session);
-    
-    return {
-      contentId: uuidv4(),
-      qualityScore: 0,
-      confidence: 0.6,
-      saved: false,
-      content: {
-        type: 'worldSetting',
-        concept: worldConcept,
-        worldContent,
-        session: session.summary,
-        tokensUsed: this.calculateTokensUsed(session),
-        apiCalls: session.messages.length
-      }
-    };
-  }
-
-  private async generateInspiration(operation: AutonomousOperation): Promise<AutonomousOperationResult> {
-    const inspirationResults = await this.findInspiration('inspiration');
-    const combinedInspiration = this.combineInspirations(inspirationResults);
-    
-    return {
-      contentId: uuidv4(),
-      qualityScore: 0,
-      confidence: 0.5,
-      saved: false,
-      content: {
-        type: 'inspiration',
-        inspiration: combinedInspiration,
-        sources: inspirationResults.map(r => r.id),
-        tokensUsed: 0,
-        apiCalls: 0
-      }
-    };
-  }
-
-  private async findInspiration(type: AutonomousContentType): Promise<any[]> {
-    // Use serendipity search to find related content
-    // This is a simplified implementation
-    return [];
-  }
-
-  private extractTheme(inspirationResults: any[]): string {
-    // Extract theme from inspiration results
-    return inspirationResults.length > 0 ? "創造的な発見" : "未知の冒険";
-  }
-
-  private extractCharacterTrait(inspirationResults: any[]): string {
-    const traits = ["神秘的", "知的", "勇敢", "繊細", "情熱的"];
-    return traits[Math.floor(Math.random() * traits.length)];
-  }
-
-  private extractWorldConcept(inspirationResults: any[]): string {
-    const concepts = ["魔法と科学が共存する世界", "未来都市", "古代文明", "異世界", "並行世界"];
-    return concepts[Math.floor(Math.random() * concepts.length)];
-  }
-
-  private combineInspirations(inspirationResults: any[]): string {
-    return "セレンディピティによる新しい発見";
-  }
-
-  private extractPlotFromSession(session: any): string {
-    return session.summary || "自動生成されたプロット";
-  }
-
-  private extractCharacterFromSession(session: any): string {
-    return session.summary || "自動生成されたキャラクター";
-  }
-
-  private extractWorldFromSession(session: any): string {
-    return session.summary || "自動生成された世界設定";
-  }
-
-  private calculateTokensUsed(session: any): number {
-    return session.messages.reduce((total: number, msg: any) => {
-      return total + (msg.content.length / 4); // Rough estimate
-    }, 0);
-  }
-
-  private async saveGeneratedContent(content: any, type: AutonomousContentType): Promise<void> {
-    // Save content to appropriate table based on type
-    const sql = `INSERT INTO autonomous_content (id, type, content, created_at) VALUES (?, ?, ?, ?)`;
-    
-    return new Promise((resolve, reject) => {
-      this.conn.run(sql, [
-        content.contentId || uuidv4(),
-        type,
-        JSON.stringify(content),
-        new Date()
-      ], (err: Error | null) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
-  }
-
-  private isWithinTimeSlot(): boolean {
-    const now = new Date();
-    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-    
-    return this.config.timeSlots.some(slot => {
-      if (!slot.enabled) return false;
-      
-      const start = slot.start;
-      const end = slot.end;
-      
-      // Handle overnight time slots (e.g., 22:00 to 06:00)
-      if (start > end) {
-        return currentTime >= start || currentTime <= end;
-      } else {
-        return currentTime >= start && currentTime <= end;
-      }
-    });
-  }
-
-  private scheduleDaily(callback: () => void): void {
+  /**
+   * 日次リセットをスケジュール
+   */
+  private scheduleDailyReset(): void {
     const now = new Date();
     const tomorrow = new Date(now);
-    tomorrow.setDate(now.getDate() + 1);
+    tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(0, 0, 0, 0);
-    
+
     const msUntilMidnight = tomorrow.getTime() - now.getTime();
-    
+
     setTimeout(() => {
-      callback();
-      // Schedule for next day
-      setInterval(callback, 24 * 60 * 60 * 1000);
+      this.dailyTokenUsage = 0;
+      this.emit('dailyReset');
+      
+      // 次の日のリセットをスケジュール
+      this.scheduleDailyReset();
     }, msUntilMidnight);
   }
 
-  private async saveOperation(operation: AutonomousOperation): Promise<void> {
-    const sql = `
-      INSERT INTO autonomous_operations 
-      (id, type, status, project_id, start_time, end_time, result, error, metrics, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-    
+  /**
+   * 最新のプロットを取得
+   */
+  private async getLatestPlot(): Promise<any> {
     return new Promise((resolve, reject) => {
-      this.conn.run(sql, [
-        operation.id,
-        operation.type,
-        operation.status,
-        operation.projectId || null,
-        operation.startTime,
-        operation.endTime || null,
-        JSON.stringify(operation.result),
-        operation.error || null,
-        JSON.stringify(operation.metrics),
-        new Date()
-      ], (err: Error | null) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
-  }
-
-  private async loadConfiguration(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const sql = `SELECT config FROM autonomous_config ORDER BY created_at DESC LIMIT 1`;
-      
-      this.conn.all(sql, [], (err: Error | null, row: any) => {
-        if (err) {
-          reject(err);
-        } else if (row) {
-          this.config = { ...this.config, ...JSON.parse(row.config) };
-          resolve();
-        } else {
-          resolve(); // Use default config
+      this.conn.all(
+        `SELECT * FROM plots 
+         WHERE project_id = ? AND status = 'active' 
+         ORDER BY created_at DESC LIMIT 1`,
+        [this.config.projectId],
+        (err: any, rows: any[]) => {
+          if (err) reject(err);
+          else resolve(rows[0]);
         }
-      });
+      );
     });
   }
 
-  // Public API methods
-  async updateConfiguration(newConfig: Partial<AutonomousConfig>): Promise<void> {
-    this.config = { ...this.config, ...newConfig };
-    
-    // Save to database
-    const sql = `INSERT INTO autonomous_config (config, created_at) VALUES (?, ?)`;
+  /**
+   * 次に執筆する章を決定
+   */
+  private async determineNextChapter(plotId: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+      this.conn.all(
+        `SELECT * FROM chapters 
+         WHERE plot_id = ? AND status IN ('draft', 'writing')
+         ORDER BY "order" ASC LIMIT 1`,
+        [plotId],
+        (err: any, rows: any[]) => {
+          if (err) reject(err);
+          else resolve(rows[0]);
+        }
+      );
+    });
+  }
+
+  /**
+   * 今日書いた章数を取得
+   */
+  private async getChaptersWrittenToday(): Promise<number> {
+    const today = new Date().toISOString().split('T')[0];
     
     return new Promise((resolve, reject) => {
-      this.conn.run(sql, [
-        JSON.stringify(this.config),
-        new Date()
-      ], (err: Error | null) => {
-        if (err) reject(err);
-        else {
-          this.logger.log('info', 'system', 'Configuration updated');
-          resolve();
+      this.conn.all(
+        `SELECT COUNT(*) as count FROM autonomous_activities 
+         WHERE type = 'chapter_writing' 
+         AND status = 'success'
+         AND DATE(timestamp) = ?`,
+        [today],
+        (err: any, rows: any[]) => {
+          if (err) reject(err);
+          else resolve(rows[0]?.count || 0);
         }
-      });
+      );
     });
   }
 
-  getConfiguration(): AutonomousConfig {
+  /**
+   * ランダムなキーワードを取得
+   */
+  private async getRandomKeywords(): Promise<string[]> {
+    return new Promise((resolve, reject) => {
+      this.conn.all(
+        `SELECT title FROM knowledge 
+         WHERE project_id = ? 
+         ORDER BY RANDOM() LIMIT 5`,
+        [this.config.projectId],
+        (err: any, rows: any[]) => {
+          if (err) reject(err);
+          else resolve(rows.map(r => r.title));
+        }
+      );
+    });
+  }
+
+  /**
+   * 最近の活動を取得
+   */
+  private async getRecentActivities(): Promise<AutonomousActivity[]> {
+    return new Promise((resolve, reject) => {
+      this.conn.all(
+        `SELECT * FROM autonomous_activities 
+         WHERE project_id = ? 
+         ORDER BY timestamp DESC LIMIT 10`,
+        [this.config.projectId],
+        (err: any, rows: any[]) => {
+          if (err) reject(err);
+          else resolve(rows.map(r => ({
+            ...r,
+            content: JSON.parse(r.content || '{}'),
+          })));
+        }
+      );
+    });
+  }
+
+  /**
+   * 議論トピックを生成
+   */
+  private generateDiscussionTopic(activities: AutonomousActivity[]): string {
+    const recentWriting = activities.find(a => a.type === 'chapter_writing');
+    if (recentWriting) {
+      return `最近執筆した章の改善点について`;
+    }
+
+    const recentIdeas = activities.filter(a => a.type === 'idea_generation');
+    if (recentIdeas.length > 0) {
+      return `新しいアイデアの実現可能性について`;
+    }
+
+    return `物語全体の方向性について`;
+  }
+
+  /**
+   * 章の内容を保存
+   */
+  private async saveChapterContent(chapterId: string, content: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.conn.run(
+        `UPDATE chapters 
+         SET content = ?, status = 'completed', updated_at = CURRENT_TIMESTAMP 
+         WHERE id = ?`,
+        [content, chapterId],
+        (err: any) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  }
+
+  /**
+   * 活動をログに記録
+   */
+  private async logActivity(activity: Partial<AutonomousActivity>): Promise<void> {
+    const fullActivity: AutonomousActivity = {
+      id: uuidv4(),
+      timestamp: new Date().toISOString(),
+      projectId: this.config.projectId,
+      ...activity,
+    } as AutonomousActivity;
+
+    await new Promise((resolve, reject) => {
+      this.conn.run(
+        `INSERT INTO autonomous_activities 
+         (id, timestamp, type, project_id, status, content, quality_score, tokens_used, error)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          fullActivity.id,
+          fullActivity.timestamp,
+          fullActivity.type,
+          fullActivity.projectId,
+          fullActivity.status,
+          JSON.stringify(fullActivity.content),
+          fullActivity.qualityScore,
+          fullActivity.tokensUsed,
+          fullActivity.error,
+        ],
+        (err: any) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+
+    this.emit('activity', fullActivity);
+  }
+
+  /**
+   * 設定を保存
+   */
+  private async saveConfig(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.conn.run(
+        `INSERT OR REPLACE INTO autonomous_config 
+         (project_id, config, updated_at)
+         VALUES (?, ?, CURRENT_TIMESTAMP)`,
+        [this.config.projectId, JSON.stringify(this.config)],
+        (err: any) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  }
+
+  /**
+   * 現在の設定を取得
+   */
+  getConfig(): AutonomousModeConfig {
     return { ...this.config };
   }
 
-  getStatus(): AutonomousStatus {
+  /**
+   * 実行状態を取得
+   */
+  getStatus(): {
+    isRunning: boolean;
+    config: AutonomousModeConfig;
+    dailyTokenUsage: number;
+    tokenLimitRemaining: number;
+  } {
     return {
-      enabled: this.config.enabled,
-      currentOperation: this.currentOperation || undefined,
-      queueLength: this.operationQueue.length,
-      lastOperationTime: this.lastOperationTime || undefined,
-      todayCount: this.dailyOperationCount,
-      totalOperations: this.totalOperations,
-      successRate: this.totalOperations > 0 ? (this.successfulOperations / this.totalOperations) * 100 : 0,
-      systemHealth: this.resourceMonitor.getLastHealth()
+      isRunning: this.isRunning,
+      config: this.getConfig(),
+      dailyTokenUsage: this.dailyTokenUsage,
+      tokenLimitRemaining: this.config.limits.maxTokensPerDay - this.dailyTokenUsage,
     };
-  }
-
-  async getLogs(options: {
-    limit?: number;
-    level?: 'info' | 'warn' | 'error' | 'debug';
-    category?: 'operation' | 'quality' | 'resource' | 'system';
-    operationId?: string;
-    since?: Date;
-  } = {}): Promise<AutonomousLog[]> {
-    return this.logger.getRecentLogs(
-      options.limit || 100,
-      options.level,
-      options.category,
-      options.operationId
-    );
-  }
-
-  async queueOperation(type: AutonomousContentType, projectId?: string): Promise<string> {
-    const operation: AutonomousOperation = {
-      id: uuidv4(),
-      type,
-      status: 'pending',
-      projectId,
-      startTime: new Date(),
-      metrics: {
-        duration: 0,
-        tokensUsed: 0,
-        apiCalls: 0,
-        cpuUsage: 0,
-        memoryUsage: 0
-      }
-    };
-
-    this.operationQueue.push(operation);
-    this.logger.log('info', 'operation', `Queued ${type} operation`, operation.id);
-    
-    return operation.id;
-  }
-
-  async cleanup(): Promise<void> {
-    await this.stop();
-    await this.orchestrator.cleanup();
   }
 }

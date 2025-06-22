@@ -10,7 +10,13 @@ const KnowledgeGraph = lazy(() => import('./components/KnowledgeGraph').then(m =
 const WritingEditor = lazy(() => import('./components/WritingEditorEnhanced').then(m => ({ default: m.WritingEditorEnhanced })));
 const ProjectKnowledge = lazy(() => import('./components/ProjectKnowledge').then(m => ({ default: m.ProjectKnowledge })));
 const IdeaGacha = lazy(() => import('./components/IdeaGacha').then(m => ({ default: m.IdeaGacha })));
-const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard').then(m => ({ default: m.AnalyticsDashboard })));
+const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboardEnhanced').then(m => ({ default: m.AnalyticsDashboardEnhanced })));
+const AutonomousMode = lazy(() => import('./components/AutonomousMode').then(m => ({ default: m.AutonomousMode })));
+const BackupRestore = lazy(() => import('./components/BackupRestore').then(m => ({ default: m.BackupRestore })));
+const VersionHistory = lazy(() => import('./components/VersionHistory').then(m => ({ default: m.VersionHistory })));
+const PlotBranchingManagement = lazy(() => import('./components/PlotBranchingManagement').then(m => ({ default: m.PlotBranchingManagement })));
+const SerendipitySearchPage = lazy(() => import('./components/SerendipitySearchPage').then(m => ({ default: m.SerendipitySearchPage })));
+const CharacterRelationshipDiagram = lazy(() => import('./components/CharacterRelationshipDiagram').then(m => ({ default: m.CharacterRelationshipDiagram })));
 
 // ローディングコンポーネント
 function LoadingSpinner() {
@@ -46,6 +52,18 @@ export function App() {
         return <IdeaGacha />;
       case 'analytics':
         return <AnalyticsDashboard />;
+      case 'autonomous-mode':
+        return <AutonomousMode />;
+      case 'backup-restore':
+        return <BackupRestore />;
+      case 'version-history':
+        return <VersionHistory />;
+      case 'plot-branching':
+        return <PlotBranchingManagement />;
+      case 'serendipity-search':
+        return <SerendipitySearchPage />;
+      case 'character-relationships':
+        return <CharacterRelationshipDiagram />;
       default:
         return (
           <div>
@@ -108,6 +126,16 @@ export function App() {
           </li>
           <li>
             <button
+              onClick={() => setCurrentView('plot-branching')}
+              className={`w-full px-4 py-3 text-left rounded transition-colors hover:bg-secondary-800 ${
+                currentView === 'plot-branching' ? 'bg-secondary-800' : ''
+              }`}
+            >
+              プロット分岐管理
+            </button>
+          </li>
+          <li>
+            <button
               onClick={() => setCurrentView('agent-meeting')}
               className={`w-full px-4 py-3 text-left rounded transition-colors hover:bg-secondary-800 ${
                 currentView === 'agent-meeting' ? 'bg-secondary-800' : ''
@@ -148,12 +176,62 @@ export function App() {
           </li>
           <li>
             <button
+              onClick={() => setCurrentView('serendipity-search')}
+              className={`w-full px-4 py-3 text-left rounded transition-colors hover:bg-secondary-800 ${
+                currentView === 'serendipity-search' ? 'bg-secondary-800' : ''
+              }`}
+            >
+              セレンディピティ検索
+            </button>
+          </li>
+          <li>
+            <button
+              onClick={() => setCurrentView('character-relationships')}
+              className={`w-full px-4 py-3 text-left rounded transition-colors hover:bg-secondary-800 ${
+                currentView === 'character-relationships' ? 'bg-secondary-800' : ''
+              }`}
+            >
+              キャラクター関係図
+            </button>
+          </li>
+          <li>
+            <button
               onClick={() => setCurrentView('analytics')}
               className={`w-full px-4 py-3 text-left rounded transition-colors hover:bg-secondary-800 ${
                 currentView === 'analytics' ? 'bg-secondary-800' : ''
               }`}
             >
               分析ダッシュボード
+            </button>
+          </li>
+          <li>
+            <button
+              onClick={() => setCurrentView('autonomous-mode')}
+              className={`w-full px-4 py-3 text-left rounded transition-colors hover:bg-secondary-800 ${
+                currentView === 'autonomous-mode' ? 'bg-secondary-800' : ''
+              }`}
+            >
+              24時間自律モード
+            </button>
+          </li>
+          <li>
+            <button
+              onClick={() => setCurrentView('backup-restore')}
+              className={`w-full px-4 py-3 text-left rounded transition-colors hover:bg-secondary-800 ${
+                currentView === 'backup-restore' ? 'bg-secondary-800' : ''
+              }`}
+            >
+              バックアップ・リストア
+            </button>
+          </li>
+          <li>
+            <button
+              onClick={() => setCurrentView('version-history')}
+              className={`w-full px-4 py-3 text-left rounded transition-colors hover:bg-secondary-800 ${
+                currentView === 'version-history' ? 'bg-secondary-800' : ''
+              }`}
+            >
+              バージョン履歴
             </button>
           </li>
           <li>
@@ -186,11 +264,17 @@ function getViewTitle(view: string): string {
     'anything-box': 'Anything Box',
     'knowledge-graph': '知識グラフ',
     'plot-management': 'プロット管理',
+    'plot-branching': 'プロット分岐管理',
+    'serendipity-search': 'セレンディピティ検索',
+    'character-relationships': 'キャラクター関係図',
     'agent-meeting': 'エージェント会議室',
     'writing-editor': '執筆エディタ',
     'project-knowledge': 'プロジェクト知識',
     'idea-gacha': 'アイディアガチャ',
     analytics: '分析ダッシュボード',
+    'autonomous-mode': '24時間自律モード',
+    'backup-restore': 'バックアップ・リストア',
+    'version-history': 'バージョン履歴',
     settings: '設定',
   };
   return titles[view] || view;

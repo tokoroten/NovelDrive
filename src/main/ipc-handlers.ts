@@ -964,38 +964,54 @@ export async function setupIPCHandlers(container: DIContainer): Promise<void> {
   // 自律モードAPI
   ipcMain.handle('autonomous:getConfig', async () => {
     try {
-      // TODO: 実装
+      // Mockデータを返す（サービス統合時に実装予定）
       return {
         enabled: false,
-        mode: 'background',
+        projectId: '',
         schedule: {
-          enabled: false,
-          timeSlots: []
+          writingInterval: 120,
+          ideaGenerationInterval: 60,
+          discussionInterval: 180,
         },
-        qualityThreshold: 7,
-        maxDailyCreations: 3,
-        notificationSettings: {
-          onCreation: true,
-          onQualityAlert: true,
-          onError: true
-        }
+        quality: {
+          minQualityScore: 65,
+          autoSaveThreshold: 70,
+          requireHumanApproval: true,
+        },
+        limits: {
+          maxChaptersPerDay: 3,
+          maxWordsPerSession: 5000,
+          maxTokensPerDay: 100000,
+        },
       };
     } catch (error) {
       console.error('Failed to get autonomous config:', error);
       return {
         enabled: false,
-        mode: 'background',
-        schedule: { enabled: false, timeSlots: [] },
-        qualityThreshold: 7,
-        maxDailyCreations: 3,
-        notificationSettings: { onCreation: true, onQualityAlert: true, onError: true }
+        projectId: '',
+        schedule: {
+          writingInterval: 120,
+          ideaGenerationInterval: 60,
+          discussionInterval: 180,
+        },
+        quality: {
+          minQualityScore: 65,
+          autoSaveThreshold: 70,
+          requireHumanApproval: true,
+        },
+        limits: {
+          maxChaptersPerDay: 3,
+          maxWordsPerSession: 5000,
+          maxTokensPerDay: 100000,
+        },
       };
     }
   });
 
   ipcMain.handle('autonomous:updateConfig', async (_, config) => {
     try {
-      // TODO: 実装
+      // TODO: AutonomousModeServiceと統合
+      console.log('Updating autonomous config:', config);
       return { success: true };
     } catch (error) {
       console.error('Failed to update autonomous config:', error);
@@ -1008,33 +1024,64 @@ export async function setupIPCHandlers(container: DIContainer): Promise<void> {
 
   ipcMain.handle('autonomous:getStatus', async () => {
     try {
-      // TODO: 実装
+      // TODO: AutonomousModeServiceと統合
       return {
         isRunning: false,
-        lastRun: null,
-        nextRun: null,
-        currentTask: null,
-        totalCreated: 0,
-        todayCreated: 0,
-        errors: []
+        config: {
+          enabled: false,
+          projectId: '',
+          schedule: {
+            writingInterval: 120,
+            ideaGenerationInterval: 60,
+            discussionInterval: 180,
+          },
+          quality: {
+            minQualityScore: 65,
+            autoSaveThreshold: 70,
+            requireHumanApproval: true,
+          },
+          limits: {
+            maxChaptersPerDay: 3,
+            maxWordsPerSession: 5000,
+            maxTokensPerDay: 100000,
+          },
+        },
+        dailyTokenUsage: 0,
+        tokenLimitRemaining: 100000,
       };
     } catch (error) {
       console.error('Failed to get autonomous status:', error);
       return {
         isRunning: false,
-        lastRun: null,
-        nextRun: null,
-        currentTask: null,
-        totalCreated: 0,
-        todayCreated: 0,
-        errors: []
+        config: {
+          enabled: false,
+          projectId: '',
+          schedule: {
+            writingInterval: 120,
+            ideaGenerationInterval: 60,
+            discussionInterval: 180,
+          },
+          quality: {
+            minQualityScore: 65,
+            autoSaveThreshold: 70,
+            requireHumanApproval: true,
+          },
+          limits: {
+            maxChaptersPerDay: 3,
+            maxWordsPerSession: 5000,
+            maxTokensPerDay: 100000,
+          },
+        },
+        dailyTokenUsage: 0,
+        tokenLimitRemaining: 100000,
       };
     }
   });
 
   ipcMain.handle('autonomous:start', async () => {
     try {
-      // TODO: 実装
+      // TODO: AutonomousModeServiceと統合
+      console.log('Starting autonomous mode');
       return { success: true };
     } catch (error) {
       console.error('Failed to start autonomous mode:', error);
@@ -1047,30 +1094,11 @@ export async function setupIPCHandlers(container: DIContainer): Promise<void> {
 
   ipcMain.handle('autonomous:stop', async () => {
     try {
-      // TODO: 実装
+      // TODO: AutonomousModeServiceと統合
+      console.log('Stopping autonomous mode');
       return { success: true };
     } catch (error) {
       console.error('Failed to stop autonomous mode:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-  });
-
-  ipcMain.handle('autonomous:testRun', async () => {
-    try {
-      // TODO: 実装
-      return {
-        success: true,
-        result: {
-          duration: 1000,
-          created: 0,
-          errors: []
-        }
-      };
-    } catch (error) {
-      console.error('Failed to run autonomous test:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -1283,6 +1311,327 @@ export async function setupIPCHandlers(container: DIContainer): Promise<void> {
     } catch (error) {
       console.error('Failed to perform related search:', error);
       return [];
+    }
+  });
+
+  // Backup API
+  ipcMain.handle('backup:create', async (_, options) => {
+    try {
+      // TODO: BackupServiceと統合
+      const backupId = require('uuid').v4();
+      console.log('Creating backup:', options);
+      
+      // Mockバックアップメタデータを返す
+      return {
+        id: backupId,
+        name: options.name,
+        description: options.description,
+        projectIds: options.projectIds || [],
+        size: Math.floor(Math.random() * 10000000) + 1000000, // 1-10MB
+        createdAt: new Date().toISOString(),
+        type: 'manual',
+        version: '1.0.0',
+        checksum: 'mock-checksum-' + backupId.substring(0, 8),
+      };
+    } catch (error) {
+      console.error('Failed to create backup:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('backup:listBackups', async () => {
+    try {
+      // TODO: BackupServiceと統合
+      // Mockデータを返す
+      return [
+        {
+          id: 'backup-1',
+          name: 'サンプル自動バックアップ',
+          description: '定期自動バックアップ',
+          projectIds: ['project-1', 'project-2'],
+          size: 2500000,
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
+          type: 'auto',
+          version: '1.0.0',
+          checksum: 'mock-checksum-1',
+        },
+        {
+          id: 'backup-2',
+          name: '重要な節目のバックアップ',
+          description: '第一章完成時のバックアップ',
+          projectIds: ['project-1'],
+          size: 1800000,
+          createdAt: new Date(Date.now() - 3600000).toISOString(),
+          type: 'manual',
+          version: '1.0.0',
+          checksum: 'mock-checksum-2',
+        },
+      ];
+    } catch (error) {
+      console.error('Failed to list backups:', error);
+      return [];
+    }
+  });
+
+  ipcMain.handle('backup:restore', async (_, backupId: string, options) => {
+    try {
+      // TODO: BackupServiceと統合
+      console.log('Restoring backup:', backupId, options);
+      
+      // 復元処理のシミュレーション
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to restore backup:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('backup:delete', async (_, backupId: string) => {
+    try {
+      // TODO: BackupServiceと統合
+      console.log('Deleting backup:', backupId);
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to delete backup:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('backup:getConfig', async () => {
+    try {
+      // TODO: BackupServiceと統合
+      return {
+        enabled: true,
+        intervalHours: 24,
+        maxBackups: 10,
+        includeLogs: false,
+        compressBackups: true,
+        backupLocation: require('path').join(require('electron').app.getPath('userData'), 'backups'),
+      };
+    } catch (error) {
+      console.error('Failed to get backup config:', error);
+      return {
+        enabled: false,
+        intervalHours: 24,
+        maxBackups: 10,
+        includeLogs: false,
+        compressBackups: true,
+        backupLocation: '',
+      };
+    }
+  });
+
+  ipcMain.handle('backup:updateConfig', async (_, config) => {
+    try {
+      // TODO: BackupServiceと統合
+      console.log('Updating backup config:', config);
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to update backup config:', error);
+      throw error;
+    }
+  });
+
+  // Version History API
+  ipcMain.handle('versionHistory:getHistory', async (_, documentId: string, limit?: number) => {
+    try {
+      // TODO: VersionHistoryServiceと統合
+      // Mockデータを返す
+      return [
+        {
+          id: 'version-1',
+          documentId,
+          documentType: 'chapter',
+          version: 3,
+          title: '第一章：始まり',
+          content: '最新版のテキスト内容...',
+          metadata: {},
+          changeType: 'update',
+          changeDescription: '誤字修正と文章の調整',
+          authorName: 'ユーザー',
+          createdAt: new Date(Date.now() - 3600000).toISOString(),
+          checksum: 'checksum-3',
+          size: 2500,
+        },
+        {
+          id: 'version-2',
+          documentId,
+          documentType: 'chapter',
+          version: 2,
+          title: '第一章：始まり',
+          content: '前のバージョンのテキスト内容...',
+          metadata: {},
+          changeType: 'update',
+          changeDescription: 'プロットに合わせて内容を調整',
+          authorName: 'ユーザー',
+          createdAt: new Date(Date.now() - 7200000).toISOString(),
+          checksum: 'checksum-2',
+          size: 2200,
+        },
+        {
+          id: 'version-3',
+          documentId,
+          documentType: 'chapter',
+          version: 1,
+          title: '第一章：始まり',
+          content: '最初のバージョンのテキスト内容...',
+          metadata: {},
+          changeType: 'create',
+          changeDescription: '初回作成',
+          authorName: 'ユーザー',
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
+          checksum: 'checksum-1',
+          size: 1800,
+        },
+      ];
+    } catch (error) {
+      console.error('Failed to get version history:', error);
+      return [];
+    }
+  });
+
+  ipcMain.handle('versionHistory:calculateDiff', async (_, fromVersionId: string, toVersionId: string) => {
+    try {
+      // TODO: VersionHistoryServiceと統合
+      // Mock差分データを返す
+      return {
+        additions: [
+          { lineNumber: 5, content: '新しく追加された行です。', type: 'added' },
+          { lineNumber: 8, content: 'もう一つの追加行。', type: 'added' },
+        ],
+        deletions: [
+          { lineNumber: 3, content: '削除された行です。', type: 'deleted' },
+        ],
+        modifications: [
+          { 
+            lineNumber: 7, 
+            content: '修正後の内容です。', 
+            oldContent: '修正前の内容です。',
+            type: 'modified' 
+          },
+        ],
+        summary: {
+          linesAdded: 2,
+          linesDeleted: 1,
+          linesModified: 1,
+          charactersAdded: 25,
+          charactersDeleted: 10,
+        },
+      };
+    } catch (error) {
+      console.error('Failed to calculate diff:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('versionHistory:restore', async (_, versionId: string, options) => {
+    try {
+      // TODO: VersionHistoryServiceと統合
+      console.log('Restoring version:', versionId, options);
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to restore version:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('versionHistory:delete', async (_, versionId: string) => {
+    try {
+      // TODO: VersionHistoryServiceと統合
+      console.log('Deleting version:', versionId);
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to delete version:', error);
+      throw error;
+    }
+  });
+
+  // Plot Branching API
+  ipcMain.handle('plotBranching:createBranch', async (_, branchData) => {
+    try {
+      const { projectId, title, synopsis, parentVersion, createdBy } = branchData;
+      console.log('Creating plot branch:', branchData);
+      
+      // TODO: 実際のプロット分岐作成処理
+      // Mockレスポンス
+      const newBranch = {
+        id: `plot-${Date.now()}`,
+        version: `v${Date.now()}`,
+        title,
+        synopsis,
+        parentVersion,
+        projectId,
+        status: 'draft',
+        createdBy,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      
+      return {
+        success: true,
+        data: newBranch,
+      };
+    } catch (error) {
+      console.error('Failed to create plot branch:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('plotBranching:mergeBranch', async (_, mergeData) => {
+    try {
+      const { sourceId, targetId, strategy, description } = mergeData;
+      console.log('Merging plot branch:', mergeData);
+      
+      // TODO: 実際のプロット分岐マージ処理
+      // Mockレスポンス
+      return {
+        success: true,
+        data: {
+          mergedVersionId: `merged-${Date.now()}`,
+          status: 'merged',
+          description,
+        },
+      };
+    } catch (error) {
+      console.error('Failed to merge plot branch:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('plotBranching:getTree', async (_, projectId: string) => {
+    try {
+      console.log('Getting plot tree for project:', projectId);
+      
+      // TODO: 実際のプロット系譜取得処理
+      // 現在はdatabase.listPlotsを使用するため、実装不要
+      return {
+        success: true,
+        message: 'Use database.listPlots instead',
+      };
+    } catch (error) {
+      console.error('Failed to get plot tree:', error);
+      throw error;
+    }
+  });
+
+  // Export API (テキストのみ)
+  ipcMain.handle('export:text', async (_, options) => {
+    try {
+      const { documentIds, format, includeMetadata } = options;
+      console.log('Exporting as text:', documentIds, format);
+      
+      // TODO: 実際のエクスポート処理
+      // Mockレスポンス
+      return {
+        success: true,
+        filePath: '/mock/path/to/exported/file.txt',
+        size: 15000,
+      };
+    } catch (error) {
+      console.error('Failed to export as text:', error);
+      throw error;
     }
   });
 }

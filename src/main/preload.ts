@@ -306,6 +306,41 @@ const electronAPI = {
     stop: () => ipcRenderer.invoke('autonomous:stop'),
     testRun: () => ipcRenderer.invoke('autonomous:testRun'),
   },
+
+  // バックアップ・リストア関連
+  backup: {
+    create: (options: { name: string; description?: string; projectIds?: string[] }) =>
+      ipcRenderer.invoke('backup:create', options),
+    listBackups: () => ipcRenderer.invoke('backup:listBackups'),
+    restore: (backupId: string, options: any) => ipcRenderer.invoke('backup:restore', backupId, options),
+    delete: (backupId: string) => ipcRenderer.invoke('backup:delete', backupId),
+    getConfig: () => ipcRenderer.invoke('backup:getConfig'),
+    updateConfig: (config: any) => ipcRenderer.invoke('backup:updateConfig', config),
+  },
+
+  // バージョン履歴関連
+  versionHistory: {
+    getHistory: (documentId: string, limit?: number) => ipcRenderer.invoke('versionHistory:getHistory', documentId, limit),
+    calculateDiff: (fromVersionId: string, toVersionId: string) => 
+      ipcRenderer.invoke('versionHistory:calculateDiff', fromVersionId, toVersionId),
+    restore: (versionId: string, options?: any) => ipcRenderer.invoke('versionHistory:restore', versionId, options),
+    delete: (versionId: string) => ipcRenderer.invoke('versionHistory:delete', versionId),
+  },
+
+  // プロット分岐管理関連
+  plotBranching: {
+    createBranch: (branchData: { projectId: string; title: string; synopsis: string; parentVersion: string; createdBy: string }) =>
+      ipcRenderer.invoke('plotBranching:createBranch', branchData),
+    mergeBranch: (mergeData: { sourceId: string; targetId: string; strategy: string; description?: string }) =>
+      ipcRenderer.invoke('plotBranching:mergeBranch', mergeData),
+    getTree: (projectId: string) => ipcRenderer.invoke('plotBranching:getTree', projectId),
+  },
+
+  // エクスポート関連
+  export: {
+    text: (options: { documentIds: string[]; format?: string; includeMetadata?: boolean }) =>
+      ipcRenderer.invoke('export:text', options),
+  },
 };
 
 // デバッグ用ログ

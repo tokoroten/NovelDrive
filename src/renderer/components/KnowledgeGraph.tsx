@@ -18,6 +18,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedKnowledgeNode from './graph/AnimatedKnowledgeNode';
+import { SerendipitySearchEnhanced } from './SerendipitySearchEnhanced';
 import { 
   applyLayout, 
   LayoutType,
@@ -96,7 +97,7 @@ function KnowledgeGraphInner() {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [viewMode, setViewMode] = useState<'all' | 'project' | 'search'>('all');
+  const [viewMode, setViewMode] = useState<'all' | 'project' | 'search' | 'serendipity'>('all');
   const [projectId] = useState('default-project'); // TODO: プロジェクト選択機能
   const [layoutType, setLayoutType] = useState<LayoutType>('force-directed');
   const [performanceMode, setPerformanceMode] = useState(false);
@@ -296,10 +297,57 @@ function KnowledgeGraphInner() {
     return node?.data;
   }, [selectedNode, nodes]);
 
+  const handleSerendipityResultSelect = (result: any) => {
+    // セレンディピティ検索結果を知識グラフに統合
+    const newNode: Node = {
+      id: result.id,
+      type: performanceMode ? 'simple' : 'knowledge',
+      position: { x: 0, y: 0 },
+      data: {
+        label: result.title,
+        type: result.type,
+        content: result.content,
+        metadata: result.metadata,
+        similarity: result.score,
+        connectionCount: 0,
+        selected: true,
+      },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+    };
+
+    setNodes(prevNodes => {
+      // 既存のノードがあるかチェック
+      const existingIndex = prevNodes.findIndex(n => n.id === result.id);
+      if (existingIndex >= 0) {
+        // 既存ノードを選択状態に更新
+        const updatedNodes = [...prevNodes];
+        updatedNodes[existingIndex] = { ...updatedNodes[existingIndex], data: { ...updatedNodes[existingIndex].data, selected: true } };
+        return updatedNodes;
+      } else {
+        // 新しいノードを追加
+        return [...prevNodes, newNode];
+      }
+    });
+    
+    setSelectedNode(result.id);
+  };
+
   return (
     <div className="flex h-full gap-4">
-      {/* メインビュー */}
-      <div className="flex-1 bg-white rounded-lg shadow-md">
+      {/* セレンディピティ検索モード */}
+      {viewMode === 'serendipity' ? (
+        <div className="flex-1">
+          <SerendipitySearchEnhanced
+            projectId={projectId}
+            onResultSelect={handleSerendipityResultSelect}
+            className="h-full"
+          />
+        </div>
+      ) : (
+        <>
+          {/* メインビュー */}
+          <div className="flex-1 bg-white rounded-lg shadow-md">
         <div className="p-4 border-b border-gray-200">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold">知識グラフ</h3>
@@ -367,6 +415,16 @@ function KnowledgeGraphInner() {
                   }`}
                 >
                   検索
+                </button>
+                <button
+                  onClick={() => setViewMode('serendipity')}
+                  className={`px-3 py-1 rounded text-sm ${
+                    viewMode === 'serendipity'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  セレンディピティ
                 </button>
               </div>
             </div>
@@ -477,6 +535,7 @@ function KnowledgeGraphInner() {
             </button>
           </div>
         </div>
+        </>
       )}
     </div>
   );
