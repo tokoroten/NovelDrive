@@ -10,9 +10,43 @@ import { KnowledgeApplicationService } from './application/services/knowledge-se
 import { PlotApplicationService } from './application/services/plot-service';
 import { KnowledgeGraphService } from './services/knowledge-graph-service';
 import { SerendipitySearchService } from './services/serendipity-search-service';
-import { AgentManager } from './services/agents';
+import { AgentManager } from './services/agents/agent-manager';
 import { InMemoryTaskQueue } from './core/async/task-queue';
 import { retry } from './core/async/retry';
+
+// IPC API Response Types
+interface APIResponse<T = any> {
+  success: boolean;
+  error?: string;
+  data?: T;
+}
+
+interface AgentSession {
+  id: string;
+  topic: string;
+  status: string;
+  messageCount: number;
+  startTime: string;
+  endTime?: string;
+}
+
+interface AgentMessage {
+  id: string;
+  agentId: string;
+  agentRole: string;
+  content: string;
+  timestamp: string;
+}
+
+interface AgentParticipant {
+  role: string;
+  name?: string;
+}
+
+interface FullAgentSession extends AgentSession {
+  messages: AgentMessage[];
+  participants: AgentParticipant[];
+}
 
 export async function setupIPCHandlers(container: DIContainer): Promise<void> {
   // 知識管理関連
@@ -186,6 +220,33 @@ export async function setupIPCHandlers(container: DIContainer): Promise<void> {
     return queue.getStats();
   });
 
+  // データベース直接クエリ
+  ipcMain.handle('db:query', async (_, sql: string, params: unknown[] = []) => {
+    try {
+      // 基本的なSQLクエリを実行（読み取り専用）
+      if (!sql.trim().toLowerCase().startsWith('select')) {
+        throw new Error('Only SELECT queries are allowed through this API');
+      }
+      
+      // TODO: 実際のデータベース接続を使用
+      return [];
+    } catch (error) {
+      console.error('Database query error:', error);
+      return [];
+    }
+  });
+
+  ipcMain.handle('db:execute', async (_, sql: string, params: unknown[] = []) => {
+    try {
+      // 更新系のSQLクエリを実行
+      // TODO: 実際のデータベース接続を使用
+      return { success: true };
+    } catch (error) {
+      console.error('Database execute error:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  });
+
   // システム関連
   ipcMain.handle('system:getStats', async (_) => {
     const queue = await container.get<InMemoryTaskQueue>('taskQueue');
@@ -242,6 +303,986 @@ export async function setupIPCHandlers(container: DIContainer): Promise<void> {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
       };
+    }
+  });
+
+  // Agent関連のIPCハンドラー
+  ipcMain.handle('agents:getAllSessions', async (): Promise<{
+    success: boolean;
+    sessions: AgentSession[];
+    error?: string;
+  }> => {
+    try {
+      const agentManager = await container.get<AgentManager>('agentManager');
+      // AgentManagerにgetAllSessionsメソッドがない場合、サンプルセッションを返す
+      const sessions: AgentSession[] = [
+        {
+          id: 'sample-session-1',
+          topic: 'サンプル議論: 魔法と科学の融合',
+          status: 'completed',
+          messageCount: 5,
+          startTime: new Date(Date.now() - 3600000).toISOString(),
+          endTime: new Date(Date.now() - 1800000).toISOString()
+        },
+        {
+          id: 'sample-session-2',
+          topic: 'キャラクター設定の検討',
+          status: 'active',
+          messageCount: 3,
+          startTime: new Date(Date.now() - 300000).toISOString()
+        }
+      ]; // TODO: 実際のセッション取得ロジック
+      
+      return {
+        success: true,
+        sessions
+      };
+    } catch (error) {
+      console.error('Failed to get all sessions:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        sessions: []
+      };
+    }
+  });
+
+  ipcMain.handle('agents:getSession', async (_, sessionId: string): Promise<{
+    success: boolean;
+    session: FullAgentSession | null;
+    error?: string;
+  }> => {
+    try {
+      const agentManager = await container.get<AgentManager>('agentManager');
+      // AgentManagerにgetSessionメソッドがない場合、nullを返す
+      const session: FullAgentSession | null = null; // TODO: 実際のセッション取得ロジック
+      return {
+        success: true,
+        session
+      };
+    } catch (error) {
+      console.error('Failed to get session:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        session: null
+      };
+    }
+  });
+
+  ipcMain.handle('agents:create', async (_, options) => {
+    try {
+      const agentManager = await container.get<AgentManager>('agentManager');
+      // AgentManagerにcreateメソッドがない場合、暫定的な応答を返す
+      return {
+        success: true,
+        agent: {
+          id: uuidv4(),
+          role: options.role,
+          personality: options.personality,
+          name: options.name || 'Agent'
+        }
+      };
+    } catch (error) {
+      console.error('Failed to create agent:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('agents:startDiscussion', async (_, options) => {
+    try {
+      const agentManager = await container.get<AgentManager>('agentManager');
+      const context = {
+        maxRounds: options.maxRounds || 3,
+        projectContext: options.projectId ? { projectId: options.projectId } : undefined,
+        plotContext: options.plotId ? { plotId: options.plotId } : undefined
+      };
+      const messages = await agentManager.startDiscussion(options.topic, context, options.agentConfigs);
+      
+      return {
+        success: true,
+        session: {
+          id: uuidv4(),
+          topic: options.topic,
+          status: 'active',
+          messages,
+          participants: options.agentConfigs,
+          startTime: new Date()
+        }
+      };
+    } catch (error) {
+      console.error('Failed to start discussion:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('agents:pauseSession', async (_, sessionId: string) => {
+    try {
+      // Pause session logic - for now just return success
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to pause session:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('agents:resumeSession', async (_, sessionId: string) => {
+    try {
+      // Resume session logic - for now just return success
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to resume session:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('agents:getDiscussionHistory', async (_, options) => {
+    try {
+      // Return empty history for now
+      return {
+        success: true,
+        discussions: []
+      };
+    } catch (error) {
+      console.error('Failed to get discussion history:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('agents:requestWritingSuggestions', async (_, context) => {
+    try {
+      const agentManager = await container.get<AgentManager>('agentManager');
+      // Return empty suggestions for now
+      return {
+        success: true,
+        suggestions: []
+      };
+    } catch (error) {
+      console.error('Failed to request writing suggestions:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  // Discussion Manager API handlers
+  ipcMain.handle('discussion:start', async (_, topic: string, context?, options?) => {
+    try {
+      const agentManager = await container.get<AgentManager>('agentManager');
+      const discussionContext = {
+        maxRounds: options?.maxRounds || 3,
+        projectContext: context?.projectId ? { projectId: context.projectId } : undefined,
+        plotContext: context?.plotId ? { plotId: context.plotId } : undefined
+      };
+      const messages = await agentManager.startDiscussion(topic, discussionContext, options?.agentConfigs || []);
+      
+      return {
+        success: true,
+        discussionId: uuidv4(),
+        messages
+      };
+    } catch (error) {
+      console.error('Failed to start discussion:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('discussion:pause', async () => {
+    try {
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to pause discussion:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('discussion:resume', async () => {
+    try {
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to resume discussion:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('discussion:addHumanIntervention', async (_, content: string) => {
+    try {
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to add human intervention:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('discussion:getStatus', async () => {
+    try {
+      return {
+        success: true,
+        status: 'idle'
+      };
+    } catch (error) {
+      console.error('Failed to get discussion status:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('discussion:getMessages', async (_, discussionId: string, limit?: number) => {
+    try {
+      return {
+        success: true,
+        messages: []
+      };
+    } catch (error) {
+      console.error('Failed to get messages:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('discussion:getAgents', async () => {
+    try {
+      return {
+        success: true,
+        agents: []
+      };
+    } catch (error) {
+      console.error('Failed to get agents:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('discussion:getHistory', async (_, limit?: number) => {
+    try {
+      return {
+        success: true,
+        history: []
+      };
+    } catch (error) {
+      console.error('Failed to get history:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('discussion:setAutonomousMode', async (_, enabled: boolean, options?) => {
+    try {
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to set autonomous mode:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('discussion:getTokenUsage', async (_, discussionId: string) => {
+    try {
+      return {
+        success: true,
+        usage: {
+          total: 0,
+          input: 0,
+          output: 0
+        }
+      };
+    } catch (error) {
+      console.error('Failed to get token usage:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('discussion:getSummarizationConfig', async () => {
+    try {
+      return {
+        success: true,
+        config: {
+          enabled: false,
+          threshold: 100
+        }
+      };
+    } catch (error) {
+      console.error('Failed to get summarization config:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('discussion:updateSummarizationConfig', async (_, config) => {
+    try {
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to update summarization config:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('discussion:getSummaries', async (_, discussionId: string) => {
+    try {
+      return {
+        success: true,
+        summaries: []
+      };
+    } catch (error) {
+      console.error('Failed to get summaries:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('discussion:submitHumanIntervention', async (_, discussionId: string, intervention) => {
+    try {
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to submit human intervention:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  // プロット管理API
+  ipcMain.handle('plots:create', async (_, data) => {
+    try {
+      const plotService = await container.get<PlotApplicationService>('plotService');
+      const plot = await plotService.createPlot(data);
+      return {
+        success: true,
+        plot: {
+          id: plot.id,
+          projectId: plot.projectId,
+          version: plot.version,
+          title: plot.title,
+          synopsis: plot.synopsis,
+          structure: plot.structure,
+          status: plot.status,
+          createdAt: plot.createdAt,
+          updatedAt: plot.updatedAt,
+          createdBy: plot.createdBy
+        }
+      };
+    } catch (error) {
+      console.error('Failed to create plot:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('plots:fork', async (_, plotId: string, modifications) => {
+    try {
+      const plotService = await container.get<PlotApplicationService>('plotService');
+      const plot = await plotService.forkPlot(plotId, modifications);
+      return {
+        success: true,
+        plot: {
+          id: plot.id,
+          projectId: plot.projectId,
+          version: plot.version,
+          parentVersion: plot.parentVersion,
+          title: plot.title,
+          synopsis: plot.synopsis,
+          structure: plot.structure,
+          status: plot.status,
+          createdAt: plot.createdAt,
+          updatedAt: plot.updatedAt,
+          createdBy: plot.createdBy
+        }
+      };
+    } catch (error) {
+      console.error('Failed to fork plot:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('plots:get', async (_, plotId: string) => {
+    try {
+      // TODO: 実装
+      return {
+        success: true,
+        plot: null
+      };
+    } catch (error) {
+      console.error('Failed to get plot:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('plots:history', async (_, projectId: string) => {
+    try {
+      const plotService = await container.get<PlotApplicationService>('plotService');
+      const plots = await plotService.getPlotVersionTree(projectId);
+      return {
+        success: true,
+        plots: plots.map((plot: any) => ({
+          id: plot.id,
+          projectId: plot.projectId,
+          version: plot.version,
+          parentVersion: plot.parentVersion,
+          title: plot.title,
+          synopsis: plot.synopsis,
+          structure: plot.structure,
+          status: plot.status,
+          createdAt: plot.createdAt,
+          updatedAt: plot.updatedAt,
+          createdBy: plot.createdBy
+        }))
+      };
+    } catch (error) {
+      console.error('Failed to get plot history:', error);
+      return {
+        success: true,
+        plots: []
+      };
+    }
+  });
+
+  ipcMain.handle('plots:updateStatus', async (_, plotId: string, status: string) => {
+    try {
+      // TODO: 実装
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to update plot status:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  // チャプター管理API
+  ipcMain.handle('chapters:create', async (_, chapter) => {
+    try {
+      // TODO: 実装
+      return {
+        success: true,
+        chapter: {
+          id: uuidv4(),
+          ...chapter,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      };
+    } catch (error) {
+      console.error('Failed to create chapter:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('chapters:update', async (_, id: string, updates) => {
+    try {
+      // TODO: 実装
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to update chapter:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('chapters:delete', async (_, id: string) => {
+    try {
+      // TODO: 実装
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to delete chapter:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('chapters:get', async (_, id: string) => {
+    try {
+      // TODO: 実装
+      return {
+        success: true,
+        chapter: null
+      };
+    } catch (error) {
+      console.error('Failed to get chapter:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('chapters:listByPlot', async (_, plotId: string) => {
+    try {
+      // TODO: 実装
+      return {
+        success: true,
+        chapters: []
+      };
+    } catch (error) {
+      console.error('Failed to list chapters:', error);
+      return {
+        success: true,
+        chapters: []
+      };
+    }
+  });
+
+  // プロット生成ワークフロー
+  ipcMain.handle('plotGen:start', async (_, request) => {
+    try {
+      // TODO: 実装
+      return {
+        success: true,
+        sessionId: uuidv4()
+      };
+    } catch (error) {
+      console.error('Failed to start plot generation:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('plotGen:getSession', async (_, sessionId: string) => {
+    try {
+      // TODO: 実装
+      return {
+        success: true,
+        session: null
+      };
+    } catch (error) {
+      console.error('Failed to get plot generation session:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('plotGen:getSessions', async () => {
+    try {
+      // TODO: 実装
+      return {
+        success: true,
+        sessions: []
+      };
+    } catch (error) {
+      console.error('Failed to get plot generation sessions:', error);
+      return {
+        success: true,
+        sessions: []
+      };
+    }
+  });
+
+  ipcMain.handle('plotGen:cancel', async (_, sessionId: string) => {
+    try {
+      // TODO: 実装
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to cancel plot generation session:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('plotGen:addIntervention', async (_, sessionId: string, content: string) => {
+    try {
+      // TODO: 実装
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to add plot generation intervention:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  // 自律モードAPI
+  ipcMain.handle('autonomous:getConfig', async () => {
+    try {
+      // TODO: 実装
+      return {
+        enabled: false,
+        mode: 'background',
+        schedule: {
+          enabled: false,
+          timeSlots: []
+        },
+        qualityThreshold: 7,
+        maxDailyCreations: 3,
+        notificationSettings: {
+          onCreation: true,
+          onQualityAlert: true,
+          onError: true
+        }
+      };
+    } catch (error) {
+      console.error('Failed to get autonomous config:', error);
+      return {
+        enabled: false,
+        mode: 'background',
+        schedule: { enabled: false, timeSlots: [] },
+        qualityThreshold: 7,
+        maxDailyCreations: 3,
+        notificationSettings: { onCreation: true, onQualityAlert: true, onError: true }
+      };
+    }
+  });
+
+  ipcMain.handle('autonomous:updateConfig', async (_, config) => {
+    try {
+      // TODO: 実装
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to update autonomous config:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('autonomous:getStatus', async () => {
+    try {
+      // TODO: 実装
+      return {
+        isRunning: false,
+        lastRun: null,
+        nextRun: null,
+        currentTask: null,
+        totalCreated: 0,
+        todayCreated: 0,
+        errors: []
+      };
+    } catch (error) {
+      console.error('Failed to get autonomous status:', error);
+      return {
+        isRunning: false,
+        lastRun: null,
+        nextRun: null,
+        currentTask: null,
+        totalCreated: 0,
+        todayCreated: 0,
+        errors: []
+      };
+    }
+  });
+
+  ipcMain.handle('autonomous:start', async () => {
+    try {
+      // TODO: 実装
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to start autonomous mode:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('autonomous:stop', async () => {
+    try {
+      // TODO: 実装
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to stop autonomous mode:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('autonomous:testRun', async () => {
+    try {
+      // TODO: 実装
+      return {
+        success: true,
+        result: {
+          duration: 1000,
+          created: 0,
+          errors: []
+        }
+      };
+    } catch (error) {
+      console.error('Failed to run autonomous test:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  // Crawler API
+  ipcMain.handle('crawler:crawl', async (_, url: string, depth: number, options?) => {
+    try {
+      // TODO: 実装
+      return {
+        success: true,
+        result: {
+          url,
+          status: 'completed',
+          pagesProcessed: 1,
+          knowledgeCreated: 0
+        }
+      };
+    } catch (error) {
+      console.error('Failed to crawl:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  // Tokenizer API
+  ipcMain.handle('tokenizer:tokenize', async (_, text: string) => {
+    try {
+      // TODO: 実装 - TinySegmenterを使用
+      return {
+        tokens: text.split(''),
+        count: text.length
+      };
+    } catch (error) {
+      console.error('Failed to tokenize:', error);
+      return {
+        tokens: [],
+        count: 0
+      };
+    }
+  });
+
+  // Knowledge API
+  ipcMain.handle('knowledge:save', async (_, knowledge) => {
+    try {
+      const knowledgeService = await container.get<KnowledgeApplicationService>('knowledgeService');
+      const savedKnowledge = await knowledgeService.createKnowledge(knowledge);
+      return {
+        success: true,
+        knowledge: {
+          id: savedKnowledge.id,
+          title: savedKnowledge.title,
+          content: savedKnowledge.content,
+          type: savedKnowledge.type,
+          projectId: savedKnowledge.projectId,
+          metadata: savedKnowledge.metadata,
+          createdAt: savedKnowledge.createdAt,
+          updatedAt: savedKnowledge.updatedAt
+        }
+      };
+    } catch (error) {
+      console.error('Failed to save knowledge:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  // File API
+  ipcMain.handle('file:read', async (_, path: string) => {
+    try {
+      // TODO: 実装（セキュリティ制限あり）
+      return '';
+    } catch (error) {
+      console.error('Failed to read file:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('file:write', async (_, path: string, content: string) => {
+    try {
+      // TODO: 実装（セキュリティ制限あり）
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to write file:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('file:exists', async (_, path: string) => {
+    try {
+      // TODO: 実装（セキュリティ制限あり）
+      return false;
+    } catch (error) {
+      console.error('Failed to check file existence:', error);
+      return false;
+    }
+  });
+
+  // AI API（ローカル埋め込み用）
+  ipcMain.handle('ai:embed', async (_, text: string) => {
+    try {
+      // TODO: LocalEmbeddingServiceを使用
+      return {
+        embedding: new Array(384).fill(0).map(() => Math.random()),
+        dimensions: 384
+      };
+    } catch (error) {
+      console.error('Failed to generate embedding:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('ai:chat', async (_, messages, options?) => {
+    try {
+      // TODO: OpenAI API実装
+      return {
+        response: 'チャット機能は現在開発中です。',
+        usage: {
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0
+        }
+      };
+    } catch (error) {
+      console.error('Failed to process chat:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('ai:generateImage', async (_, prompt: string, options?) => {
+    try {
+      // TODO: DALL-E API実装
+      return {
+        imageUrl: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="lightgray"/><text x="50" y="50" text-anchor="middle">画像生成中</text></svg>',
+        usage: {
+          cost: 0
+        }
+      };
+    } catch (error) {
+      console.error('Failed to generate image:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('ai:extractInspiration', async (_, text: string, type: string) => {
+    try {
+      // TODO: ローカルインスピレーション抽出実装
+      return {
+        keywords: ['サンプル', 'キーワード'],
+        themes: ['テーマ1'],
+        plotSeeds: ['サンプルプロット'],
+        characters: [],
+        scenes: []
+      };
+    } catch (error) {
+      console.error('Failed to extract inspiration:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('ai:extractContent', async (_, html: string, url: string) => {
+    try {
+      // TODO: コンテンツ抽出実装
+      return {
+        title: '抽出されたタイトル',
+        content: '抽出されたコンテンツ',
+        summary: '要約'
+      };
+    } catch (error) {
+      console.error('Failed to extract content:', error);
+      throw error;
+    }
+  });
+
+  // Search API
+  ipcMain.handle('search:serendipity', async (_, query: string, options?) => {
+    try {
+      const searchService = await container.get<SerendipitySearchService>('serendipitySearchService');
+      const results = await searchService.search(query, options);
+      return results;
+    } catch (error) {
+      console.error('Failed to perform serendipity search:', error);
+      return [];
+    }
+  });
+
+  ipcMain.handle('search:hybrid', async (_, query: string, options?) => {
+    try {
+      // TODO: ハイブリッド検索実装
+      return [];
+    } catch (error) {
+      console.error('Failed to perform hybrid search:', error);
+      return [];
+    }
+  });
+
+  ipcMain.handle('search:related', async (_, itemId: string, options?) => {
+    try {
+      // TODO: 関連検索実装
+      return [];
+    } catch (error) {
+      console.error('Failed to perform related search:', error);
+      return [];
     }
   });
 }

@@ -96,48 +96,62 @@ export function AgentMeetingRoom() {
     // セッション一覧を取得
     loadSessions();
 
-    // リアルタイムイベントのリスナー設定
-    window.electronAPI.agents.onMessage((data: any) => {
-      if (activeSession && data.sessionId === activeSession.id) {
-        setMessages((prev) => [...prev, data.message]);
-        updateAgentStatus(data.message.agentId, 'active');
-        
-        // メッセージ数更新
-        setAgentStatuses(prev => prev.map(s => 
-          s.id === data.message.agentId 
-            ? { ...s, messageCount: s.messageCount + 1 }
-            : s
-        ));
+    // リアルタイムイベントのリスナー設定（安全チェック付き）
+    try {
+      if (window.electronAPI?.agents?.onMessage) {
+        window.electronAPI.agents.onMessage((data: any) => {
+          if (activeSession && data.sessionId === activeSession.id) {
+            setMessages((prev) => [...prev, data.message]);
+            updateAgentStatus(data.message.agentId, 'active');
+            
+            // メッセージ数更新
+            setAgentStatuses(prev => prev.map(s => 
+              s.id === data.message.agentId 
+                ? { ...s, messageCount: s.messageCount + 1 }
+                : s
+            ));
+          }
+        });
       }
-    });
 
-    window.electronAPI.agents.onSessionStarted((_data: any) => {
-      loadSessions();
-    });
-
-    window.electronAPI.agents.onSessionConcluded((data: any) => {
-      if (activeSession && data.sessionId === activeSession.id) {
-        setActiveSession((prev) =>
-          prev ? { ...prev, status: 'concluded', summary: data.summary } : null
-        );
-        updateAllAgentStatuses('finished');
+      if (window.electronAPI?.agents?.onSessionStarted) {
+        window.electronAPI.agents.onSessionStarted((_data: any) => {
+          loadSessions();
+        });
       }
-      loadSessions();
-    });
 
-    // エージェント状態更新イベント
-    window.electronAPI.agents.onAgentStatusUpdate?.((data: any) => {
-      if (activeSession && data.sessionId === activeSession.id) {
-        updateAgentStatus(data.agentId, data.status);
+      if (window.electronAPI?.agents?.onSessionConcluded) {
+        window.electronAPI.agents.onSessionConcluded((data: any) => {
+          if (activeSession && data.sessionId === activeSession.id) {
+            setActiveSession((prev) =>
+              prev ? { ...prev, status: 'concluded', summary: data.summary } : null
+            );
+            updateAllAgentStatuses('finished');
+          }
+          loadSessions();
+        });
       }
-    });
 
-    // 議論進捗更新イベント
-    window.electronAPI.agents.onProgressUpdate?.((data: any) => {
-      if (activeSession && data.sessionId === activeSession.id) {
-        setDiscussionProgress(data.progress);
+      // エージェント状態更新イベント
+      if (window.electronAPI?.agents?.onAgentStatusUpdate) {
+        window.electronAPI.agents.onAgentStatusUpdate((data: any) => {
+          if (activeSession && data.sessionId === activeSession.id) {
+            updateAgentStatus(data.agentId, data.status);
+          }
+        });
       }
-    });
+
+      // 議論進捗更新イベント
+      if (window.electronAPI?.agents?.onProgressUpdate) {
+        window.electronAPI.agents.onProgressUpdate((data: any) => {
+          if (activeSession && data.sessionId === activeSession.id) {
+            setDiscussionProgress(data.progress);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to setup event listeners:', error);
+    }
 
     return () => {
       // クリーンアップ処理
@@ -224,12 +238,42 @@ export function AgentMeetingRoom() {
 
   const loadSessions = async () => {
     try {
+      console.log('Loading sessions...');
+      console.log('window.electronAPI:', window.electronAPI);
+      console.log('window.electronAPI keys:', window.electronAPI ? Object.keys(window.electronAPI) : 'undefined');
+      console.log('window.electronAPI.agents:', window.electronAPI?.agents);
+      
+      if (!window.electronAPI) {
+        console.error('window.electronAPI is not available');
+        setError('Electron APIが利用できません。開発サーバーを再起動してください。');
+        return;
+      }
+      
+      if (!window.electronAPI.agents) {
+        console.error('window.electronAPI.agents is not available');
+        setError('エージェントAPIが利用できません');
+        return;
+      }
+      
+      if (!window.electronAPI.agents.getAllSessions) {
+        console.error('window.electronAPI.agents.getAllSessions is not available');
+        setError('getAllSessions APIが利用できません');
+        return;
+      }
+      
       const response = await window.electronAPI.agents.getAllSessions();
-      if (response.success) {
-        setSessions(response.sessions);
+      console.log('Sessions response:', response);
+      
+      if (Array.isArray(response)) {
+        setSessions(response);
+      } else if (response && response.success) {
+        setSessions(response.sessions || []);
+      } else {
+        setSessions([]);
       }
     } catch (error) {
       console.error('Failed to load sessions:', error);
+      setError(`セッションの読み込みに失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 

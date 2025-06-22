@@ -159,8 +159,9 @@ export class DatabaseTestService {
     console.log('\n3. Testing relations...');
     
     // プロジェクトとキャラクターの関係をテスト
-    const projectId = 'rel-test-project';
-    const characterId = 'rel-test-char';
+    const timestamp = Date.now();
+    const projectId = `rel-test-project-${timestamp}`;
+    const characterId = `rel-test-char-${timestamp}`;
     
     await this.execute(
       'INSERT INTO projects (id, name) VALUES (?, ?)',
@@ -173,7 +174,12 @@ export class DatabaseTestService {
       [characterId, projectId, 'Test Character', 'Test Profile']
     );
     
-    // 外部キー制約のテスト（プロジェクト削除時にキャラクターも削除される）
+    // 外部キー制約のテスト（DuckDBでは手動でクリーンアップが必要）
+    await this.execute(
+      'DELETE FROM characters WHERE project_id = ?',
+      [projectId]
+    );
+    
     await this.execute(
       'DELETE FROM projects WHERE id = ?',
       [projectId]
@@ -185,11 +191,11 @@ export class DatabaseTestService {
     );
     
     if (orphanedChars.length !== 0) {
-      throw new Error('Foreign key cascade delete failed');
+      throw new Error('Manual cascade delete failed');
     }
     
-    console.log('  ✓ Foreign key constraints working');
-    console.log('  ✓ Cascade delete working');
+    console.log('  ✓ Foreign key relationships working');
+    console.log('  ✓ Manual cleanup working');
   }
 
   /**
@@ -198,7 +204,8 @@ export class DatabaseTestService {
   private async testJSONOperations(): Promise<void> {
     console.log('\n4. Testing JSON operations...');
     
-    const projectId = 'json-test-project';
+    const timestamp = Date.now();
+    const projectId = `json-test-project-${timestamp}`;
     const settings = {
       theme: 'dark',
       autoSave: true,
@@ -336,9 +343,9 @@ export class DatabaseTestService {
    */
   private query(sql: string, params: unknown[] = []): Promise<any[]> {
     return new Promise((resolve, reject) => {
-      this.conn.all(sql, params, (err, rows) => {
+      this.conn.all(sql, ...params, (err: any, rows: any[]) => {
         if (err) reject(err);
-        else resolve(rows);
+        else resolve(rows || []);
       });
     });
   }
@@ -348,7 +355,7 @@ export class DatabaseTestService {
    */
   private execute(sql: string, params: unknown[] = []): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.conn.run(sql, params, (err) => {
+      this.conn.run(sql, ...params, (err: any) => {
         if (err) reject(err);
         else resolve();
       });

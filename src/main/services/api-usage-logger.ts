@@ -61,7 +61,7 @@ export class ApiUsageLogger {
   private async loadPricingSettings(): Promise<void> {
     const sql = "SELECT value FROM app_settings WHERE key = 'openai_pricing'";
     
-    this.conn.all(sql, (err, rows) => {
+    this.conn.all(sql, [], (err, rows) => {
       if (!err && rows.length > 0) {
         try {
           const pricing = JSON.parse(rows[0].value as string);
@@ -118,7 +118,7 @@ export class ApiUsageLogger {
     ];
     
     return new Promise((resolve, reject) => {
-      this.conn.run(sql, ...params, (err: Error | null) => {
+      this.conn.run(sql, params, (err: Error | null) => {
         if (err) {
           console.error('Failed to log API usage:', err);
           reject(err);
@@ -215,7 +215,7 @@ export class ApiUsageLogger {
     }
     
     return new Promise((resolve, reject) => {
-      this.conn.all(sql, ...params, (err, rows) => {
+      this.conn.all(sql, params, (err, rows) => {
         if (err) {
           reject(err);
         } else {
@@ -267,7 +267,7 @@ export class ApiUsageLogger {
     sql += ' ORDER BY date DESC';
     
     return new Promise((resolve, reject) => {
-      this.conn.all(sql, ...params, (err, rows) => {
+      this.conn.all(sql, params, (err, rows) => {
         if (err) {
           reject(err);
         } else {
@@ -318,7 +318,7 @@ export class ApiUsageLogger {
     }
     
     return new Promise((resolve, reject) => {
-      this.conn.all(sql, ...params, (err, rows) => {
+      this.conn.all(sql, params, (err, rows) => {
         if (err) {
           reject(err);
         } else {

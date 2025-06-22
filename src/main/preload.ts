@@ -296,10 +296,27 @@ const electronAPI = {
     addIntervention: (sessionId: string, content: string) => 
       ipcRenderer.invoke('plotGen:addIntervention', sessionId, content),
   },
+
+  // 自律モード関連
+  autonomous: {
+    getConfig: () => ipcRenderer.invoke('autonomous:getConfig'),
+    updateConfig: (config: any) => ipcRenderer.invoke('autonomous:updateConfig', config),
+    getStatus: () => ipcRenderer.invoke('autonomous:getStatus'),
+    start: () => ipcRenderer.invoke('autonomous:start'),
+    stop: () => ipcRenderer.invoke('autonomous:stop'),
+    testRun: () => ipcRenderer.invoke('autonomous:testRun'),
+  },
 };
 
 // デバッグ用ログ
 console.log('Exposing electronAPI to renderer...');
 console.log('anythingBox defined:', 'anythingBox' in electronAPI);
+console.log('agents defined:', 'agents' in electronAPI);
+console.log('electronAPI keys:', Object.keys(electronAPI));
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);
+
+// レンダラープロセスでの確認用
+setTimeout(() => {
+  console.log('After expose - window.electronAPI available:', typeof (global as any).electronAPI);
+}, 100);

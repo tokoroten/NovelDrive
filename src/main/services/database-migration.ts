@@ -67,7 +67,7 @@ export class DatabaseMigration {
     const sql = 'SELECT version FROM migrations ORDER BY version';
     
     return new Promise((resolve, reject) => {
-      this.conn.all(sql, (err, rows) => {
+      this.conn.all(sql, [], (err, rows) => {
         if (err) {
           // テーブルが存在しない場合は空配列を返す
           if (err.message.includes('does not exist')) {
@@ -97,7 +97,7 @@ export class DatabaseMigration {
   private executeSQL(sql: string, params: unknown[] = []): Promise<void> {
     return new Promise((resolve, reject) => {
       if (params.length > 0) {
-        this.conn.run(sql, ...params, (err: Error | null) => {
+        this.conn.run(sql, params, (err: Error | null) => {
           if (err) reject(err);
           else resolve();
         });

@@ -17,7 +17,7 @@ import { runDatabaseTests } from '../services/database-test';
 
 // Electronのapp.getPath()をモック
 if (!app || !app.getPath) {
-  (global as any).app = {
+  const mockApp = {
     getPath: (name: string) => {
       if (name === 'userData') {
         return path.join(process.cwd(), '.test-data');
@@ -25,6 +25,9 @@ if (!app || !app.getPath) {
       return process.cwd();
     }
   };
+  (global as any).app = mockApp;
+  // Direct export override for this module
+  module.exports.app = mockApp;
 }
 
 async function main() {
@@ -52,7 +55,7 @@ async function main() {
 }
 
 async function testVectorSearch() {
-  const dbPath = path.join(app.getPath('userData'), 'vss-test.db');
+  const dbPath = path.join((global as any).app.getPath('userData'), 'vss-test.db');
   const db = new duckdb.Database(dbPath);
   const conn = db.connect();
   
@@ -76,9 +79,17 @@ async function testVectorSearch() {
     await vss.testVectorSearch();
     
   } finally {
-    conn.close(() => {
-      console.log('Connection closed');
-    });
+    // DuckDBの接続を適切にクローズ
+    try {
+      await new Promise<void>((resolve) => {
+        conn.close(() => {
+          console.log('Connection closed');
+          resolve();
+        });
+      });
+    } catch (error) {
+      console.warn('Error closing connection:', error);
+    }
   }
 }
 
