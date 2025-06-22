@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { ipcMain } from 'electron';
+import * as duckdb from 'duckdb';
 
 export interface PlotNode {
   id: string;
@@ -71,9 +72,9 @@ export interface EmotionalBalance {
 }
 
 export class PlotManager {
-  private conn: any;
+  private conn: duckdb.Connection;
 
-  constructor(conn: any) {
+  constructor(conn: duckdb.Connection) {
     this.conn = conn;
   }
 
@@ -149,10 +150,10 @@ export class PlotManager {
       // 新規バージョンの場合
       const existingVersions = await this.getAllVersions(projectId);
       const baseVersions = existingVersions
-        .filter(v => !v.includes("'"))
-        .map(v => v.charCodeAt(0))
+        .filter((v) => !v.includes("'"))
+        .map((v) => v.charCodeAt(0))
         .sort((a, b) => b - a);
-      
+
       const nextCharCode = baseVersions.length > 0 ? baseVersions[0] + 1 : 65; // 'A'
       return String.fromCharCode(nextCharCode);
     }
@@ -168,7 +169,7 @@ export class PlotManager {
         [projectId, parentVersion],
         (err: any, rows: any[]) => {
           if (err) reject(err);
-          else resolve(rows.map(r => r.version));
+          else resolve(rows.map((r) => r.version));
         }
       );
     });
@@ -184,7 +185,7 @@ export class PlotManager {
         [projectId],
         (err: any, rows: any[]) => {
           if (err) reject(err);
-          else resolve(rows.map(r => r.version));
+          else resolve(rows.map((r) => r.version));
         }
       );
     });
@@ -198,12 +199,17 @@ export class PlotManager {
     let totalBalance = 0;
     let chapterCount = 0;
 
-    structure.acts.forEach(act => {
-      act.chapters.forEach(chapter => {
-        const balance = chapter.emotionalTone === 'positive' ? 1 :
-                       chapter.emotionalTone === 'negative' ? -1 :
-                       chapter.emotionalTone === 'mixed' ? 0 : 0;
-        
+    structure.acts.forEach((act) => {
+      act.chapters.forEach((chapter) => {
+        const balance =
+          chapter.emotionalTone === 'positive'
+            ? 1
+            : chapter.emotionalTone === 'negative'
+              ? -1
+              : chapter.emotionalTone === 'mixed'
+                ? 0
+                : 0;
+
         byChapter.push({ chapter: chapter.chapterNumber, balance });
         totalBalance += balance;
         chapterCount++;
@@ -211,7 +217,7 @@ export class PlotManager {
     });
 
     const overall = chapterCount > 0 ? totalBalance / chapterCount : 0;
-    const variance = this.calculateVariance(byChapter.map(c => c.balance));
+    const variance = this.calculateVariance(byChapter.map((c) => c.balance));
 
     return { overall, byChapter, variance };
   }
@@ -222,14 +228,14 @@ export class PlotManager {
   private calculateConflictLevel(structure: PlotStructure): number {
     // 主要な葛藤の強さと、各章での展開を分析
     let conflictScore = 0;
-    
+
     // メインコンフリクトの存在
     if (structure.mainConflict && structure.mainConflict.length > 20) {
       conflictScore += 3;
     }
 
     // 各幕でのイベント数（葛藤の展開）
-    structure.acts.forEach(act => {
+    structure.acts.forEach((act) => {
       conflictScore += Math.min(act.keyEvents.length * 0.5, 2);
     });
 
@@ -244,8 +250,8 @@ export class PlotManager {
     const chapterLengths: number[] = [];
     let totalScenes = 0;
 
-    structure.acts.forEach(act => {
-      act.chapters.forEach(chapter => {
+    structure.acts.forEach((act) => {
+      act.chapters.forEach((chapter) => {
         chapterLengths.push(chapter.estimatedLength);
         totalScenes += chapter.scenes.length;
       });
@@ -253,10 +259,10 @@ export class PlotManager {
 
     const avgLength = chapterLengths.reduce((a, b) => a + b, 0) / chapterLengths.length;
     const lengthVariance = this.calculateVariance(chapterLengths);
-    
+
     // 長さの一貫性が高いほどスコアが高い
     const consistencyScore = 1 - Math.min(lengthVariance / avgLength, 1);
-    
+
     // シーン数が適度（章あたり3-5シーン）であるほどスコアが高い
     const avgScenes = totalScenes / chapterLengths.length;
     const sceneScore = 1 - Math.abs(avgScenes - 4) / 4;
@@ -270,7 +276,7 @@ export class PlotManager {
   private calculateVariance(values: number[]): number {
     if (values.length === 0) return 0;
     const mean = values.reduce((a, b) => a + b, 0) / values.length;
-    const squaredDiffs = values.map(v => Math.pow(v - mean, 2));
+    const squaredDiffs = values.map((v) => Math.pow(v - mean, 2));
     return Math.sqrt(squaredDiffs.reduce((a, b) => a + b, 0) / values.length);
   }
 
@@ -285,22 +291,26 @@ export class PlotManager {
           structure, status, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
-      
-      this.conn.run(sql, [
-        plot.id,
-        plot.projectId,
-        plot.version,
-        plot.parentVersion,
-        plot.title,
-        plot.synopsis,
-        JSON.stringify(plot.structure),
-        plot.status,
-        plot.createdAt,
-        plot.updatedAt,
-      ], (err: any) => {
-        if (err) reject(err);
-        else resolve();
-      });
+
+      this.conn.run(
+        sql,
+        [
+          plot.id,
+          plot.projectId,
+          plot.version,
+          plot.parentVersion,
+          plot.title,
+          plot.synopsis,
+          JSON.stringify(plot.structure),
+          plot.status,
+          plot.createdAt,
+          plot.updatedAt,
+        ],
+        (err: any) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
     });
   }
 
@@ -309,22 +319,18 @@ export class PlotManager {
    */
   async getPlot(plotId: string): Promise<PlotNode | null> {
     return new Promise((resolve, reject) => {
-      this.conn.get(
-        'SELECT * FROM plots WHERE id = ?',
-        [plotId],
-        (err: any, row: any) => {
-          if (err) reject(err);
-          else if (!row) resolve(null);
-          else {
-            resolve({
-              ...row,
-              structure: JSON.parse(row.structure),
-              createdAt: new Date(row.created_at),
-              updatedAt: new Date(row.updated_at),
-            });
-          }
-        }
-      );
+      this.conn.all('SELECT * FROM plots WHERE id = ?', [plotId], (err: any, rows: any[]) => {
+        if (err) return reject(err);
+        const row = rows?.[0];
+        if (!row) return resolve(null);
+        
+        resolve({
+          ...row,
+          structure: JSON.parse(row.structure),
+          createdAt: new Date(row.created_at),
+          updatedAt: new Date(row.updated_at),
+        });
+      });
     });
   }
 
@@ -339,7 +345,7 @@ export class PlotManager {
         (err: any, rows: any[]) => {
           if (err) reject(err);
           else {
-            const plots = rows.map(row => ({
+            const plots = rows.map((row) => ({
               ...row,
               structure: JSON.parse(row.structure),
               createdAt: new Date(row.created_at),
@@ -375,7 +381,7 @@ export class PlotManager {
 /**
  * IPCハンドラーの設定
  */
-export function setupPlotHandlers(conn: any): void {
+export function setupPlotHandlers(conn: duckdb.Connection): void {
   const manager = new PlotManager(conn);
 
   ipcMain.handle('plots:create', async (_, data) => {

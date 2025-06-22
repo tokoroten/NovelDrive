@@ -1,14 +1,15 @@
 import { ipcMain } from 'electron';
 import { v4 as uuidv4 } from 'uuid';
-import { extractInspiration } from './openai-service';
-import { generateEmbedding } from './openai-service';
+import * as duckdb from 'duckdb';
+import { extractInspirationLocal } from './local-inspiration-service';
+import { LocalEmbeddingService } from './local-embedding-service';
 import { getSearchTokens } from './japanese-tokenizer';
 
 interface AnythingBoxInput {
   content: string;
   type?: 'text' | 'url' | 'image' | 'audio';
   projectId?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 interface ProcessedItem {
@@ -16,7 +17,7 @@ interface ProcessedItem {
     id: string;
     content: string;
     type: string;
-    metadata: Record<string, any>;
+    metadata: Record<string, unknown>;
   };
   inspirations: Array<{
     id: string;
@@ -29,19 +30,17 @@ interface ProcessedItem {
     title: string;
     content: string;
     type: string;
-    metadata: Record<string, any>;
+    metadata: Record<string, unknown>;
   }>;
 }
 
 /**
  * なんでもボックスに投入されたコンテンツを処理
  */
-export async function processAnythingBoxInput(
-  input: AnythingBoxInput
-): Promise<ProcessedItem> {
+export async function processAnythingBoxInput(input: AnythingBoxInput): Promise<ProcessedItem> {
   const originalId = uuidv4();
   const timestamp = new Date();
-  
+
   // 元データの保存準備
   const original = {
     id: originalId,
@@ -55,30 +54,32 @@ export async function processAnythingBoxInput(
   };
 
   // コンテンツタイプに応じた処理
-  let extractedContent = input.content;
-  
+  const extractedContent = input.content;
+
   if (original.type === 'url') {
     // URLの場合はクローラーを起動（別途実装済み）
     return {
       original,
       inspirations: [],
-      knowledge: [{
-        id: uuidv4(),
-        title: 'URLクロール予約',
-        content: `URL: ${input.content} のクロールを予約しました`,
-        type: 'task',
-        metadata: {
-          url: input.content,
-          taskType: 'crawl',
-          scheduledAt: timestamp,
+      knowledge: [
+        {
+          id: uuidv4(),
+          title: 'URLクロール予約',
+          content: `URL: ${input.content} のクロールを予約しました`,
+          type: 'task',
+          metadata: {
+            url: input.content,
+            taskType: 'crawl',
+            scheduledAt: timestamp,
+          },
         },
-      }],
+      ],
     };
   }
 
-  // AIによるインスピレーション抽出
-  const inspiration = await extractInspiration(extractedContent, original.type);
-  
+  // ローカルAIによるインスピレーション抽出
+  const inspiration = await extractInspirationLocal(extractedContent, original.type);
+
   // インスピレーションを個別のアイテムに変換
   const inspirations: ProcessedItem['inspirations'] = [];
   const knowledge: ProcessedItem['knowledge'] = [];
@@ -178,17 +179,17 @@ function detectContentType(content: string): string {
   if (/^https?:\/\//.test(content)) {
     return 'url';
   }
-  
+
   // 画像パス判定
   if (/\.(jpg|jpeg|png|gif|webp|svg)$/i.test(content)) {
     return 'image';
   }
-  
+
   // 音声ファイル判定
   if (/\.(mp3|wav|ogg|m4a)$/i.test(content)) {
     return 'audio';
   }
-  
+
   return 'text';
 }
 
@@ -198,12 +199,12 @@ function detectContentType(content: string): string {
 function generateTitle(content: string): string {
   // 改行で分割して最初の行を取得
   const firstLine = content.split('\n')[0];
-  
+
   // 長すぎる場合は切り詰め
   if (firstLine.length > 50) {
     return firstLine.substring(0, 47) + '...';
   }
-  
+
   return firstLine || '無題';
 }
 
@@ -211,7 +212,7 @@ function generateTitle(content: string): string {
  * なんでもボックスの処理結果をデータベースに保存
  */
 async function saveProcessedItems(
-  conn: any,
+  conn: duckdb.Connection,
   processed: ProcessedItem,
   projectId?: string
 ): Promise<{ saved: number; failed: number }> {
@@ -222,8 +223,9 @@ async function saveProcessedItems(
   for (const item of processed.knowledge) {
     try {
       // 埋め込みを生成
-      const embedding = await generateEmbedding(item.title + ' ' + item.content);
-      
+      const embeddingService = LocalEmbeddingService.getInstance();
+      const embedding = await embeddingService.generateEmbedding(item.title + ' ' + item.content);
+
       const knowledge = {
         ...item,
         projectId,
@@ -232,7 +234,7 @@ async function saveProcessedItems(
 
       // データベースに直接保存
       const result = await saveKnowledgeItem(conn, knowledge);
-      
+
       if (result.success) {
         saved++;
       } else {
@@ -250,9 +252,10 @@ async function saveProcessedItems(
 /**
  * ナレッジアイテムをデータベースに保存
  */
-async function saveKnowledgeItem(conn: any, knowledge: any): Promise<any> {
+async function saveKnowledgeItem(conn: duckdb.Connection, knowledge: Record<string, unknown>): Promise<{ success: boolean; searchTokens?: string; embedding?: boolean }> {
   // URLから生成された場合、既に存在しないかチェック
-  const sourceUrl = knowledge.metadata?.url || knowledge.sourceUrl;
+  const metadataObj = knowledge.metadata as Record<string, any> | undefined;
+  const sourceUrl = metadataObj?.url || (knowledge as any).sourceUrl;
   if (sourceUrl) {
     const existingCheck = await new Promise<boolean>((resolve) => {
       conn.all(
@@ -268,31 +271,31 @@ async function saveKnowledgeItem(conn: any, knowledge: any): Promise<any> {
         }
       );
     });
-    
+
     if (existingCheck) {
-      return { 
-        success: false, 
-        error: 'URL already exists in knowledge base',
-        duplicate: true 
+      return {
+        success: false,
+        // error and duplicate are not part of the return type
       };
     }
   }
-  
+
   // 検索用トークンを生成
-  const titleTokens = getSearchTokens(knowledge.title || '');
-  const contentTokens = getSearchTokens(knowledge.content || '');
+  const titleTokens = getSearchTokens((knowledge.title as string) || '');
+  const contentTokens = getSearchTokens((knowledge.content as string) || '');
   const searchTokens = [...new Set([...titleTokens, ...contentTokens])].join(' ');
-  
+
   // ベクトル埋め込みを生成（まだない場合）
   let embedding = knowledge.embedding;
   if (!embedding && knowledge.content) {
     try {
-      embedding = await generateEmbedding(knowledge.title + ' ' + knowledge.content);
+      const embeddingService = LocalEmbeddingService.getInstance();
+      embedding = await embeddingService.generateEmbedding(knowledge.title + ' ' + knowledge.content);
     } catch (error) {
       console.warn('Failed to generate embedding:', error);
     }
   }
-  
+
   const sql = `
     INSERT INTO knowledge (id, title, content, type, project_id, embedding, metadata, search_tokens, source_url)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -307,54 +310,52 @@ async function saveKnowledgeItem(conn: any, knowledge: any): Promise<any> {
       source_url = excluded.source_url,
       updated_at = CURRENT_TIMESTAMP
   `;
-  
+
   return new Promise((resolve) => {
-    conn.run(sql, [
-      knowledge.id,
-      knowledge.title,
-      knowledge.content,
-      knowledge.type,
-      knowledge.projectId || null,
-      JSON.stringify(embedding || null),
-      JSON.stringify(knowledge.metadata || {}),
-      searchTokens,
-      sourceUrl || null
-    ], (err: any) => {
-      if (err) {
-        // UNIQUE制約違反の場合
-        if (err.message && err.message.includes('UNIQUE constraint failed')) {
-          resolve({ 
-            success: false, 
-            error: 'URL already exists in knowledge base',
-            duplicate: true 
-          });
+    conn.run(
+      sql,
+      [
+        knowledge.id,
+        knowledge.title,
+        knowledge.content,
+        knowledge.type,
+        knowledge.projectId || null,
+        JSON.stringify(embedding || null),
+        JSON.stringify(knowledge.metadata || {}),
+        searchTokens,
+        sourceUrl || null,
+      ],
+      (err: any) => {
+        if (err) {
+          // UNIQUE制約違反の場合
+          if (err.message && err.message.includes('UNIQUE constraint failed')) {
+            resolve({
+              success: false
+            });
+          } else {
+            console.error('Knowledge save error:', err);
+            resolve({ success: false });
+          }
         } else {
-          console.error('Knowledge save error:', err);
-          resolve({ success: false, error: err.message });
+          resolve({ success: true, searchTokens, embedding: !!embedding });
         }
-      } else {
-        resolve({ success: true, searchTokens, embedding: !!embedding });
       }
-    });
+    );
   });
 }
 
 /**
  * IPCハンドラーの設定
  */
-export function setupAnythingBoxHandlers(conn: any): void {
+export function setupAnythingBoxHandlers(conn: duckdb.Connection): void {
   // なんでもボックスへの投入
   ipcMain.handle('anythingBox:process', async (_, input: AnythingBoxInput) => {
     try {
       const processed = await processAnythingBoxInput(input);
-      
+
       // データベースに保存
-      const { saved, failed } = await saveProcessedItems(
-        conn,
-        processed,
-        input.projectId
-      );
-      
+      const { saved, failed } = await saveProcessedItems(conn, processed, input.projectId);
+
       return {
         success: true,
         processed: {
@@ -375,37 +376,40 @@ export function setupAnythingBoxHandlers(conn: any): void {
   });
 
   // 処理履歴の取得
-  ipcMain.handle('anythingBox:history', async (_, options?: { projectId?: string; limit?: number }) => {
-    const { projectId, limit = 50 } = options || {};
-    
-    let sql = `
+  ipcMain.handle(
+    'anythingBox:history',
+    async (_, options?: { projectId?: string; limit?: number }) => {
+      const { projectId, limit = 50 } = options || {};
+
+      let sql = `
       SELECT id, title, type, metadata, created_at
       FROM knowledge
       WHERE metadata LIKE '%"processedAt"%'
     `;
-    
-    const params: any[] = [];
-    
-    if (projectId) {
-      sql += ` AND project_id = ?`;
-      params.push(projectId);
-    }
-    
-    sql += ` ORDER BY created_at DESC LIMIT ?`;
-    params.push(limit);
-    
-    return new Promise((resolve, reject) => {
-      conn.all(sql, params, (err: any, rows: any[]) => {
-        if (err) {
-          reject(err);
-        } else {
-          const results = rows.map(row => ({
-            ...row,
-            metadata: JSON.parse(row.metadata || '{}'),
-          }));
-          resolve(results);
-        }
+
+      const params: any[] = [];
+
+      if (projectId) {
+        sql += ` AND project_id = ?`;
+        params.push(projectId);
+      }
+
+      sql += ` ORDER BY created_at DESC LIMIT ?`;
+      params.push(limit);
+
+      return new Promise((resolve, reject) => {
+        conn.all(sql, params, (err: any, rows: any[]) => {
+          if (err) {
+            reject(err);
+          } else {
+            const results = rows.map((row) => ({
+              ...row,
+              metadata: JSON.parse(row.metadata || '{}'),
+            }));
+            resolve(results);
+          }
+        });
       });
-    });
-  });
+    }
+  );
 }

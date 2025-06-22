@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.main.json",
+  "compilerOptions": {
+    "noEmitOnError": false,
+    "skipLibCheck": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "incremental": true,
+    "tsBuildInfoFile": "./dist/main/.tsbuildinfo"
+  }
+}

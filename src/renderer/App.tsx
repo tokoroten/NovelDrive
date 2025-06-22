@@ -3,12 +3,20 @@ import { Settings } from './components/Settings';
 import { AnythingBox } from './components/AnythingBox';
 import { AgentMeetingRoom } from './components/AgentMeetingRoom';
 import { PlotManagement } from './components/PlotManagement';
+import { KnowledgeGraph } from './components/KnowledgeGraph';
+import { WritingEditor } from './components/WritingEditor';
+import { ProjectKnowledge } from './components/ProjectKnowledge';
+import { IdeaGacha } from './components/IdeaGacha';
+import { AnalyticsDashboard } from './components/AnalyticsDashboard';
+import { Dashboard } from './components/Dashboard';
 
 export function App() {
   const [currentView, setCurrentView] = useState<string>('dashboard');
 
   const renderView = () => {
     switch (currentView) {
+      case 'dashboard':
+        return <Dashboard />;
       case 'settings':
         return <Settings />;
       case 'anything-box':
@@ -17,6 +25,16 @@ export function App() {
         return <AgentMeetingRoom />;
       case 'plot-management':
         return <PlotManagement />;
+      case 'knowledge-graph':
+        return <KnowledgeGraph />;
+      case 'writing-editor':
+        return <WritingEditor />;
+      case 'project-knowledge':
+        return <ProjectKnowledge />;
+      case 'idea-gacha':
+        return <IdeaGacha />;
+      case 'analytics':
+        return <AnalyticsDashboard />;
       default:
         return (
           <div>
@@ -136,7 +154,7 @@ export function App() {
           </li>
         </ul>
       </nav>
-      
+
       <main className="flex-1 overflow-y-auto p-8">
         <div className="max-w-7xl mx-auto">{renderView()}</div>
       </main>
@@ -146,7 +164,7 @@ export function App() {
 
 function getViewTitle(view: string): string {
   const titles: Record<string, string> = {
-    'dashboard': 'ダッシュボード',
+    dashboard: 'ダッシュボード',
     'anything-box': 'Anything Box',
     'knowledge-graph': '知識グラフ',
     'plot-management': 'プロット管理',
@@ -154,8 +172,8 @@ function getViewTitle(view: string): string {
     'writing-editor': '執筆エディタ',
     'project-knowledge': 'プロジェクト知識',
     'idea-gacha': 'アイディアガチャ',
-    'analytics': '分析ダッシュボード',
-    'settings': '設定',
+    analytics: '分析ダッシュボード',
+    settings: '設定',
   };
   return titles[view] || view;
 }
