@@ -137,7 +137,7 @@ export async function setupIPCHandlers(container: DIContainer): Promise<void> {
   // エージェント議論関連
   ipcMain.handle('agent:startDiscussion', async (_, topic: string, participants: string[], context) => {
     const manager = await container.get<AgentManager>('agentManager');
-    const messages = await manager.startDiscussion(topic, context, participants);
+    const messages = await manager.startDiscussion(topic, context, participants as any);
     return {
       id: uuidv4(),
       topic,

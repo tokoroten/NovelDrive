@@ -3,7 +3,7 @@
  * サービスの依存関係を管理し、シングルトンインスタンスを提供
  */
 
-type ServiceFactory<T> = () => T | Promise<T>;
+type ServiceFactory<T> = (deps: any) => T | Promise<T>;
 type ServiceClass<T> = new (...args: any[]) => T;
 
 interface ServiceDefinition<T> {
@@ -69,10 +69,19 @@ export class DIContainer {
         (definition.dependencies || []).map(dep => this.get(dep))
       );
 
+      // 依存関係をオブジェクトに変換
+      const deps: any = {};
+      if (definition.dependencies) {
+        for (let i = 0; i < definition.dependencies.length; i++) {
+          const depName = definition.dependencies[i];
+          deps[depName] = dependencies[i];
+        }
+      }
+
       // インスタンスを作成
       let instance: T;
       if (definition.factory) {
-        instance = await definition.factory();
+        instance = await definition.factory(deps);
       } else if (definition.class) {
         instance = new definition.class(...dependencies);
       } else {

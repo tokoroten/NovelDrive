@@ -156,13 +156,28 @@ export class AutonomousLogger {
     });
   }
 
-  async getLogs(
+  async getRecentLogs(
     limit = 100,
     level?: 'info' | 'warn' | 'error' | 'debug',
     category?: 'operation' | 'quality' | 'resource' | 'system',
-    operationId?: string,
-    since?: Date
+    operationId?: string
   ): Promise<AutonomousLog[]> {
+    return this.getLogs({
+      limit,
+      level,
+      category,
+      operationId
+    });
+  }
+
+  async getLogs(options: {
+    limit?: number;
+    level?: 'info' | 'warn' | 'error' | 'debug';
+    category?: 'operation' | 'quality' | 'resource' | 'system';
+    operationId?: string;
+    since?: Date;
+  } = {}): Promise<AutonomousLog[]> {
+    const { limit = 100, level, category, operationId, since } = options;
     let sql = `
       SELECT id, timestamp, level, category, message, operation_id, metadata
       FROM autonomous_logs
@@ -230,7 +245,7 @@ export class AutonomousLogger {
       this.getLogCount(cutoffDate),
       this.getLogCountByLevel(cutoffDate),
       this.getLogCountByCategory(cutoffDate),
-      this.getLogs(10, 'error', undefined, undefined, cutoffDate)
+      this.getLogs({ limit: 10, level: 'error', since: cutoffDate })
     ];
 
     const [totalLogs, levelCounts, categoryBreakdown, recentErrors] = await Promise.all(summaryPromises);

@@ -116,7 +116,12 @@ export class AutonomousHandlers {
     }) => {
       try {
         // Simplified implementation - would need to add search to service
-        return await this.autonomousService.getLogs(options?.limit || 50);
+        const logsOptions = options ? {
+          limit: options.limit,
+          level: options.level as any,
+          category: options.category as any
+        } : {};
+        return await this.autonomousService.getLogs(logsOptions);
       } catch (error) {
         console.error('Failed to search logs:', error);
         throw error;

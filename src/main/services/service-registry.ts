@@ -42,28 +42,29 @@ export async function registerServices(
 
   // 接続取得用のファクトリー
   container.register('connectionFactory', async () => {
-    return () => new Promise<duckdb.Connection>((resolve, reject) => {
-      db.connect((err, conn) => {
-        if (err) reject(err);
-        else resolve(conn);
-      });
-    });
+    return () => {
+      try {
+        return db.connect();
+      } catch (err) {
+        throw err;
+      }
+    };
   }, { singleton: true });
 
   // イベントストア
   container.register('eventStore', async (deps) => {
-    const conn = await deps.connectionFactory();
+    const conn = deps.connectionFactory();
     return new EventStore(conn);
-  }, { singleton: true });
+  }, { singleton: true, dependencies: ['connectionFactory'] });
 
   // Unit of Work
   container.register('unitOfWork', async (deps) => {
     return new UnitOfWork(deps.db, deps.eventBus);
-  }, { singleton: true });
+  }, { singleton: true, dependencies: ['db', 'eventBus'] });
 
   // 埋め込みサービス（ローカルモデル使用）
   container.register('embeddingService', async () => {
-    return new LocalEmbeddingService();
+    return LocalEmbeddingService.getInstance();
   }, { singleton: true });
 
   container.register('completionService', async () => {
@@ -73,91 +74,97 @@ export async function registerServices(
   // アプリケーションサービス
   container.register('knowledgeService', async (deps) => {
     return new KnowledgeApplicationService(
-      await deps.unitOfWork,
-      await deps.embeddingService
+      deps.unitOfWork,
+      deps.embeddingService
     );
-  });
+  }, { dependencies: ['unitOfWork', 'embeddingService'] });
 
   container.register('plotService', async (deps) => {
-    return new PlotApplicationService(await deps.unitOfWork);
-  });
+    return new PlotApplicationService(deps.unitOfWork);
+  }, { dependencies: ['unitOfWork'] });
 
   // エージェント
   container.register('writerAgent', async (deps) => {
-    return new WriterAgent(await deps.completionService);
-  });
+    return new WriterAgent(deps.completionService);
+  }, { dependencies: ['completionService'] });
 
   container.register('editorAgent', async (deps) => {
-    return new EditorAgent(await deps.completionService);
-  });
+    return new EditorAgent(deps.completionService);
+  }, { dependencies: ['completionService'] });
 
   container.register('proofreaderAgent', async (deps) => {
-    return new ProofreaderAgent(await deps.completionService);
-  });
+    return new ProofreaderAgent(deps.completionService);
+  }, { dependencies: ['completionService'] });
 
   container.register('deputyEditorAgent', async (deps) => {
-    return new DeputyEditorAgent(await deps.completionService);
-  });
+    return new DeputyEditorAgent(deps.completionService);
+  }, { dependencies: ['completionService'] });
 
   container.register('agentManager', async (deps) => {
     const manager = new AgentManager();
-    manager.registerAgent('writer', await deps.writerAgent);
-    manager.registerAgent('editor', await deps.editorAgent);
-    manager.registerAgent('proofreader', await deps.proofreaderAgent);
-    manager.registerAgent('deputy_editor', await deps.deputyEditorAgent);
+    manager.registerAgent('writer', deps.writerAgent);
+    manager.registerAgent('editor', deps.editorAgent);
+    manager.registerAgent('proofreader', deps.proofreaderAgent);
+    manager.registerAgent('deputy_editor', deps.deputyEditorAgent);
     return manager;
-  }, { singleton: true });
+  }, { singleton: true, dependencies: ['writerAgent', 'editorAgent', 'proofreaderAgent', 'deputyEditorAgent'] });
 
   // ドメインサービス
   container.register('knowledgeGraphService', async (deps) => {
-    const conn = await deps.connectionFactory();
+    const conn = deps.connectionFactory();
     return new KnowledgeGraphService(conn);
-  });
+  }, { dependencies: ['connectionFactory'] });
 
   container.register('serendipitySearchService', async (deps) => {
-    const conn = await deps.connectionFactory();
+    const conn = deps.connectionFactory();
     return new SerendipitySearchService(
       conn,
-      await deps.embeddingService
+      deps.embeddingService
     );
-  });
+  }, { dependencies: ['connectionFactory', 'embeddingService'] });
 
   container.register('plotManager', async (deps) => {
-    const conn = await deps.connectionFactory();
+    const conn = deps.connectionFactory();
     return new PlotManager(conn);
-  });
+  }, { dependencies: ['connectionFactory'] });
 
   // Chapter management doesn't have a service class, it uses setupChapterHandlers
   // So we'll remove this registration
 
   // その他のサービス
   container.register('autonomousLogger', async (deps) => {
-    const conn = await deps.connectionFactory();
+    const conn = deps.connectionFactory();
     return new AutonomousLogger(conn);
-  });
+  }, { dependencies: ['connectionFactory'] });
 
   container.register('aiTextGenerator', async (deps) => {
-    return new AITextGenerator(await deps.completionService);
-  });
+    return new AITextGenerator(deps.completionService);
+  }, { dependencies: ['completionService'] });
 
   container.register('exportService', async (deps) => {
-    const conn = await deps.connectionFactory();
+    const conn = deps.connectionFactory();
     return new ExportService(conn);
-  });
+  }, { dependencies: ['connectionFactory'] });
 
   // タスクキュー
   container.register('taskQueue', async () => {
-    const queue = new InMemoryTaskQueue();
+    const queue = new InMemoryTaskQueue({
+      concurrency: 5,
+      defaultPriority: 0,
+      defaultMaxAttempts: 3,
+      storeResults: true,
+      resultTTL: 3600000 // 1時間
+    });
     
     // タスクプロセッサーを登録
     queue.registerProcessor('generateEmbedding', async (payload: any) => {
-      const embeddingService = await container.get<OpenAIEmbeddingService>('embeddingService');
+      const embeddingService = await container.get<LocalEmbeddingService>('embeddingService');
       return embeddingService.generateEmbedding(payload.text);
     });
 
     queue.registerProcessor('generatePlot', async (payload: any) => {
       const aiGenerator = await container.get<AITextGenerator>('aiTextGenerator');
-      return aiGenerator.generatePlot(payload.prompt, payload.context);
+      return aiGenerator.generateText(payload.prompt, payload.context);
     });
 
     return queue;
