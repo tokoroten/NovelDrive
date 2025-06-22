@@ -73,32 +73,33 @@ app.whenReady().then(async () => {
     return;
   }
 
+  // 旧ハンドラー設定は新しいDIコンテナベースのアーキテクチャに移行済み
   // OpenAI APIの初期化
-  const apiKey = process.env.OPENAI_API_KEY || loadSettings().openai_api_key;
-  if (apiKey) {
-    initializeOpenAI(apiKey as string);
-  }
-  setupOpenAIHandlers();
+  // const apiKey = process.env.OPENAI_API_KEY || loadSettings().openai_api_key;
+  // if (apiKey) {
+  //   initializeOpenAI(apiKey as string);
+  // }
+  // setupOpenAIHandlers();
   
   // ローカル埋め込みサービスのハンドラー設定
-  setupLocalEmbeddingHandlers();
+  // setupLocalEmbeddingHandlers();
 
-  // なんでもボックスのハンドラー設定
-  const db = getDatabase();
-  if (db) {
-    const conn = db.connect();
-    setupAnythingBoxHandlers(conn);
-  }
+  // なんでもボックスのハンドラー設定 - ipc-handlers.tsに移行済み
+  // const db = getDatabase();
+  // if (db) {
+  //   const conn = db.connect();
+  //   setupAnythingBoxHandlers(conn);
+  // }
 
   // 自律モードシステムの初期化
-  try {
-    if (db) {
-      const conn = db.connect();
-      await initializeAutonomousMode(conn);
-    }
-  } catch (error) {
-    console.error('Failed to initialize autonomous mode:', error);
-  }
+  // try {
+  //   if (db) {
+  //     const conn = db.connect();
+  //     await initializeAutonomousMode(conn);
+  //   }
+  // } catch (error) {
+  //   console.error('Failed to initialize autonomous mode:', error);
+  // }
 
   createWindow();
 

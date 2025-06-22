@@ -76,8 +76,11 @@ interface PlotGenerationRequest {
   humanUserId?: string;
 }
 
+// デバッグ用ログ
+console.log('Preload script loading...');
+
 // レンダラープロセスに公開するAPI
-contextBridge.exposeInMainWorld('electronAPI', {
+const electronAPI = {
   getVersion: () => ipcRenderer.invoke('app:getVersion'),
 
   // 設定関連
@@ -293,4 +296,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     addIntervention: (sessionId: string, content: string) => 
       ipcRenderer.invoke('plotGen:addIntervention', sessionId, content),
   },
-});
+};
+
+// デバッグ用ログ
+console.log('Exposing electronAPI to renderer...');
+console.log('anythingBox defined:', 'anythingBox' in electronAPI);
+
+contextBridge.exposeInMainWorld('electronAPI', electronAPI);

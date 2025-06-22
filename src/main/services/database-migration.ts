@@ -456,7 +456,7 @@ export class DatabaseMigration {
         sqls: [
           // 自律モード設定
           `CREATE TABLE IF NOT EXISTS autonomous_config (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY,
             config TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           )`,

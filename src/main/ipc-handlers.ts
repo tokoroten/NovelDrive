@@ -205,4 +205,43 @@ export async function setupIPCHandlers(container: DIContainer): Promise<void> {
     }
     return false;
   });
+
+  // Anything Box関連
+  ipcMain.handle('anythingBox:process', async (_, input) => {
+    try {
+      const { processAnythingBoxInput } = await import('./services/anything-box');
+      const processed = await processAnythingBoxInput(input);
+      
+      return {
+        success: true,
+        processed: {
+          originalId: processed.original.id,
+          inspirationCount: processed.inspirations.length,
+          knowledgeCount: processed.knowledge.length,
+        }
+      };
+    } catch (error) {
+      console.error('AnythingBox processing error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  ipcMain.handle('anythingBox:history', async (_, options) => {
+    try {
+      // TODO: Implement history retrieval
+      return {
+        success: true,
+        items: []
+      };
+    } catch (error) {
+      console.error('AnythingBox history error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
 }

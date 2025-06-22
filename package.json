@@ -16,15 +16,15 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "typecheck": "tsc --noEmit",
-    "test:db": "ts-node src/main/commands/test-database.ts",
-    "test:vss": "ts-node --project tsconfig.node.json src/main/commands/test-vss.ts",
-    "test:search": "ts-node --project tsconfig.node.json src/main/commands/test-search.ts",
+    "test:db": "tsx src/main/commands/test-database.ts",
+    "test:vss": "tsx src/main/commands/test-vss.ts",
+    "test:search": "tsx src/main/commands/test-search.ts",
     "test:local-embedding": "tsx src/main/commands/test-local-embedding.ts",
     "test:agents": "tsx src/main/commands/test-multi-agent-discussion.ts",
     "test:summarization": "tsx src/main/commands/test-summarization.ts",
     "test:anything-box": "tsx src/main/commands/test-anything-box.ts",
-    "db:migrate": "ts-node src/main/commands/migrate-database.ts",
-    "db:seed": "ts-node src/main/commands/seed-database.ts"
+    "db:migrate": "tsx src/main/commands/migrate-database.ts",
+    "db:seed": "tsx src/main/commands/seed-database.ts"
   },
   "keywords": [
     "electron",

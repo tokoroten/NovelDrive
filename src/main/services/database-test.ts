@@ -1,6 +1,6 @@
 import * as duckdb from 'duckdb';
-import { app } from 'electron';
 import path from 'path';
+import os from 'os';
 import { DatabaseMigration } from './database-migration';
 import { insertSampleData } from './sample-data';
 
@@ -13,7 +13,8 @@ export class DatabaseTestService {
 
   constructor() {
     // テスト用データベースを作成
-    const dbPath = path.join(app.getPath('userData'), 'test.db');
+    const dbPath = path.join(os.tmpdir(), 'noveldrive-test.db');
+    console.log(`Using test database at: ${dbPath}`);
     this.db = new duckdb.Database(dbPath);
     this.conn = this.db.connect();
   }
