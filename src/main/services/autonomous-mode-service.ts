@@ -137,7 +137,7 @@ export class AutonomousModeService extends EventEmitter {
       }
 
       // Check system health
-      const systemHealth = await this.resourceMonitor.getSystemHealth();
+      const systemHealth = await this.resourceMonitor.getLastHealth();
       if (!systemHealth.healthy) {
         this.logger.log('warn', 'system', 'System health check failed, skipping operation', undefined, { health: systemHealth });
         return;
@@ -163,7 +163,7 @@ export class AutonomousModeService extends EventEmitter {
       await this.executeOperation(operation);
       
     } catch (error) {
-      this.logger.log('error', 'system', 'Error in operation cycle', undefined, { error: error.message });
+      this.logger.log('error', 'system', 'Error in operation cycle', undefined, { error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -268,7 +268,7 @@ export class AutonomousModeService extends EventEmitter {
 
     } catch (error) {
       operation.status = 'failed';
-      operation.error = error.message;
+      operation.error = error instanceof Error ? error.message : String(error);
       operation.endTime = new Date();
       
       this.logger.log('error', 'operation', `Operation failed: ${error instanceof Error ? error.message : String(error)}`, operation.id);
@@ -568,8 +568,19 @@ export class AutonomousModeService extends EventEmitter {
     };
   }
 
-  async getLogs(limit = 100): Promise<AutonomousLog[]> {
-    return this.logger.getLogs(limit);
+  async getLogs(options: {
+    limit?: number;
+    level?: 'info' | 'warn' | 'error' | 'debug';
+    category?: 'operation' | 'quality' | 'resource' | 'system';
+    operationId?: string;
+    since?: Date;
+  } = {}): Promise<AutonomousLog[]> {
+    return this.logger.getRecentLogs(
+      options.limit || 100,
+      options.level,
+      options.category,
+      options.operationId
+    );
   }
 
   async queueOperation(type: AutonomousContentType, projectId?: string): Promise<string> {

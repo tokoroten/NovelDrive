@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 重要な制約事項
+
+### ❌ OpenAIの埋め込みAPIは使用禁止
+- **埋め込み生成には必ずローカルモデル（LocalEmbeddingService）を使用すること**
+- OpenAIのembeddings APIは絶対に使用しない
+- テキスト生成（completion/chat）のみOpenAI APIを使用可能
+- 埋め込み関連のコードを書く際は必ずLocalEmbeddingServiceを使用
+
 ## 開発日誌を作成すること
 
 `dev_diary/yyyy-mm-dd_HHMM.md` の形式で開発日誌を作成してください。内容は以下の通りです。

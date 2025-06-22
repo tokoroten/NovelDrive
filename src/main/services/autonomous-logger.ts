@@ -314,7 +314,8 @@ export class AutonomousLogger {
         if (err) {
           reject(err);
         } else {
-          resolve(this.changes || 0);
+          // DuckDB doesn't have a 'changes' property, so return 0
+          resolve(0);
         }
       });
     });

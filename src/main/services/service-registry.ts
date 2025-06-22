@@ -11,7 +11,7 @@ import { UnitOfWork } from '../infrastructure/repositories';
 import { KnowledgeApplicationService } from '../application/services/knowledge-service';
 import { PlotApplicationService } from '../application/services/plot-service';
 import { InMemoryTaskQueue } from '../core/async/task-queue';
-import { OpenAIEmbeddingService } from './openai-embedding-service';
+import { LocalEmbeddingService } from './local-embedding-service';
 import { OpenAICompletionService } from './openai-completion-service';
 import { 
   AgentManager,
@@ -22,9 +22,8 @@ import {
 } from './agents';
 import { KnowledgeGraphService } from './knowledge-graph-service';
 import { SerendipitySearchService } from './serendipity-search-service';
-import { PlotManagementService } from './plot-management';
+import { PlotManager } from './plot-management';
 import { AutonomousLogger } from './autonomous-logger';
-import { ChapterManagementService } from './chapter-management';
 import { AITextGenerator } from './ai-text-generator';
 import { ExportService } from './export-service';
 
@@ -62,9 +61,9 @@ export async function registerServices(
     return new UnitOfWork(deps.db, deps.eventBus);
   }, { singleton: true });
 
-  // OpenAI サービス
+  // 埋め込みサービス（ローカルモデル使用）
   container.register('embeddingService', async () => {
-    return new OpenAIEmbeddingService(process.env.OPENAI_API_KEY || '');
+    return new LocalEmbeddingService();
   }, { singleton: true });
 
   container.register('completionService', async () => {
@@ -123,15 +122,13 @@ export async function registerServices(
     );
   });
 
-  container.register('plotManagementService', async (deps) => {
+  container.register('plotManager', async (deps) => {
     const conn = await deps.connectionFactory();
-    return new PlotManagementService(conn);
+    return new PlotManager(conn);
   });
 
-  container.register('chapterManagementService', async (deps) => {
-    const conn = await deps.connectionFactory();
-    return new ChapterManagementService(conn);
-  });
+  // Chapter management doesn't have a service class, it uses setupChapterHandlers
+  // So we'll remove this registration
 
   // その他のサービス
   container.register('autonomousLogger', async (deps) => {

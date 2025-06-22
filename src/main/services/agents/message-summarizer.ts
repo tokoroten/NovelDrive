@@ -185,9 +185,9 @@ export class MessageSummarizer {
       timestamp: summary.createdAt,
       content,
       metadata: {
-        originalMessageCount: summary.originalMessageIds.length,
-        tokenCount: summary.tokenCount,
-        keyDecisions: summary.keyDecisions,
+        confidence: 1.0,
+        emotionalTone: 'neutral',
+        reasoning: `Summary of ${summary.originalMessageIds.length} messages (${summary.tokenCount} tokens)`
       },
     };
   }

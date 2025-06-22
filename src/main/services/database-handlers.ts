@@ -141,7 +141,7 @@ function runAsync(conn: duckdb.Connection, sql: string, params: unknown[] = []):
 
 function queryAsync<T>(conn: duckdb.Connection, sql: string, params: unknown[] = []): Promise<T[]> {
   return new Promise((resolve, reject) => {
-    conn.all(sql, params, (err: Error | null, rows: T[]) => {
+    conn.all(sql, ...params, (err: Error | null, rows: T[]) => {
       if (err) reject(err);
       else resolve(rows || []);
     });

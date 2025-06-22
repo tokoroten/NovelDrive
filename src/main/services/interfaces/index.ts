@@ -5,7 +5,7 @@
 
 import * as duckdb from 'duckdb';
 import OpenAI from 'openai';
-import { Knowledge, Plot, Project, Character, WorldSetting } from '../../shared/types';
+import { Knowledge, Plot, Project, Character, WorldSetting } from '../../../shared/types';
 
 /**
  * 基本サービスインターフェース
@@ -30,9 +30,25 @@ export interface IDatabaseService extends IService {
  */
 export interface IEmbeddingService extends IService {
   generateEmbedding(text: string): Promise<number[]>;
-  generateBatchEmbeddings(texts: string[]): Promise<number[][]>;
+  generateEmbeddings?(texts: string[]): Promise<number[][]>;
+  generateBatchEmbeddings?(texts: string[]): Promise<number[][]>;
   getDimensions(): number;
   getModelName(): string;
+}
+
+/**
+ * テキスト生成サービス
+ */
+export interface ICompletionService extends IService {
+  complete(
+    messages: Array<{ role: string; content: string }>,
+    options?: any
+  ): Promise<string>;
+  stream?(
+    messages: Array<{ role: string; content: string }>,
+    options?: any,
+    onChunk?: (chunk: string) => void
+  ): Promise<string>;
 }
 
 /**

@@ -4,6 +4,7 @@
  */
 
 import { ipcMain } from 'electron';
+import { v4 as uuidv4 } from 'uuid';
 import { DIContainer } from './core/di-container';
 import { KnowledgeApplicationService } from './application/services/knowledge-service';
 import { PlotApplicationService } from './application/services/plot-service';
@@ -136,35 +137,30 @@ export async function setupIPCHandlers(container: DIContainer): Promise<void> {
   // エージェント議論関連
   ipcMain.handle('agent:startDiscussion', async (_, topic: string, participants: string[], context) => {
     const manager = await container.get<AgentManager>('agentManager');
-    const discussion = await manager.startDiscussion(topic, participants, context);
+    const messages = await manager.startDiscussion(topic, context, participants);
     return {
-      id: discussion.id,
-      topic: discussion.topic,
-      participants: discussion.participants,
-      status: discussion.status,
-      messages: discussion.messages,
-      metadata: discussion.metadata,
-      startedAt: discussion.startedAt
+      id: uuidv4(),
+      topic,
+      participants,
+      status: 'active',
+      messages,
+      metadata: {},
+      startedAt: new Date()
     };
   });
 
   ipcMain.handle('agent:continueDiscussion', async (_, discussionId: string) => {
     const manager = await container.get<AgentManager>('agentManager');
-    const message = await manager.continueDiscussion(discussionId);
-    return message ? {
-      id: message.id,
-      discussionId: message.discussionId,
-      agentId: message.agentId,
-      role: message.role,
-      content: message.content,
-      inReplyTo: message.inReplyTo,
-      timestamp: message.timestamp
-    } : null;
+    // AgentManager doesn't support continuing discussions yet
+    // This would need to be implemented to track discussion state
+    throw new Error('Continue discussion not implemented');
   });
 
   ipcMain.handle('agent:endDiscussion', async (_, discussionId: string, summary?) => {
     const manager = await container.get<AgentManager>('agentManager');
-    await manager.endDiscussion(discussionId, summary);
+    // Clear discussion history for now
+    manager.clearDiscussionHistory();
+    return { success: true };
   });
 
   // タスクキュー関連

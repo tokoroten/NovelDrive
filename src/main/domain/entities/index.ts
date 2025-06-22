@@ -194,19 +194,26 @@ export class WorldSetting {
   constructor(
     public readonly id: string,
     public readonly projectId: string,
-    public category: string,
     public name: string,
+    public category: string,
     public description: string,
-    public rules: string[]
+    public rules: string[],
+    public metadata: Record<string, any>,
+    public readonly createdAt: Date,
+    public updatedAt: Date
   ) {}
 
-  update(updates: Partial<Pick<WorldSetting, 'name' | 'description' | 'category'>>) {
+  update(updates: Partial<Pick<WorldSetting, 'name' | 'description' | 'category' | 'rules' | 'metadata'>>) {
     if (updates.name !== undefined) this.name = updates.name;
     if (updates.description !== undefined) this.description = updates.description;
     if (updates.category !== undefined) this.category = updates.category;
+    if (updates.rules !== undefined) this.rules = updates.rules;
+    if (updates.metadata !== undefined) this.metadata = updates.metadata;
+    this.updatedAt = new Date();
   }
 
   addRule(rule: string) {
     this.rules.push(rule);
+    this.updatedAt = new Date();
   }
 }
