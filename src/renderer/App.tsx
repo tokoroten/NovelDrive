@@ -7,7 +7,7 @@ const AnythingBox = lazy(() => import('./components/AnythingBox').then(m => ({ d
 const AgentMeetingRoom = lazy(() => import('./components/AgentMeetingRoom').then(m => ({ default: m.AgentMeetingRoom })));
 const PlotManagement = lazy(() => import('./components/PlotManagement').then(m => ({ default: m.PlotManagement })));
 const KnowledgeGraph = lazy(() => import('./components/KnowledgeGraph').then(m => ({ default: m.KnowledgeGraph })));
-const WritingEditor = lazy(() => import('./components/WritingEditor').then(m => ({ default: m.WritingEditor })));
+const WritingEditor = lazy(() => import('./components/WritingEditorEnhanced').then(m => ({ default: m.WritingEditorEnhanced })));
 const ProjectKnowledge = lazy(() => import('./components/ProjectKnowledge').then(m => ({ default: m.ProjectKnowledge })));
 const IdeaGacha = lazy(() => import('./components/IdeaGacha').then(m => ({ default: m.IdeaGacha })));
 const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard').then(m => ({ default: m.AnalyticsDashboard })));
