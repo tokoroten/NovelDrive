@@ -126,13 +126,17 @@ export function WritingEditor() {
       const result = await window.electronAPI.database.query(sql, [plotId]);
       
       const chaptersWithCounts = result.map((chapter: Record<string, unknown>) => ({
-        ...chapter,
-        plotId: chapter.plot_id,
-        createdAt: chapter.created_at,
-        updatedAt: chapter.updated_at,
-        wordCount: chapter.word_count || 0,
-        characterCount: chapter.character_count || 0,
-        metadata: JSON.parse(chapter.metadata || '{}'),
+        id: chapter.id as string,
+        title: chapter.title as string,
+        content: chapter.content as string,
+        plotId: chapter.plot_id as string,
+        order: chapter.order as number,
+        status: chapter.status as 'draft' | 'writing' | 'review' | 'completed',
+        wordCount: (chapter.word_count as number) || 0,
+        characterCount: (chapter.character_count as number) || 0,
+        createdAt: chapter.created_at as string,
+        updatedAt: chapter.updated_at as string,
+        metadata: JSON.parse((chapter.metadata as string) || '{}'),
       }));
       
       setChapters(chaptersWithCounts);

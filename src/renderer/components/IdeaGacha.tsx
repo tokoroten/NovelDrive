@@ -31,7 +31,7 @@ export function IdeaGacha() {
   const [showHistory, setShowHistory] = useState(false);
   const [gachaMode, setGachaMode] = useState<'random' | 'themed' | 'character'>('random');
   const [selectedProject, setSelectedProject] = useState<string>('');
-  const [projects, setProjects] = useState<unknown[]>([]);
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
   const [, setAnimationStep] = useState(0);
 
   useEffect(() => {
@@ -106,7 +106,7 @@ export function IdeaGacha() {
         '地下鉄のホームで',
         '学校の音楽室で',
       ];
-      elements.situation = situations[Math.floor(Math.random() * situations.length)];
+      elements.situation = { content: situations[Math.floor(Math.random() * situations.length)] };
 
       // ランダムにキーワードを取得
       const keywordSql = selectedProject
@@ -117,7 +117,7 @@ export function IdeaGacha() {
         selectedProject ? [selectedProject] : []
       );
       if (keywordResult.length > 0) {
-        elements.keyword = keywordResult.map((k: Record<string, unknown>) => k.title).join('、');
+        elements.keyword = { content: keywordResult.map((k: Record<string, unknown>) => k.title).join('、') };
       }
 
       // ランダムに世界設定を取得
@@ -300,25 +300,25 @@ export function IdeaGacha() {
           {result.elements.character && (
             <div className="flex items-start gap-2">
               <span className="text-gray-500">キャラ:</span>
-              <span className="text-gray-700">{result.elements.character.name}</span>
+              <span className="text-gray-700">{(result.elements.character as any).name}</span>
             </div>
           )}
           {result.elements.theme && (
             <div className="flex items-start gap-2">
               <span className="text-gray-500">テーマ:</span>
-              <span className="text-gray-700">{result.elements.theme.title}</span>
+              <span className="text-gray-700">{(result.elements.theme as any).title}</span>
             </div>
           )}
           {result.elements.situation && (
             <div className="flex items-start gap-2">
               <span className="text-gray-500">場所:</span>
-              <span className="text-gray-700">{result.elements.situation}</span>
+              <span className="text-gray-700">{(result.elements.situation as any).content || result.elements.situation}</span>
             </div>
           )}
           {result.elements.keyword && (
             <div className="flex items-start gap-2">
               <span className="text-gray-500">キーワード:</span>
-              <span className="text-gray-700">{result.elements.keyword}</span>
+              <span className="text-gray-700">{(result.elements.keyword as any).content || result.elements.keyword}</span>
             </div>
           )}
         </div>

@@ -3,6 +3,12 @@ interface AnythingBoxAPI {
   history: (options?: Record<string, unknown>) => Promise<any[]>;
 }
 
+interface APIResponse<T = any> {
+  success: boolean;
+  error?: string;
+  data?: T;
+}
+
 interface ElectronAPI {
   getVersion: () => Promise<string>;
   settings: {
@@ -77,10 +83,10 @@ interface ElectronAPI {
   agents: {
     create: (options: any) => Promise<any>;
     startDiscussion: (options: any) => Promise<any>;
-    pauseSession: (sessionId: string) => Promise<void>;
-    resumeSession: (sessionId: string) => Promise<void>;
+    pauseSession: (sessionId: string) => Promise<APIResponse>;
+    resumeSession: (sessionId: string) => Promise<APIResponse>;
     getSession: (sessionId: string) => Promise<any>;
-    getAllSessions: () => Promise<any[]>;
+    getAllSessions: () => Promise<APIResponse<any[]>>;
     getDiscussionHistory: (options?: Record<string, unknown>) => Promise<any[]>;
     requestWritingSuggestions: (context: any) => Promise<any>;
     start: (topic: string, context?: any, options?: any) => Promise<any>;
@@ -96,7 +102,7 @@ interface ElectronAPI {
     getSummarizationConfig: () => Promise<any>;
     updateSummarizationConfig: (config: any) => Promise<void>;
     getSummaries: (discussionId: string) => Promise<any[]>;
-    submitHumanIntervention: (discussionId: string, intervention: any) => Promise<void>;
+    submitHumanIntervention: (discussionId: string, intervention: any) => Promise<APIResponse>;
     onMessage: (callback: (data: any) => void) => void;
     onSessionStarted: (callback: (data: any) => void) => void;
     onSessionConcluded: (callback: (data: any) => void) => void;
@@ -116,8 +122,8 @@ interface ElectronAPI {
     create: (data: any) => Promise<any>;
     fork: (plotId: string, modifications: any) => Promise<any>;
     get: (plotId: string) => Promise<any>;
-    history: (projectId: string) => Promise<any[]>;
-    updateStatus: (plotId: string, status: string) => Promise<void>;
+    history: (projectId: string) => Promise<APIResponse<{ plots: any[] }>>;
+    updateStatus: (plotId: string, status: string) => Promise<APIResponse>;
   };
   chapters: {
     create: (chapter: any) => Promise<any>;
@@ -127,11 +133,18 @@ interface ElectronAPI {
     listByPlot: (plotId: string) => Promise<any[]>;
   };
   plotGen: {
-    start: (request: any) => Promise<any>;
-    getSession: (sessionId: string) => Promise<any>;
-    getSessions: () => Promise<any[]>;
-    cancel: (sessionId: string) => Promise<void>;
-    addIntervention: (sessionId: string, content: string) => Promise<void>;
+    start: (request: any) => Promise<APIResponse<any>>;
+    getSession: (sessionId: string) => Promise<APIResponse<any>>;
+    getSessions: () => Promise<APIResponse<any[]>>;
+    cancel: (sessionId: string) => Promise<APIResponse>;
+    addIntervention: (sessionId: string, content: string) => Promise<APIResponse>;
+  };
+  autonomous: {
+    getConfig: () => Promise<any>;
+    getStatus: () => Promise<any>;
+    updateConfig: (config: any) => Promise<void>;
+    start: () => Promise<void>;
+    stop: () => Promise<void>;
   };
 }
 

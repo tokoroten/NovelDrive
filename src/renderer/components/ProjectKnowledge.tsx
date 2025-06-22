@@ -77,9 +77,11 @@ export function ProjectKnowledge() {
       const sql = 'SELECT * FROM projects ORDER BY updated_at DESC';
       const result = await window.electronAPI.database.query(sql);
       setProjects(result.map((p: Record<string, unknown>) => ({
-        ...p,
-        createdAt: p.created_at,
-        updatedAt: p.updated_at,
+        id: p.id as string,
+        name: p.name as string,
+        description: p.description as string,
+        createdAt: p.created_at as string,
+        updatedAt: p.updated_at as string,
       })));
       
       if (result.length > 0 && !selectedProject) {
@@ -114,12 +116,16 @@ export function ProjectKnowledge() {
     const sql = 'SELECT * FROM characters WHERE project_id = ? ORDER BY name';
     const result = await window.electronAPI.database.query(sql, [selectedProject]);
     setCharacters(result.map((c: Record<string, unknown>) => ({
-      ...c,
-      projectId: c.project_id,
-      speechStyle: c.speech_style,
-      dialogueSamples: c.dialogue_samples,
-      createdAt: c.created_at,
-      updatedAt: c.updated_at,
+      id: c.id as string,
+      projectId: c.project_id as string,
+      name: c.name as string,
+      profile: c.profile as string,
+      personality: c.personality as string,
+      speechStyle: c.speech_style as string,
+      background: c.background as string,
+      dialogueSamples: c.dialogue_samples as string,
+      createdAt: c.created_at as string,
+      updatedAt: c.updated_at as string,
     })));
   };
 
@@ -132,11 +138,14 @@ export function ProjectKnowledge() {
     `;
     const result = await window.electronAPI.database.query(sql, [selectedProject]);
     setWorldSettings(result.map((w: Record<string, unknown>) => ({
-      ...w,
-      projectId: w.project_id,
-      details: JSON.parse(w.details || '{}'),
-      createdAt: w.created_at,
-      updatedAt: w.updated_at,
+      id: w.id as string,
+      projectId: w.project_id as string,
+      category: w.category as string,
+      name: w.name as string,
+      description: w.description as string,
+      details: JSON.parse((w.details as string) || '{}'),
+      createdAt: w.created_at as string,
+      updatedAt: w.updated_at as string,
     })));
   };
 
@@ -149,17 +158,17 @@ export function ProjectKnowledge() {
     const result = await window.electronAPI.database.query(sql, [selectedProject]);
     
     setTerms(result.map((t: Record<string, unknown>) => {
-      const metadata = JSON.parse(t.metadata || '{}');
+      const metadata = JSON.parse((t.metadata as string) || '{}');
       return {
-        id: t.id,
-        projectId: t.project_id,
-        term: t.title,
+        id: t.id as string,
+        projectId: t.project_id as string,
+        term: t.title as string,
         reading: metadata.reading || '',
         category: metadata.category || '一般',
-        definition: t.content,
+        definition: t.content as string,
         usage: metadata.usage || '',
-        createdAt: t.created_at,
-        updatedAt: t.updated_at,
+        createdAt: t.created_at as string,
+        updatedAt: t.updated_at as string,
       };
     }));
   };

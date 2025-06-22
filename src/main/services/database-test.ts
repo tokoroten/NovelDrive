@@ -343,7 +343,7 @@ export class DatabaseTestService {
    */
   private query(sql: string, params: unknown[] = []): Promise<any[]> {
     return new Promise((resolve, reject) => {
-      this.conn.all(sql, ...params, (err: any, rows: any[]) => {
+      this.conn.all(sql, params, (err: any, rows: any[]) => {
         if (err) reject(err);
         else resolve(rows || []);
       });
@@ -355,7 +355,7 @@ export class DatabaseTestService {
    */
   private execute(sql: string, params: unknown[] = []): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.conn.run(sql, ...params, (err: any) => {
+      this.conn.run(sql, params, (err: any) => {
         if (err) reject(err);
         else resolve();
       });

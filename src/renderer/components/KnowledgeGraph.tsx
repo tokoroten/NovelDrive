@@ -37,6 +37,7 @@ interface KnowledgeNodeData {
   type: string;
   content: string;
   selected?: boolean;
+  similarity?: number;
 }
 
 const KnowledgeNode = ({ data }: { data: KnowledgeNodeData }) => {
@@ -107,9 +108,13 @@ export function KnowledgeGraph() {
 
         const result = await window.electronAPI.database.query(sql, params);
         knowledgeItems = result.map((item: Record<string, unknown>) => ({
-          ...item,
-          metadata: JSON.parse(item.metadata || '{}'),
-          createdAt: item.created_at,
+          id: item.id as string,
+          title: item.title as string,
+          content: item.content as string,
+          type: item.type as string,
+          projectId: item.project_id as string | undefined,
+          metadata: JSON.parse((item.metadata as string) || '{}'),
+          createdAt: item.created_at as string,
         }));
       }
 
@@ -227,8 +232,14 @@ export function KnowledgeGraph() {
 
       // 検索結果からグラフを構築
       const knowledgeItems: KnowledgeItem[] = results.map((item: Record<string, unknown>) => ({
-        ...item,
-        similarity: item.score,
+        id: item.id as string,
+        title: item.title as string,
+        content: item.content as string,
+        type: item.type as string,
+        projectId: item.project_id as string | undefined,
+        metadata: item.metadata as Record<string, unknown> | undefined,
+        createdAt: item.created_at as string,
+        similarity: item.score as number | undefined,
       }));
 
       const graphData = await buildGraphData(knowledgeItems);

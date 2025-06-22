@@ -126,7 +126,7 @@ interface SearchResult {
 function runAsync(conn: duckdb.Connection, sql: string, params: unknown[] = []): Promise<void> {
   return new Promise((resolve, reject) => {
     if (params.length > 0) {
-      conn.run(sql, ...params, (err: Error | null) => {
+      conn.run(sql, params, (err: Error | null) => {
         if (err) reject(err);
         else resolve();
       });

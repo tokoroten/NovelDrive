@@ -112,7 +112,7 @@ export function PlotGenerationWorkflow({
     try {
       const response = await window.electronAPI.plotGen.getSessions();
       if (response.success) {
-        setSessions(response.sessions);
+        setSessions((response as any).sessions || []);
       }
     } catch (error) {
       addLog('セッション一覧の読み込みに失敗しました');
@@ -133,9 +133,10 @@ export function PlotGenerationWorkflow({
       const response = await window.electronAPI.plotGen.start(formData);
       
       if (response.success) {
+        const sessionId = (response as any).sessionId;
         setCurrentSession({ 
-          id: response.sessionId,
-          ...formData,
+          id: sessionId,
+          request: formData,
           stages: [],
           currentStage: 0,
           status: 'initializing',
@@ -144,11 +145,11 @@ export function PlotGenerationWorkflow({
           updatedAt: new Date().toISOString()
         } as PlotGenerationSession);
         
-        addLog(`セッション開始: ${response.sessionId}`);
+        addLog(`セッション開始: ${sessionId}`);
         
         // セッション状態を定期的に更新
         intervalRef.current = setInterval(() => {
-          updateSessionStatus(response.sessionId);
+          updateSessionStatus(sessionId);
         }, 2000);
         
       } else {
@@ -165,8 +166,8 @@ export function PlotGenerationWorkflow({
     try {
       const response = await window.electronAPI.plotGen.getSession(sessionId);
       
-      if (response.success && response.session) {
-        const session = response.session;
+      if (response.success && (response as any).session) {
+        const session = (response as any).session;
         setCurrentSession(session);
         
         if (session.status === 'completed') {

@@ -206,10 +206,10 @@ export function AgentMeetingRoom() {
       };
 
       // バックエンドに送信
-      await window.electronAPI.agents.submitHumanIntervention?.({
-        sessionId: activeSession.id,
-        intervention: intervention.content
-      });
+      await window.electronAPI.agents.submitHumanIntervention(
+        activeSession.id, 
+        intervention.content
+      );
 
       // ローカル状態更新
       setInterventionHistory(prev => [...prev, intervention]);
@@ -264,12 +264,13 @@ export function AgentMeetingRoom() {
       const response = await window.electronAPI.agents.getAllSessions();
       console.log('Sessions response:', response);
       
-      if (Array.isArray(response)) {
-        setSessions(response);
-      } else if (response && response.success) {
-        setSessions(response.sessions || []);
+      if (response && response.success) {
+        setSessions((response as any).sessions || []);
       } else {
         setSessions([]);
+        if (response?.error) {
+          setError(response.error);
+        }
       }
     } catch (error) {
       console.error('Failed to load sessions:', error);

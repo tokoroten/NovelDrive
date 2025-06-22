@@ -356,16 +356,18 @@ export class DiscussionManager extends EventEmitter {
     await new Promise<void>((resolve, reject) => {
       this.dbConnection!.run(
         sql,
-        discussion.id,
-        discussion.projectId || null,
-        discussion.plotId || null,
-        discussion.topic,
-        discussion.status,
-        discussion.id, // thread_idとして使用
-        JSON.stringify(discussion.participants),
-        JSON.stringify(metadata),
-        discussion.startTime.toISOString(),
-        new Date().toISOString(),
+        [
+          discussion.id,
+          discussion.projectId || null,
+          discussion.plotId || null,
+          discussion.topic,
+          discussion.status,
+          discussion.id, // thread_idとして使用
+          JSON.stringify(discussion.participants),
+          JSON.stringify(metadata),
+          discussion.startTime.toISOString(),
+          new Date().toISOString()
+        ],
         (err) => {
           if (err) reject(err);
           else resolve();
@@ -401,14 +403,16 @@ export class DiscussionManager extends EventEmitter {
     await new Promise<void>((resolve, reject) => {
       this.dbConnection!.run(
         sql,
-        message.id,
-        discussionId,
-        agentRole,
-        agent?.getName() || agentRole,
-        message.content,
-        'text',
-        JSON.stringify(message.metadata || {}),
-        message.timestamp.toISOString(),
+        [
+          message.id,
+          discussionId,
+          agentRole,
+          agent?.getName() || agentRole,
+          message.content,
+          'text',
+          JSON.stringify(message.metadata || {}),
+          message.timestamp.toISOString()
+        ],
         (err) => {
           if (err) reject(err);
           else resolve();

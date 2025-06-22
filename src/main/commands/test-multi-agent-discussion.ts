@@ -775,16 +775,18 @@ class MultiAgentTestSuite {
 
       this.conn.run(
         sql,
-        discussion.id,
-        discussion.projectId || null,
-        discussion.plotId || null,
-        discussion.topic,
-        discussion.status,
-        discussion.id,
-        JSON.stringify(discussion.participants),
-        JSON.stringify(metadata),
-        discussion.startTime.toISOString(),
-        new Date().toISOString(),
+        [
+          discussion.id,
+          discussion.projectId || null,
+          discussion.plotId || null,
+          discussion.topic,
+          discussion.status,
+          discussion.id,
+          JSON.stringify(discussion.participants),
+          JSON.stringify(metadata),
+          discussion.startTime.toISOString(),
+          new Date().toISOString()
+        ],
         (err: any) => {
           if (err) {
             reject(err);
@@ -816,14 +818,16 @@ class MultiAgentTestSuite {
 
         this.conn.run(
           sql,
-          message.id,
-          discussionId,
-          agentRole,
-          agentRole,
-          message.content,
-          'text',
-          JSON.stringify(message.metadata || {}),
-          message.timestamp.toISOString(),
+          [
+            message.id,
+            discussionId,
+            agentRole,
+            agentRole,
+            message.content,
+            'text',
+            JSON.stringify(message.metadata || {}),
+            message.timestamp.toISOString()
+          ],
           (err: any) => {
             if (err) reject(err);
             else resolve();

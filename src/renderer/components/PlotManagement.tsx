@@ -44,7 +44,7 @@ export function PlotManagement() {
     try {
       const response = await window.electronAPI.plots.history(projectId);
       if (response.success) {
-        setPlots(response.plots);
+        setPlots((response.data as any).plots || []);
       }
     } catch (error) {
       // Failed to load plot history
@@ -426,8 +426,8 @@ export function PlotManagement() {
                       <div className="p-3 bg-gray-50 rounded">
                         <span className="text-sm text-gray-600">感情バランス</span>
                         <div className="text-lg font-semibold">
-                          {selectedPlot.metadata.emotionalBalance.overall > 0 ? '＋' : ''}
-                          {selectedPlot.metadata.emotionalBalance.overall.toFixed(2)}
+                          {(selectedPlot.metadata.emotionalBalance as any).overall > 0 ? '＋' : ''}
+                          {(selectedPlot.metadata.emotionalBalance as any).overall.toFixed(2)}
                         </div>
                       </div>
                     )}
@@ -463,13 +463,13 @@ export function PlotManagement() {
                 <h4 className="font-semibold mb-2">構造</h4>
                 <div className="space-y-2">
                   <p className="text-sm text-gray-600">
-                    ジャンル: {selectedPlot.structure.genre || '未設定'}
+                    ジャンル: {(selectedPlot.structure as any).genre || '未設定'}
                   </p>
                   <p className="text-sm text-gray-600">
-                    幕数: {selectedPlot.structure.acts?.length || 0}
+                    幕数: {(selectedPlot.structure as any).acts?.length || 0}
                   </p>
                   <p className="text-sm text-gray-600">
-                    推定文字数: {selectedPlot.structure.estimatedLength?.toLocaleString() || 0}
+                    推定文字数: {(selectedPlot.structure as any).estimatedLength?.toLocaleString() || 0}
                   </p>
                 </div>
               </div>

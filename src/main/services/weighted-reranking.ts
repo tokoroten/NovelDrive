@@ -242,7 +242,7 @@ export class WeightedReranking {
     params.push(limit);
 
     return new Promise((resolve, reject) => {
-      this.conn.all(sql, ...params, (err, rows) => {
+      this.conn.all(sql, params, (err, rows) => {
         if (err) reject(err);
         else resolve(rows);
       });
@@ -316,7 +316,7 @@ export class WeightedReranking {
     params.push(limit);
 
     return new Promise((resolve, reject) => {
-      this.conn.all(sql, ...params, (err, rows) => {
+      this.conn.all(sql, params, (err, rows) => {
         if (err) reject(err);
         else resolve(rows);
       });
