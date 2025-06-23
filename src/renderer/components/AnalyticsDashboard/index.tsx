@@ -174,3 +174,4 @@ export function AnalyticsDashboard() {
 
 // 互換性のため、既存の名前でもエクスポート
 export { AnalyticsDashboard as AnalyticsDashboardEnhanced };
+export default AnalyticsDashboard;

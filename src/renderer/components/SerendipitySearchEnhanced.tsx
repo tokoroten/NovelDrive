@@ -99,7 +99,7 @@ export function SerendipitySearchEnhanced({
     try {
       saveSearchToHistory(searchQuery);
 
-      const searchResults = await window.electronAPI.search.serendipity(searchQuery, {
+      const searchResults = await window.electronAPI.serendipity.search(searchQuery, {
         limit: 20,
         projectId,
         serendipityLevel,

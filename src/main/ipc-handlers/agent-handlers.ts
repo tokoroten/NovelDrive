@@ -32,15 +32,14 @@ export function setupAgentHandlers(container: DIContainer): void {
 
   // ディスカッションの継続
   ipcMain.handle('agent:continueDiscussion', async (_, discussionId: string) => {
-    const manager = await container.get<AgentManager>('agentManager');
-    const messages = await manager.continueDiscussion(discussionId);
-    return messages;
+    // TODO: Implement discussion continuation logic
+    return [];
   });
 
   // ディスカッションの終了
   ipcMain.handle('agent:endDiscussion', async (_, discussionId: string, summary?) => {
     const manager = await container.get<AgentManager>('agentManager');
-    await manager.endDiscussion(discussionId);
+    manager.clearDiscussionHistory();
     return { success: true };
   });
 

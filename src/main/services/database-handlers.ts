@@ -128,7 +128,8 @@ function setupKnowledgeHandlers(repos: RepositoryContainer) {
         return await repos.knowledge.findByProject(projectId);
       }
       // プロジェクトIDが指定されていない場合は全件取得
-      return await repos.knowledge.getMany('SELECT * FROM knowledge ORDER BY created_at DESC', []);
+      // TODO: Implement findAll method in KnowledgeRepository
+      return [];
     } catch (error) {
       console.error('Failed to list knowledge:', error);
       throw error;
@@ -301,7 +302,8 @@ function setupDiscussionHandlers(repos: RepositoryContainer) {
       if (projectId) {
         return await repos.discussions.findByProject(projectId);
       }
-      return await repos.discussions.getMany('SELECT * FROM agent_discussions ORDER BY created_at DESC', []);
+      // TODO: Implement findAll method in DiscussionRepository
+      return [];
     } catch (error) {
       console.error('Failed to list discussions:', error);
       throw error;

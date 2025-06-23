@@ -29,12 +29,7 @@ export async function handleIPCRequest<T>(
     let result: T;
     
     if (options?.enableRetry) {
-      result = await retry(handler, {
-        retries: options.retryCount || 3,
-        onRetry: (error, attempt) => {
-          errorLogger.log(error, { attempt, handler: handler.name });
-        }
-      });
+      result = await retry(handler, { maxAttempts: options.retryCount || 3 });
     } else {
       result = await handler();
     }
@@ -63,13 +58,7 @@ export function wrapHandler<T extends (...args: any[]) => Promise<any>>(
       
       // リトライ可能な場合
       if (options?.enableRetry) {
-        return await retry(
-          () => handler(...args),
-          {
-            retries: 3,
-            shouldRetry: (error) => isRetryableError(error)
-          }
-        );
+        return await retry(() => handler(...args), { maxAttempts: 3 });
       }
       
       return await handler(...args);

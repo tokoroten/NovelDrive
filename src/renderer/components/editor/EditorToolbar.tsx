@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 
 interface EditorToolbarProps {
   onFormat: (format: string, value?: string) => void;
-  onInsert: (type: string, value?: string) => void;
+  onInsert: (type: string, value?: string | { before: string; after: string }) => void;
   wordCount: number;
   characterCount: number;
 }

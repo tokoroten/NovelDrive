@@ -72,9 +72,11 @@ interface ElectronAPI {
     deleteThread: (threadId: string) => Promise<void>;
   };
   search: {
-    serendipity: (query: string, options?: any) => Promise<any[]>;
     hybrid: (query: string, options?: any) => Promise<any[]>;
     related: (itemId: string, options?: any) => Promise<any[]>;
+  };
+  serendipity: {
+    search: (query: string, options?: any) => Promise<any[]>;
   };
   crawler: {
     crawl: (url: string, depth: number, options?: any) => Promise<any>;
@@ -120,6 +122,7 @@ interface ElectronAPI {
   };
   plots: {
     create: (data: any) => Promise<any>;
+    update: (plotId: string, data: any) => Promise<any>;
     fork: (plotId: string, modifications: any) => Promise<any>;
     get: (plotId: string) => Promise<any>;
     history: (projectId: string) => Promise<APIResponse<{ plots: any[] }>>;
@@ -146,6 +149,39 @@ interface ElectronAPI {
     start: () => Promise<void>;
     stop: () => Promise<void>;
   };
+  backup: {
+    create: (description?: string) => Promise<APIResponse>;
+    restore: (backupId: string) => Promise<APIResponse>;
+    list: () => Promise<APIResponse>;
+    delete: (backupId: string) => Promise<APIResponse>;
+    getSettings: () => Promise<any>;
+    setAutoBackup: (enabled: boolean, intervalHours: number) => Promise<APIResponse>;
+  };
+  versionHistory: {
+    create: (documentId: string, description?: string) => Promise<APIResponse>;
+    list: (documentId?: string) => Promise<APIResponse>;
+    restore: (versionId: string, options?: any) => Promise<APIResponse>;
+    compare: (fromVersionId: string, toVersionId: string) => Promise<APIResponse>;
+    diff: (fromVersionId: string, toVersionId: string) => Promise<APIResponse>;
+    delete: (versionId: string) => Promise<APIResponse>;
+    getStats: () => Promise<APIResponse>;
+  };
+  export: {
+    exportDocument: (documentId: string, format: string, options?: any) => Promise<APIResponse>;
+    exportDocuments: (documentIds: string[], format: string, options?: any) => Promise<APIResponse>;
+  };
+  discussion: {
+    create: (options: any) => Promise<APIResponse>;
+    sendHumanMessage: (sessionId: string, message: string) => Promise<APIResponse>;
+    end: (sessionId: string) => Promise<APIResponse>;
+  };
+  plotBranching: {
+    getBranchingStructure: (projectId: string) => Promise<APIResponse>;
+    forkPlot: (plotId: string, branchName: string) => Promise<APIResponse>;
+    mergePlots: (sourcePlotId: string, targetPlotId: string) => Promise<APIResponse>;
+  };
+  on?: (channel: string, callback: (...args: any[]) => void) => (() => void);
+  off?: (channel: string, callback: (...args: any[]) => void) => void;
 }
 
 declare global {

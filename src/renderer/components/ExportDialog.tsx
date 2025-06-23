@@ -164,15 +164,14 @@ export function ExportDialog({ isOpen, onClose, preselectedDocuments = [] }: Exp
       }
 
       // ファイルとして保存
-      const result = await window.electronAPI.export.text({
-        documentIds: selectedDocuments,
-        format: exportFormat,
-        includeMetadata,
-        content: exportContent,
-      });
+      const result = await window.electronAPI.export.exportDocuments(
+        selectedDocuments,
+        exportFormat,
+        { includeMetadata, content: exportContent }
+      );
 
       if (result.success) {
-        alert(`エクスポートが完了しました。\nファイル: ${result.filePath}\nサイズ: ${formatFileSize(result.size)}`);
+        alert(`エクスポートが完了しました。\nファイル: ${result.data?.filePath || 'unknown'}\nサイズ: ${formatFileSize(result.data?.size || 0)}`);
         onClose();
       } else {
         alert('エクスポートに失敗しました');

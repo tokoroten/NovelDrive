@@ -1,5 +1,5 @@
 import { Node, Edge } from 'reactflow';
-import { KnowledgeItem } from '../types';
+import { KnowledgeItem } from '../../shared/types';
 
 interface ViewportBounds {
   x: number;
@@ -287,7 +287,7 @@ export class GraphPerformanceMonitor {
   getStats() {
     return {
       fps: this.fps,
-      memory: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : 0,
+      memory: (performance as any).memory ? Math.round((performance as any).memory.usedJSHeapSize / 1048576) : 0,
     };
   }
 }

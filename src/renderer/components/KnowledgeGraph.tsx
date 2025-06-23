@@ -97,7 +97,7 @@ function KnowledgeGraphInner() {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [viewMode, setViewMode] = useState<'all' | 'project' | 'search' | 'serendipity'>('all');
+  const [viewMode, setViewMode] = useState<'all' | 'project' | 'search'>('all');
   const [projectId] = useState('default-project'); // TODO: プロジェクト選択機能
   const [layoutType, setLayoutType] = useState<LayoutType>('force-directed');
   const [performanceMode, setPerformanceMode] = useState(false);
@@ -218,10 +218,10 @@ function KnowledgeGraphInner() {
       // 表示ノードに関連するエッジのみを残す
       const visibleNodeIds = new Set(nodes.map(n => n.id));
       const optimizedEdges = optimizeEdges(edges, visibleNodeIds, 200);
-      return { nodes, edges: optimizedEdges };
+      return { nodes, edges: optimizedEdges as Edge[] };
     }
 
-    return { nodes, edges };
+    return { nodes, edges: edges as Edge[] };
   };
 
   const performSearch = async () => {
@@ -233,7 +233,7 @@ function KnowledgeGraphInner() {
     setIsLoading(true);
     try {
       // セレンディピティ検索を実行
-      const results = await window.electronAPI.search.serendipity(searchQuery, {
+      const results = await window.electronAPI.serendipity.search(searchQuery, {
         limit: 30,
         projectId: viewMode === 'project' ? projectId : undefined,
         serendipityLevel: 0.3,
@@ -335,20 +335,9 @@ function KnowledgeGraphInner() {
 
   return (
     <div className="flex h-full gap-4">
-      {/* セレンディピティ検索モード */}
-      {viewMode === 'serendipity' ? (
-        <div className="flex-1">
-          <SerendipitySearchEnhanced
-            projectId={projectId}
-            onResultSelect={handleSerendipityResultSelect}
-            className="h-full"
-          />
-        </div>
-      ) : (
-        <>
-          {/* メインビュー */}
-          <div className="flex-1 bg-white rounded-lg shadow-md">
-        <div className="p-4 border-b border-gray-200">
+      {/* メインビュー */}
+      <div className="flex-1 bg-white rounded-lg shadow-md">
+            <div className="p-4 border-b border-gray-200">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold">知識グラフ</h3>
             <div className="flex items-center gap-4">
@@ -416,16 +405,6 @@ function KnowledgeGraphInner() {
                 >
                   検索
                 </button>
-                <button
-                  onClick={() => setViewMode('serendipity')}
-                  className={`px-3 py-1 rounded text-sm ${
-                    viewMode === 'serendipity'
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  セレンディピティ
-                </button>
               </div>
             </div>
           </div>
@@ -470,7 +449,7 @@ function KnowledgeGraphInner() {
               maxZoom={2}
               fitViewOptions={{ padding: 0.2 }}
             >
-              <Background variant="dots" />
+              <Background variant={"dots" as any} />
               <Controls showInteractive={false} />
               <MiniMap
                 nodeColor={(node) => {
@@ -491,52 +470,51 @@ function KnowledgeGraphInner() {
             </ReactFlow>
           )}
         </div>
-      </div>
-
-      {/* サイドパネル：ノード詳細 */}
-      {selectedNodeData && (
-        <div className="w-96 bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-semibold mb-4">{selectedNodeData.label}</h3>
-
-          <div className="space-y-4">
-            <div>
-              <span className="text-sm font-medium text-gray-600">タイプ</span>
-              <p className="text-gray-800">{selectedNodeData.type}</p>
-            </div>
-
-            <div>
-              <span className="text-sm font-medium text-gray-600">内容</span>
-              <p className="text-gray-800 text-sm whitespace-pre-wrap max-h-64 overflow-y-auto">
-                {selectedNodeData.content}
-              </p>
-            </div>
-
-            {selectedNodeData.similarity !== undefined && (
-              <div>
-                <span className="text-sm font-medium text-gray-600">関連度スコア</span>
-                <p className="text-gray-800">{Math.round(selectedNodeData.similarity * 100)}%</p>
-              </div>
-            )}
-
-            {selectedNodeData.metadata && Object.keys(selectedNodeData.metadata).length > 0 && (
-              <div>
-                <span className="text-sm font-medium text-gray-600">メタデータ</span>
-                <pre className="text-xs bg-gray-50 p-2 rounded mt-1 overflow-x-auto">
-                  {JSON.stringify(selectedNodeData.metadata, null, 2)}
-                </pre>
-              </div>
-            )}
-
-            <button
-              onClick={() => setSelectedNode(null)}
-              className="w-full py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              閉じる
-            </button>
           </div>
-        </div>
-        </>
-      )}
+
+          {/* サイドパネル：ノード詳細 */}
+          {selectedNodeData && (
+            <div className="w-96 bg-white rounded-lg shadow-md p-6">
+              <h3 className="text-lg font-semibold mb-4">{selectedNodeData.label}</h3>
+
+              <div className="space-y-4">
+                <div>
+                  <span className="text-sm font-medium text-gray-600">タイプ</span>
+                  <p className="text-gray-800">{selectedNodeData.type}</p>
+                </div>
+
+                <div>
+                  <span className="text-sm font-medium text-gray-600">内容</span>
+                  <p className="text-gray-800 text-sm whitespace-pre-wrap max-h-64 overflow-y-auto">
+                    {selectedNodeData.content}
+                  </p>
+                </div>
+
+                {selectedNodeData.similarity !== undefined && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-600">関連度スコア</span>
+                    <p className="text-gray-800">{Math.round(selectedNodeData.similarity * 100)}%</p>
+                  </div>
+                )}
+
+                {selectedNodeData.metadata && Object.keys(selectedNodeData.metadata).length > 0 && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-600">メタデータ</span>
+                    <pre className="text-xs bg-gray-50 p-2 rounded mt-1 overflow-x-auto">
+                      {JSON.stringify(selectedNodeData.metadata, null, 2)}
+                    </pre>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => setSelectedNode(null)}
+                  className="w-full py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  閉じる
+                </button>
+              </div>
+            </div>
+          )}
     </div>
   );
 }

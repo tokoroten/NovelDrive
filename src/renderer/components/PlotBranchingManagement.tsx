@@ -425,7 +425,7 @@ function CreateBranchDialog({ parent, onClose, onSuccess }: CreateBranchDialogPr
         createdBy: 'user', // TODO: Get actual user
       };
 
-      const result = await window.electronAPI.plotBranching.createBranch(branchData);
+      const result = await window.electronAPI.plotBranching.forkPlot(parent.id, branchData.title);
       
       if (result.success) {
         alert('分岐が作成されました');
@@ -559,7 +559,7 @@ function MergeDialog({ source, availableTargets, onClose, onSuccess }: MergeDial
         description: description.trim(),
       };
 
-      const result = await window.electronAPI.plotBranching.mergeBranch(mergeData);
+      const result = await window.electronAPI.plotBranching.mergePlots(mergeData.sourceId, mergeData.targetId);
       
       if (result.success) {
         alert('マージが完了しました');

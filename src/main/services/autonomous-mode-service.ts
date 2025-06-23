@@ -570,7 +570,7 @@ export class AutonomousModeService extends EventEmitter {
         [content, chapterId],
         (err: any) => {
           if (err) reject(err);
-          else resolve();
+          else resolve(undefined);
         }
       );
     });
@@ -605,7 +605,7 @@ export class AutonomousModeService extends EventEmitter {
         ],
         (err: any) => {
           if (err) reject(err);
-          else resolve();
+          else resolve(undefined);
         }
       );
     });
@@ -625,7 +625,7 @@ export class AutonomousModeService extends EventEmitter {
         [this.config.projectId, JSON.stringify(this.config)],
         (err: any) => {
           if (err) reject(err);
-          else resolve();
+          else resolve(undefined);
         }
       );
     });

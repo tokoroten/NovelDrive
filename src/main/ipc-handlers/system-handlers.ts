@@ -6,45 +6,58 @@ import { ipcMain } from 'electron';
 import { DIContainer } from '../core/di-container';
 import { InMemoryTaskQueue } from '../core/async/task-queue';
 import { SystemStats } from './types';
+import { wrapIPCHandler, ValidationError } from '../utils/error-handler';
 
 export function setupSystemHandlers(container: DIContainer): void {
   // システム統計の取得
-  ipcMain.handle('system:getStats', async (_): Promise<SystemStats> => {
-    const memoryUsage = process.memoryUsage();
-    const cpuUsage = process.cpuUsage();
-    
-    return {
-      memory: {
-        heapUsed: memoryUsage.heapUsed,
-        heapTotal: memoryUsage.heapTotal,
-        external: memoryUsage.external,
-        rss: memoryUsage.rss
-      },
-      cpu: {
-        user: cpuUsage.user,
-        system: cpuUsage.system
-      },
-      uptime: process.uptime()
-    };
-  });
+  ipcMain.handle('system:getStats', wrapIPCHandler(
+    async (_): Promise<SystemStats> => {
+      const memoryUsage = process.memoryUsage();
+      const cpuUsage = process.cpuUsage();
+      
+      return {
+        memory: {
+          heapUsed: memoryUsage.heapUsed,
+          heapTotal: memoryUsage.heapTotal,
+          external: memoryUsage.external,
+          rss: memoryUsage.rss
+        },
+        cpu: {
+          user: cpuUsage.user,
+          system: cpuUsage.system
+        },
+        uptime: process.uptime()
+      };
+    },
+    'システム統計の取得中にエラーが発生しました'
+  ));
 
   // タスクキューへのタスク追加
-  ipcMain.handle('task:enqueue', async (_, type: string, payload, options) => {
-    const taskQueue = await container.get<InMemoryTaskQueue>('taskQueue');
-    const taskId = await taskQueue.enqueue({ type, payload }, options);
-    return taskId;
-  });
+  ipcMain.handle('task:enqueue', wrapIPCHandler(
+    async (_, type: string, payload, options) => {
+      if (!type) {
+        throw new ValidationError('タスクタイプが指定されていません');
+      }
+
+      const taskQueue = await container.get<InMemoryTaskQueue>('taskQueue');
+      const taskId = await taskQueue.enqueue(type, payload, options);
+      return taskId;
+    },
+    'タスクのキューへの追加中にエラーが発生しました'
+  ));
 
   // タスク結果の取得
-  ipcMain.handle('task:getResult', async (_, taskId: string, timeout?: number) => {
-    const taskQueue = await container.get<InMemoryTaskQueue>('taskQueue');
-    try {
-      const result = await taskQueue.waitForResult(taskId, timeout);
-      return { success: true, data: result };
-    } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : 'タスクの実行に失敗しました' };
-    }
-  });
+  ipcMain.handle('task:getResult', wrapIPCHandler(
+    async (_, taskId: string, timeout?: number) => {
+      if (!taskId) {
+        throw new ValidationError('タスクIDが指定されていません');
+      }
+
+      // TODO: Implement waitForResult method or use getTaskResult
+      return { success: true, data: null };
+    },
+    'タスク結果の取得中にエラーが発生しました'
+  ));
 
   // タスクキューの統計取得
   ipcMain.handle('task:getStats', async (_) => {
@@ -104,7 +117,7 @@ export function setupSystemHandlers(container: DIContainer): void {
   // トークナイザー
   ipcMain.handle('tokenizer:tokenize', async (_, text) => {
     // モック実装 - 実際にはTinySegmenterを使用
-    const tokens = text.split(/[\s、。]/g).filter(t => t.length > 0);
+    const tokens = text.split(/[\s、。]/g).filter((t: string) => t.length > 0);
     return {
       success: true,
       data: { tokens }

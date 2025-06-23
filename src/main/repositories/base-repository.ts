@@ -65,7 +65,7 @@ export abstract class BaseRepository<T extends BaseEntity> {
    */
   protected async executeQuery<R = any>(sql: string, params: any[] = []): Promise<R[]> {
     return new Promise((resolve, reject) => {
-      this.conn.all(sql, ...params, (err, result) => {
+      this.conn.all(sql, ...params, (err: Error | null, result: any) => {
         if (err) {
           const dbError = new DatabaseError(
             `クエリ実行エラー: ${err.message}`,

@@ -131,8 +131,8 @@ const AnimatedKnowledgeNode = memo(({ data, selected }: NodeProps<AnimatedKnowle
               ? `linear-gradient(135deg, ${nodeStyle.color}dd, ${nodeStyle.color})`
               : 'white',
             color: data.isHighlighted ? 'white' : '#1f2937',
-            ringColor: nodeStyle.color,
-          }}
+            '--tw-ring-color': nodeStyle.color,
+          } as React.CSSProperties}
         >
           {/* ヘッダー */}
           <div className="flex items-center gap-2 mb-1">
@@ -190,10 +190,10 @@ const AnimatedKnowledgeNode = memo(({ data, selected }: NodeProps<AnimatedKnowle
                 exit={{ opacity: 0, y: -10 }}
                 className="absolute top-full left-0 right-0 mt-2 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50 max-w-xs"
               >
-                <div className="line-clamp-3">{data.content}</div>
-                {data.metadata?.tags && (
+                <div className="line-clamp-3">{String(data.content)}</div>
+                {data.metadata?.tags && Array.isArray(data.metadata.tags) && data.metadata.tags.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1">
-                    {(data.metadata.tags as string[]).map((tag, index) => (
+                    {(data.metadata.tags as string[]).map((tag: string, index: number) => (
                       <span
                         key={index}
                         className="px-2 py-0.5 bg-white/20 rounded-full text-xs"

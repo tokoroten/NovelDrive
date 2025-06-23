@@ -12,11 +12,20 @@ interface KnowledgeItem {
   embedding?: number[];
 }
 
-interface RelationEdge extends Edge {
+interface RelationEdge {
+  id: string;
+  source: string;
+  target: string;
   data?: {
     similarity: number;
-    relationType: string;
+    relationType?: string;
   };
+  type?: string;
+  style?: any;
+  animated?: boolean;
+  label?: string;
+  labelStyle?: any;
+  labelBgStyle?: any;
 }
 
 /**

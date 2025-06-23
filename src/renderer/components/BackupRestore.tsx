@@ -70,8 +70,8 @@ export function BackupRestore() {
 
   const loadBackups = async () => {
     try {
-      const result = await window.electronAPI.backup.listBackups();
-      setBackups(result || []);
+      const result = await window.electronAPI.backup.list();
+      setBackups(result.data || []);
     } catch (error) {
       console.error('Failed to load backups:', error);
     }
@@ -88,7 +88,7 @@ export function BackupRestore() {
 
   const loadConfig = async () => {
     try {
-      const result = await window.electronAPI.backup.getConfig();
+      const result = await window.electronAPI.backup.getSettings();
       if (result) {
         setConfig(result);
       }
@@ -107,11 +107,7 @@ export function BackupRestore() {
     setProcessingStatus('バックアップを作成中...');
 
     try {
-      await window.electronAPI.backup.create({
-        name: newBackupName,
-        description: newBackupDescription,
-        projectIds: selectedProjectIds.length > 0 ? selectedProjectIds : undefined,
-      });
+      await window.electronAPI.backup.create(newBackupDescription);
 
       await loadBackups();
       setShowCreateDialog(false);
@@ -142,7 +138,7 @@ export function BackupRestore() {
     setProcessingStatus('データを復元中...');
 
     try {
-      await window.electronAPI.backup.restore(selectedBackup.id, restoreOptions);
+      await window.electronAPI.backup.restore(selectedBackup.id);
       
       await loadProjects();
       setShowRestoreDialog(false);
@@ -175,7 +171,7 @@ export function BackupRestore() {
 
   const updateConfig = async () => {
     try {
-      await window.electronAPI.backup.updateConfig(config);
+      await window.electronAPI.backup.setAutoBackup(config.enabled, config.intervalHours);
       setShowConfigDialog(false);
       alert('設定が保存されました');
     } catch (error) {

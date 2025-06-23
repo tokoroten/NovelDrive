@@ -13,7 +13,7 @@ export class KnowledgeRepository extends BaseRepository<Knowledge> {
 
   constructor(conn: duckdb.Connection) {
     super(conn, 'knowledge');
-    this.embeddingService = new LocalEmbeddingService();
+    this.embeddingService = LocalEmbeddingService.getInstance();
   }
 
   protected mapRowToEntity(row: any): Knowledge {
@@ -85,7 +85,7 @@ export class KnowledgeRepository extends BaseRepository<Knowledge> {
       ...knowledge,
       id,
       embedding,
-      search_tokens: searchTokens
+      search_tokens: searchTokens.join(' ')
     });
     
     await this.executeQuery(sql, data);
@@ -111,7 +111,7 @@ export class KnowledgeRepository extends BaseRepository<Knowledge> {
       updated.embedding = await this.embeddingService.generateEmbedding(
         `${updated.title} ${updated.content}`
       );
-      updated.search_tokens = getSearchTokens(`${updated.title} ${updated.content}`);
+      updated.search_tokens = getSearchTokens(`${updated.title} ${updated.content}`).join(' ');
     }
 
     const sql = `

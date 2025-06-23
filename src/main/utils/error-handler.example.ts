@@ -57,9 +57,9 @@ export async function exampleWithRetry(data: any): Promise<any> {
       }
     },
     {
-      retries: 3,
-      minTimeout: 1000,
-      maxTimeout: 5000
+      maxAttempts: 3,
+      initialDelay: 1000,
+      maxDelay: 5000
     }
   );
 }

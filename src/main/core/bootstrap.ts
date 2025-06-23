@@ -176,10 +176,9 @@ export function registerServices(): void {
   // 自律モードサービス
   container.register<IAutonomousService>('autonomous', () => {
     const db = container.getSync<IDatabaseService>('database');
-    const multiAgent = container.getSync<IMultiAgentService>('multiAgent');
-    return new AutonomousModeService(db.getConnection(), multiAgent as any) as any;
+    return AutonomousModeService.getInstance(db.getConnection()) as any;
   }, {
-    dependencies: ['database', 'multiAgent'],
+    dependencies: ['database'],
     singleton: true
   });
 }

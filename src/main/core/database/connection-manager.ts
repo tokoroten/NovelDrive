@@ -33,9 +33,10 @@ interface ConnectionWrapper {
 }
 
 export class ConnectionManager extends EventEmitter {
+  private static instance: ConnectionManager | null = null;
   private database: duckdb.Database | null = null;
   private connections: Map<string, ConnectionWrapper> = new Map();
-  private options: ConnectionOptions;
+  private options: ConnectionOptions | null = null;
   private isInitialized = false;
   private stats: ConnectionStats = {
     totalConnections: 0,
@@ -46,27 +47,38 @@ export class ConnectionManager extends EventEmitter {
     totalQueries: 0
   };
 
-  constructor(options: ConnectionOptions) {
+  private constructor() {
     super();
-    this.options = {
-      maxConnections: 10,
-      connectTimeout: 5000,
-      ...options
-    };
+  }
+
+  /**
+   * シングルトンインスタンスの取得
+   */
+  static getInstance(): ConnectionManager {
+    if (!ConnectionManager.instance) {
+      ConnectionManager.instance = new ConnectionManager();
+    }
+    return ConnectionManager.instance;
   }
 
   /**
    * データベースの初期化
    */
-  async initialize(): Promise<void> {
+  async initialize(options?: Partial<ConnectionOptions>): Promise<void> {
     if (this.isInitialized) {
-      return;
+      throw new DatabaseError('既にデータベースが初期化されています');
     }
 
+    this.options = {
+      path: ':memory:',
+      maxConnections: 10,
+      connectTimeout: 5000,
+      ...options
+    };
+
     try {
-      this.database = new duckdb.Database(this.options.path, {
-        access_mode: this.options.readOnly ? 'READ_ONLY' : 'READ_WRITE'
-      });
+      // DuckDB doesn't support options in constructor, use default
+      this.database = new duckdb.Database(this.options.path);
 
       this.isInitialized = true;
       this.emit('initialized');
@@ -77,9 +89,52 @@ export class ConnectionManager extends EventEmitter {
   }
 
   /**
-   * 接続の取得
+   * データベースインスタンスの取得
    */
-  async getConnection(): Promise<duckdb.Connection> {
+  getDatabase(): duckdb.Database {
+    if (!this.isInitialized || !this.database) {
+      throw new DatabaseError('データベースが初期化されていません');
+    }
+    return this.database;
+  }
+
+  /**
+   * コネクションの取得（同期版）
+   */
+  getConnection(): duckdb.Connection {
+    if (!this.isInitialized || !this.database) {
+      throw new DatabaseError('データベースが初期化されていません');
+    }
+
+    // メインコネクションがない場合は作成
+    if (this.connections.size === 0) {
+      const conn = this.database.connect();
+      const wrapper: ConnectionWrapper = {
+        id: 'main',
+        connection: conn,
+        inUse: false,
+        createdAt: new Date(),
+        lastUsedAt: new Date(),
+        queryCount: 0,
+        totalQueryTime: 0
+      };
+      this.connections.set('main', wrapper);
+      return conn;
+    }
+
+    // メインコネクションを返す
+    const mainConn = this.connections.get('main');
+    if (mainConn) {
+      return mainConn.connection;
+    }
+
+    throw new DatabaseError('コネクションの取得に失敗しました');
+  }
+
+  /**
+   * 接続の取得（非同期版）
+   */
+  async getConnectionAsync(): Promise<duckdb.Connection> {
     if (!this.isInitialized || !this.database) {
       throw new DatabaseError('データベースが初期化されていません');
     }
@@ -370,7 +425,7 @@ export class ConnectionManager extends EventEmitter {
     params: any[] = []
   ): Promise<T[]> {
     return new Promise((resolve, reject) => {
-      conn.all(sql, ...params, (err, result) => {
+      conn.all(sql, ...params, (err: Error | null, result: any) => {
         if (err) {
           reject(new DatabaseError(`クエリ実行エラー: ${err.message}`, err));
         } else {

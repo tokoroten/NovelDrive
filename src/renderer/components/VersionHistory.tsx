@@ -133,8 +133,8 @@ export function VersionHistory() {
   const loadVersionHistory = async (documentId: string) => {
     try {
       setIsLoading(true);
-      const history = await window.electronAPI.versionHistory.getHistory(documentId);
-      setVersions(history || []);
+      const response = await window.electronAPI.versionHistory.list(documentId);
+      setVersions(response.data || []);
       setSelectedVersions([]);
       setCurrentDiff(null);
     } catch (error) {
@@ -148,8 +148,8 @@ export function VersionHistory() {
   const compareTo = async (fromVersionId: string, toVersionId: string) => {
     try {
       setIsLoading(true);
-      const diff = await window.electronAPI.versionHistory.calculateDiff(fromVersionId, toVersionId);
-      setCurrentDiff(diff);
+      const response = await window.electronAPI.versionHistory.compare(fromVersionId, toVersionId);
+      setCurrentDiff(response.data);
     } catch (error) {
       console.error('Failed to calculate diff:', error);
       alert('差分の計算に失敗しました');
