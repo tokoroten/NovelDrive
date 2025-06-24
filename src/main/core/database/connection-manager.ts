@@ -151,7 +151,7 @@ export class ConnectionManager extends EventEmitter {
     }
 
     // 最大接続数チェック
-    if (this.connections.size >= (this.options.maxConnections || 10)) {
+    if (this.connections.size >= (this.options?.maxConnections || 10)) {
       // 最も古い未使用接続を探して再利用
       const oldestIdle = this.findOldestIdleConnection();
       if (oldestIdle) {
@@ -257,6 +257,20 @@ export class ConnectionManager extends EventEmitter {
    */
   getStats(): ConnectionStats {
     return { ...this.stats };
+  }
+
+  /**
+   * データベース接続を閉じる
+   */
+  async close(): Promise<void> {
+    await this.cleanup();
+  }
+
+  /**
+   * 初期化状態を確認
+   */
+  checkInitialized(): boolean {
+    return this.isInitialized;
   }
 
   /**
@@ -440,8 +454,11 @@ export class ConnectionManager extends EventEmitter {
 let connectionManager: ConnectionManager | null = null;
 
 export function getConnectionManager(options?: ConnectionOptions): ConnectionManager {
-  if (!connectionManager && options) {
-    connectionManager = new ConnectionManager(options);
+  if (!connectionManager) {
+    connectionManager = ConnectionManager.getInstance();
+    if (options) {
+      connectionManager.initialize(options);
+    }
   }
   
   if (!connectionManager) {

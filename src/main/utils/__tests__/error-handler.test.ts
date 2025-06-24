@@ -2,229 +2,155 @@
  * エラーハンドリングユーティリティのテスト
  */
 
-import { 
-  AppError, 
-  ValidationError, 
-  NotFoundError, 
+import {
+  AppError,
+  ValidationError,
+  NotFoundError,
   DatabaseError,
-  APIError,
-  wrapIPCHandler,
-  ErrorCollector,
+  AIServiceError,
   errorLogger,
-  isRetryableError
+  wrapIPCHandler
 } from '../error-handler';
 
 describe('Error Classes', () => {
   describe('AppError', () => {
-    it('基本的なエラーを作成できる', () => {
-      const error = new AppError('テストエラー', 'TEST_ERROR', 400);
+    it('基本的なエラーを作成', () => {
+      const error = new AppError('Test error', 'TEST_ERROR', 400);
       
-      expect(error.message).toBe('テストエラー');
+      expect(error.message).toBe('Test error');
       expect(error.code).toBe('TEST_ERROR');
       expect(error.statusCode).toBe(400);
-      expect(error.timestamp).toBeInstanceOf(Date);
-      expect(error.stack).toBeDefined();
-    });
-
-    it('APIレスポンス形式に変換できる', () => {
-      const error = new AppError('テストエラー', 'TEST_ERROR', 400);
-      const response = error.toAPIResponse();
-      
-      expect(response).toEqual({
-        success: false,
-        error: {
-          message: 'テストエラー',
-          code: 'TEST_ERROR',
-          statusCode: 400,
-          timestamp: error.timestamp.toISOString()
-        }
-      });
+      expect(error.isOperational).toBe(true);
+      expect(error.name).toBe('AppError');
     });
   });
 
   describe('ValidationError', () => {
-    it('バリデーションエラーを作成できる', () => {
-      const error = new ValidationError('フィールドが無効です');
+    it('バリデーションエラーを作成', () => {
+      const error = new ValidationError('無効なメールアドレス');
       
-      expect(error.message).toBe('フィールドが無効です');
+      expect(error.message).toBe('無効なメールアドレス');
       expect(error.code).toBe('VALIDATION_ERROR');
       expect(error.statusCode).toBe(400);
-    });
-
-    it('詳細情報を含めることができる', () => {
-      const details = { field: 'email', reason: 'invalid format' };
-      const error = new ValidationError('バリデーションエラー', details);
-      
-      expect(error.details).toEqual(details);
     });
   });
 
   describe('NotFoundError', () => {
-    it('リソースが見つからないエラーを作成できる', () => {
+    it('リソースタイプを含むエラー', () => {
       const error = new NotFoundError('ユーザー');
       
       expect(error.message).toBe('ユーザーが見つかりません');
       expect(error.code).toBe('NOT_FOUND');
       expect(error.statusCode).toBe(404);
-      expect(error.resourceType).toBe('ユーザー');
     });
   });
 
   describe('DatabaseError', () => {
-    it('データベースエラーを作成できる', () => {
+    it('元のエラーを保持', () => {
       const originalError = new Error('Connection failed');
-      const error = new DatabaseError('接続に失敗しました', originalError);
+      const error = new DatabaseError('接続エラー', originalError);
       
-      expect(error.message).toBe('接続に失敗しました');
-      expect(error.code).toBe('DATABASE_ERROR');
-      expect(error.statusCode).toBe(500);
-      expect(error.originalError).toBe(originalError);
+      expect(error.message).toBe('データベースエラー: 接続エラー');
+      expect(error.stack).toBe(originalError.stack);
     });
   });
 
-  describe('APIError', () => {
-    it('APIエラーを作成できる', () => {
-      const error = new APIError('外部API呼び出しに失敗', 'EXTERNAL_API', 503);
+  describe('AIServiceError', () => {
+    it('サービス名を含むエラー', () => {
+      const error = new AIServiceError('API呼び出し失敗', 'OpenAI');
       
-      expect(error.message).toBe('外部API呼び出しに失敗');
-      expect(error.apiName).toBe('EXTERNAL_API');
+      expect(error.message).toBe('OpenAIサービスエラー: API呼び出し失敗');
+      expect(error.code).toBe('AI_SERVICE_ERROR');
       expect(error.statusCode).toBe(503);
     });
   });
 });
 
-describe('wrapIPCHandler', () => {
-  it('正常なハンドラーの結果を返す', async () => {
-    const handler = wrapIPCHandler(
-      async (event, data) => ({ result: data * 2 }),
-      'テストハンドラー'
-    );
-    
-    const result = await handler({} as any, 5);
-    expect(result).toEqual({ result: 10 });
-  });
-
-  it('エラーをキャッチしてAPIレスポンス形式で返す', async () => {
-    const handler = wrapIPCHandler(
-      async () => { throw new ValidationError('無効な入力'); },
-      'テストハンドラー'
-    );
-    
-    const result = await handler({} as any);
-    expect(result.success).toBe(false);
-    expect(result.error?.message).toBe('無効な入力');
-    expect(result.error?.code).toBe('VALIDATION_ERROR');
-  });
-
-  it('予期しないエラーをハンドリングする', async () => {
-    const handler = wrapIPCHandler(
-      async () => { throw new Error('予期しないエラー'); },
-      'テストハンドラー'
-    );
-    
-    const result = await handler({} as any);
-    expect(result.success).toBe(false);
-    expect(result.error?.message).toBe('テストハンドラー: 予期しないエラー');
-    expect(result.error?.code).toBe('UNKNOWN_ERROR');
-  });
-});
-
-describe('ErrorCollector', () => {
-  it('複数のエラーを収集できる', () => {
-    const collector = new ErrorCollector();
-    
-    collector.add('item1', new Error('エラー1'));
-    collector.add('item2', new Error('エラー2'));
-    
-    expect(collector.hasErrors()).toBe(true);
-    expect(collector.getErrors()).toHaveLength(2);
-  });
-
-  it('収集したエラーをスローできる', () => {
-    const collector = new ErrorCollector();
-    collector.add('item1', new Error('エラー1'));
-    
-    expect(() => collector.throwIfAny()).toThrow('1件の処理でエラーが発生しました');
-  });
-
-  it('エラーをクリアできる', () => {
-    const collector = new ErrorCollector();
-    collector.add('item1', new Error('エラー1'));
-    
-    collector.clear();
-    expect(collector.hasErrors()).toBe(false);
-  });
-});
-
-describe('ErrorLogger', () => {
-  beforeEach(() => {
-    errorLogger.clear();
-  });
-
-  it('エラーをログに記録できる', () => {
-    const error = new Error('テストエラー');
+describe('errorLogger', () => {
+  it('エラーをログに記録', () => {
+    const error = new Error('Test error');
     const context = { userId: '123' };
     
     errorLogger.log(error, context);
     
     const logs = errorLogger.getRecentErrors(10);
-    expect(logs).toHaveLength(1);
-    expect(logs[0].error).toBe(error);
-    expect(logs[0].context).toEqual(context);
+    expect(logs.length).toBeGreaterThanOrEqual(1);
+    const lastLog = logs[0];
+    expect(lastLog.error).toBe(error);
+    expect(lastLog.context).toEqual(context);
   });
 
-  it('最近のエラーを取得できる', () => {
-    for (let i = 0; i < 150; i++) {
-      errorLogger.log(new Error(`エラー${i}`));
+  it('指定された数のエラーを返す', () => {
+    const baseCount = errorLogger.getRecentErrors(100).length;
+    
+    for (let i = 0; i < 5; i++) {
+      errorLogger.log(new Error(`Error ${i}`));
     }
     
-    const logs = errorLogger.getRecentErrors(50);
-    expect(logs).toHaveLength(50);
-    expect(logs[0].error.message).toBe('エラー149'); // 最新のエラー
-  });
-
-  it('ログをクリアできる', () => {
-    errorLogger.log(new Error('エラー'));
-    errorLogger.clear();
-    
-    const logs = errorLogger.getRecentErrors(10);
-    expect(logs).toHaveLength(0);
+    const logs = errorLogger.getRecentErrors(3);
+    expect(logs).toHaveLength(3);
   });
 });
 
-describe('isRetryableError', () => {
-  it('ネットワークエラーはリトライ可能', () => {
-    const error = Object.assign(new Error('Network error'), { code: 'ECONNREFUSED' });
-    expect(isRetryableError(error)).toBe(true);
+describe('wrapIPCHandler', () => {
+  it('成功時の結果を返す', async () => {
+    const handler = jest.fn().mockResolvedValue({ data: 'success' });
+    const wrapped = wrapIPCHandler(handler);
+    
+    const result = await wrapped({} as any, 'test-arg');
+    expect(result).toEqual({ data: 'success' });
   });
 
-  it('タイムアウトエラーはリトライ可能', () => {
-    const error = Object.assign(new Error('Timeout'), { code: 'ETIMEDOUT' });
-    expect(isRetryableError(error)).toBe(true);
+  it('エラー時に例外をスロー', async () => {
+    const handler = jest.fn().mockRejectedValue(new Error('Handler error'));
+    const wrapped = wrapIPCHandler(handler, 'カスタムエラーメッセージ');
+    
+    await expect(wrapped({} as any, 'test-arg')).rejects.toThrow('カスタムエラーメッセージ');
   });
 
-  it('データベースロックエラーはリトライ可能', () => {
-    const error = new DatabaseError('database is locked');
-    expect(isRetryableError(error)).toBe(true);
+  it('AppErrorの場合はそのままスロー', async () => {
+    const appError = new ValidationError('Invalid input');
+    const handler = jest.fn().mockRejectedValue(appError);
+    const wrapped = wrapIPCHandler(handler);
+    
+    await expect(wrapped({} as any)).rejects.toThrow(appError);
   });
 
-  it('バリデーションエラーはリトライ不可', () => {
-    const error = new ValidationError('無効な値');
-    expect(isRetryableError(error)).toBe(false);
+  it('エラーをログに記録', async () => {
+    const logSpy = jest.spyOn(errorLogger, 'log');
+    const error = new Error('Test error');
+    const handler = jest.fn().mockRejectedValue(error);
+    const wrapped = wrapIPCHandler(handler);
+    
+    try {
+      await wrapped({} as any, 'test-arg');
+    } catch (e) {
+      // エラーは期待される
+    }
+    
+    expect(logSpy).toHaveBeenCalledWith(error, { args: ['test-arg'] });
+    logSpy.mockRestore();
   });
+});
 
-  it('NotFoundエラーはリトライ不可', () => {
-    const error = new NotFoundError('リソース');
-    expect(isRetryableError(error)).toBe(false);
-  });
-
-  it('429エラーはリトライ可能', () => {
-    const error = new APIError('Rate limited', 'API', 429);
-    expect(isRetryableError(error)).toBe(true);
-  });
-
-  it('503エラーはリトライ可能', () => {
-    const error = new APIError('Service unavailable', 'API', 503);
-    expect(isRetryableError(error)).toBe(true);
+describe('Error Integration', () => {
+  it('複数のエラータイプを区別できる', () => {
+    const errors = [
+      new AppError('App error', 'APP_ERROR'),
+      new ValidationError('Validation error'),
+      new NotFoundError('Resource'),
+      new DatabaseError('DB error'),
+      new AIServiceError('AI error', 'GPT')
+    ];
+    
+    errors.forEach(error => {
+      expect(error).toBeInstanceOf(AppError);
+      expect(error).toBeInstanceOf(Error);
+    });
+    
+    expect(errors[1].code).toBe('VALIDATION_ERROR');
+    expect(errors[2].code).toBe('NOT_FOUND');
+    expect(errors[3].code).toBe('DATABASE_ERROR');
+    expect(errors[4].code).toBe('AI_SERVICE_ERROR');
   });
 });

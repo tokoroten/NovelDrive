@@ -4,6 +4,7 @@ import { extractMainContent, generateEmbedding } from './openai-service';
 import { v4 as uuidv4 } from 'uuid';
 import { getSearchTokens } from './japanese-tokenizer';
 import * as duckdb from 'duckdb';
+import { wrapIPCHandler, ValidationError } from '../utils/error-handler';
 
 interface CrawlOptions {
   maxDepth: number;
@@ -350,8 +351,23 @@ async function saveKnowledgeFromCrawl(conn: duckdb.Connection, knowledge: Record
  * IPCハンドラーの設定
  */
 export function setupCrawlerHandlers(conn: duckdb.Connection): void {
-  ipcMain.handle('crawler:crawl', async (_, url: string, depth: number, options?: any) => {
-    try {
+  ipcMain.handle('crawler:crawl', wrapIPCHandler(
+    async (_, url: string, depth: number, options?: any) => {
+      if (!url) {
+        throw new ValidationError('URLが指定されていません');
+      }
+      
+      if (typeof depth !== 'number' || depth < 0 || depth > 5) {
+        throw new ValidationError('深さは0から5の間で指定してください');
+      }
+
+      // URLの妥当性チェック
+      try {
+        new URL(url);
+      } catch {
+        throw new ValidationError('無効なURL形式です');
+      }
+
       const crawler = new WebCrawler({
         maxDepth: depth,
         ...options,
@@ -375,12 +391,7 @@ export function setupCrawlerHandlers(conn: duckdb.Connection): void {
           depth: r.depth,
         })),
       };
-    } catch (error) {
-      console.error('Crawler error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
-  });
+    },
+    'Webクロール中にエラーが発生しました'
+  ));
 }

@@ -4,6 +4,7 @@ import * as duckdb from 'duckdb';
 import { extractInspirationLocal } from './local-inspiration-service';
 import { LocalEmbeddingService } from './local-embedding-service';
 import { getSearchTokens } from './japanese-tokenizer';
+import { wrapIPCHandler, ValidationError } from '../utils/error-handler';
 
 interface AnythingBoxInput {
   content: string;
@@ -349,8 +350,12 @@ async function saveKnowledgeItem(conn: duckdb.Connection, knowledge: Record<stri
  */
 export function setupAnythingBoxHandlers(conn: duckdb.Connection): void {
   // なんでもボックスへの投入
-  ipcMain.handle('anythingBox:process', async (_, input: AnythingBoxInput) => {
-    try {
+  ipcMain.handle('anythingBox:process', wrapIPCHandler(
+    async (_, input: AnythingBoxInput) => {
+      if (!input || !input.content) {
+        throw new ValidationError('入力内容が指定されていません');
+      }
+
       const processed = await processAnythingBoxInput(input);
 
       // データベースに保存
@@ -366,26 +371,20 @@ export function setupAnythingBoxHandlers(conn: duckdb.Connection): void {
         saved,
         failed,
       };
-    } catch (error) {
-      console.error('AnythingBox processing error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
-  });
+    },
+    'なんでもボックスの処理中にエラーが発生しました'
+  ));
 
   // 処理履歴の取得
-  ipcMain.handle(
-    'anythingBox:history',
+  ipcMain.handle('anythingBox:history', wrapIPCHandler(
     async (_, options?: { projectId?: string; limit?: number }) => {
       const { projectId, limit = 50 } = options || {};
 
       let sql = `
-      SELECT id, title, type, metadata, created_at
-      FROM knowledge
-      WHERE metadata LIKE '%"processedAt"%'
-    `;
+        SELECT id, title, type, metadata, created_at
+        FROM knowledge
+        WHERE metadata LIKE '%"processedAt"%'
+      `;
 
       const params: any[] = [];
 
@@ -410,6 +409,7 @@ export function setupAnythingBoxHandlers(conn: duckdb.Connection): void {
           }
         });
       });
-    }
-  );
+    },
+    'なんでもボックスの履歴取得中にエラーが発生しました'
+  ));
 }

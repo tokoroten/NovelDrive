@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import * as duckdb from 'duckdb';
 import { generateSerendipitousEmbedding, cosineSimilarity, rerankResults } from './vector-search';
+import { wrapIPCHandler, ValidationError } from '../utils/error-handler';
 
 interface SearchOptions {
   limit?: number;
@@ -267,17 +268,35 @@ export async function findRelatedItems(
  */
 export function setupSerendipitySearchHandlers(conn: duckdb.Connection): void {
   // セレンディピティ検索
-  ipcMain.handle('search:serendipity', async (_, query: string, options?: SearchOptions) => {
-    return performSerendipitySearch(conn, query, options);
-  });
+  ipcMain.handle('search:serendipity', wrapIPCHandler(
+    async (_, query: string, options?: SearchOptions) => {
+      if (!query) {
+        throw new ValidationError('検索クエリが指定されていません');
+      }
+      return performSerendipitySearch(conn, query, options);
+    },
+    'セレンディピティ検索中にエラーが発生しました'
+  ));
 
   // ハイブリッド検索
-  ipcMain.handle('search:hybrid', async (_, query: string, options?: any) => {
-    return performHybridSearch(conn, query, options);
-  });
+  ipcMain.handle('search:hybrid', wrapIPCHandler(
+    async (_, query: string, options?: any) => {
+      if (!query) {
+        throw new ValidationError('検索クエリが指定されていません');
+      }
+      return performHybridSearch(conn, query, options);
+    },
+    'ハイブリッド検索中にエラーが発生しました'
+  ));
 
   // 関連アイテム検索
-  ipcMain.handle('search:related', async (_, itemId: string, options?: SearchOptions) => {
-    return findRelatedItems(conn, itemId, options);
-  });
+  ipcMain.handle('search:related', wrapIPCHandler(
+    async (_, itemId: string, options?: SearchOptions) => {
+      if (!itemId) {
+        throw new ValidationError('アイテムIDが指定されていません');
+      }
+      return findRelatedItems(conn, itemId, options);
+    },
+    '関連アイテム検索中にエラーが発生しました'
+  ));
 }

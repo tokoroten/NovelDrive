@@ -7,7 +7,9 @@ import { DatabaseError } from '../../utils/error-handler';
 
 // 初期化例
 export async function initializeDatabase(): Promise<ConnectionManager> {
-  const manager = new ConnectionManager({
+  const manager = ConnectionManager.getInstance();
+  
+  await manager.initialize({
     path: './database.db',
     maxConnections: 5,
     connectTimeout: 3000
@@ -18,15 +20,15 @@ export async function initializeDatabase(): Promise<ConnectionManager> {
     console.log('Database initialized');
   });
 
-  manager.on('connectionCreated', (id) => {
+  manager.on('connectionCreated', (id: string) => {
     console.log(`New connection created: ${id}`);
   });
 
-  manager.on('connectionAcquired', (id) => {
+  manager.on('connectionAcquired', (id: string) => {
     console.log(`Connection acquired: ${id}`);
   });
 
-  manager.on('connectionReleased', (id) => {
+  manager.on('connectionReleased', (id: string) => {
     console.log(`Connection released: ${id}`);
   });
 

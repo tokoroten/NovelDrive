@@ -33,7 +33,11 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:headless": "playwright test --reporter=github",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "postinstall": "electron-rebuild",
+    "rebuild": "electron-rebuild -f -w duckdb",
+    "setup:duckdb": "node scripts/setup-duckdb.js",
+    "clean:install": "rm -rf node_modules package-lock.json && npm cache clean --force && npm install && npm run setup:duckdb"
   },
   "keywords": [
     "electron",
@@ -44,6 +48,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@electron/rebuild": "^4.0.1",
     "@playwright/test": "^1.53.1",
     "@rollup/rollup-win32-x64-msvc": "^4.44.0",
     "@types/jest": "^30.0.0",

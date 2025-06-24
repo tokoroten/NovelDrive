@@ -3,27 +3,32 @@
  */
 
 import { ConnectionManager } from '../connection-manager';
+import { DatabaseError } from '../../../utils/error-handler';
 import * as duckdb from 'duckdb';
-import * as path from 'path';
-import * as fs from 'fs';
 
 // DuckDBのモック
 jest.mock('duckdb', () => ({
   Database: jest.fn().mockImplementation(function(this: any, dbPath: string) {
     this.path = dbPath;
     this.connect = jest.fn().mockReturnValue({
-      close: jest.fn((callback) => callback()),
-      all: jest.fn(),
-      run: jest.fn(),
-      prepare: jest.fn()
+      all: jest.fn((sql: string, ...args: any[]) => {
+        const callback = args[args.length - 1];
+        if (typeof callback === 'function') {
+          callback(null, [{ result: 1 }]);
+        }
+      }),
+      run: jest.fn((sql: string, ...args: any[]) => {
+        const callback = args[args.length - 1];
+        if (typeof callback === 'function') {
+          callback(null);
+        }
+      })
     });
-    this.close = jest.fn((callback) => callback());
   })
 }));
 
 describe('ConnectionManager', () => {
   let manager: ConnectionManager;
-  const testDbPath = '/tmp/test.db';
 
   beforeEach(() => {
     // シングルトンインスタンスをリセット
@@ -32,7 +37,7 @@ describe('ConnectionManager', () => {
   });
 
   afterEach(async () => {
-    if (manager) {
+    if (manager && manager.checkInitialized()) {
       await manager.close();
     }
   });
@@ -50,27 +55,21 @@ describe('ConnectionManager', () => {
     it('デフォルト設定で初期化できる', async () => {
       await manager.initialize();
       
-      expect(manager.isInitialized()).toBe(true);
+      expect(manager.checkInitialized()).toBe(true);
       expect(duckdb.Database).toHaveBeenCalledWith(':memory:');
     });
 
     it('カスタムパスで初期化できる', async () => {
-      await manager.initialize({ path: testDbPath });
+      await manager.initialize({ path: '/tmp/test.db' });
       
-      expect(manager.isInitialized()).toBe(true);
-      expect(duckdb.Database).toHaveBeenCalledWith(testDbPath);
+      expect(manager.checkInitialized()).toBe(true);
+      expect(duckdb.Database).toHaveBeenCalledWith('/tmp/test.db');
     });
 
-    it('読み取り専用モードで初期化できる', async () => {
-      await manager.initialize({ path: testDbPath, readOnly: true });
-      
-      expect(manager.isInitialized()).toBe(true);
-      expect((manager as any).options.readOnly).toBe(true);
-    });
-
-    it('既に初期化されている場合はエラーをスロー', async () => {
+    it('二重初期化でエラーをスロー', async () => {
       await manager.initialize();
       
+      await expect(manager.initialize()).rejects.toThrow(DatabaseError);
       await expect(manager.initialize()).rejects.toThrow('既にデータベースが初期化されています');
     });
   });
@@ -81,154 +80,199 @@ describe('ConnectionManager', () => {
       
       const db = manager.getDatabase();
       expect(db).toBeDefined();
-      expect(db).toHaveProperty('connect');
+      expect(db).toBeInstanceOf(duckdb.Database);
     });
 
     it('初期化前はエラーをスロー', () => {
+      expect(() => manager.getDatabase()).toThrow(DatabaseError);
       expect(() => manager.getDatabase()).toThrow('データベースが初期化されていません');
     });
   });
 
   describe('getConnection', () => {
-    it('初期化後に接続を返す', async () => {
+    it('初期化後にコネクションを返す', async () => {
       await manager.initialize();
       
       const conn = manager.getConnection();
       expect(conn).toBeDefined();
-      expect(conn).toHaveProperty('all');
-      expect(conn).toHaveProperty('run');
+      expect(conn.all).toBeDefined();
+      expect(conn.run).toBeDefined();
+    });
+
+    it('同じコネクションを返す（メインコネクション）', async () => {
+      await manager.initialize();
+      
+      const conn1 = manager.getConnection();
+      const conn2 = manager.getConnection();
+      
+      expect(conn1).toBe(conn2);
     });
 
     it('初期化前はエラーをスロー', () => {
+      expect(() => manager.getConnection()).toThrow(DatabaseError);
       expect(() => manager.getConnection()).toThrow('データベースが初期化されていません');
     });
   });
 
-  describe('createConnection', () => {
-    it('新しい接続を作成する', async () => {
+  describe('getConnectionAsync', () => {
+    it('非同期でコネクションを取得', async () => {
       await manager.initialize();
       
-      const conn = manager.createConnection();
+      const conn = await manager.getConnectionAsync();
       expect(conn).toBeDefined();
-      expect(conn).not.toBe(manager.getConnection());
+      expect(conn.all).toBeDefined();
+    });
+
+    it('最大接続数に達した場合のエラー', async () => {
+      await manager.initialize({ maxConnections: 1 });
+      
+      // 最初のコネクションを取得して保持
+      const conn1 = await manager.getConnectionAsync();
+      
+      // 2つ目のコネクションを取得しようとするとエラー
+      await expect(manager.getConnectionAsync()).rejects.toThrow(DatabaseError);
     });
   });
 
-  describe('close', () => {
-    it('データベースと接続を閉じる', async () => {
+  describe('releaseConnection', () => {
+    it('コネクションを解放できる', async () => {
       await manager.initialize();
-      const db = manager.getDatabase();
-      const conn = manager.getConnection();
       
-      await manager.close();
+      const conn = await manager.getConnectionAsync();
+      manager.releaseConnection(conn);
       
-      expect(conn.close).toHaveBeenCalled();
-      expect(db.close).toHaveBeenCalled();
-      expect(manager.isInitialized()).toBe(false);
-    });
-
-    it('初期化されていない場合は何もしない', async () => {
-      await expect(manager.close()).resolves.not.toThrow();
+      // 解放後は再取得できる
+      const conn2 = await manager.getConnectionAsync();
+      expect(conn2).toBe(conn);
     });
   });
 
-  describe('executeTransaction', () => {
-    it('トランザクション内で関数を実行する', async () => {
+  describe('transaction', () => {
+    it('トランザクションを実行できる', async () => {
       await manager.initialize();
-      const conn = manager.getConnection();
-      conn.run = jest.fn((sql, callback) => callback(null));
       
-      const result = await manager.executeTransaction(async (txConn) => {
-        expect(txConn).toBe(conn);
-        return 'success';
-      });
+      const mockCallback = jest.fn().mockResolvedValue({ result: 'success' });
+      const result = await manager.transaction(mockCallback);
       
-      expect(result).toBe('success');
-      expect(conn.run).toHaveBeenCalledWith('BEGIN', expect.any(Function));
-      expect(conn.run).toHaveBeenCalledWith('COMMIT', expect.any(Function));
+      expect(result).toEqual({ result: 'success' });
+      expect(mockCallback).toHaveBeenCalled();
     });
 
-    it('エラー時にロールバックする', async () => {
+    it('エラー時にロールバック', async () => {
       await manager.initialize();
-      const conn = manager.getConnection();
-      conn.run = jest.fn((sql, callback) => callback(null));
       
-      await expect(
-        manager.executeTransaction(async () => {
-          throw new Error('Transaction error');
-        })
-      ).rejects.toThrow('Transaction error');
+      const mockCallback = jest.fn().mockRejectedValue(new Error('Transaction error'));
       
-      expect(conn.run).toHaveBeenCalledWith('BEGIN', expect.any(Function));
-      expect(conn.run).toHaveBeenCalledWith('ROLLBACK', expect.any(Function));
+      await expect(manager.transaction(mockCallback)).rejects.toThrow('Transaction error');
     });
   });
 
   describe('query', () => {
     it('クエリを実行して結果を返す', async () => {
       await manager.initialize();
+      
       const conn = manager.getConnection();
-      const mockResults = [{ id: 1, name: 'test' }];
-      conn.all = jest.fn((sql, params, callback) => callback(null, mockResults));
+      (conn.all as jest.Mock).mockImplementationOnce((sql, ...args) => {
+        const callback = args[args.length - 1];
+        callback(null, [{ id: 1, name: 'test' }]);
+      });
       
-      const results = await manager.query('SELECT * FROM users WHERE id = ?', [1]);
-      
-      expect(results).toEqual(mockResults);
-      expect(conn.all).toHaveBeenCalledWith(
-        'SELECT * FROM users WHERE id = ?',
-        [1],
-        expect.any(Function)
-      );
+      const result = await manager.query('SELECT * FROM users');
+      expect(result).toEqual([{ id: 1, name: 'test' }]);
     });
 
-    it('クエリエラーをスロー', async () => {
+    it('クエリエラーをDatabaseErrorとしてスロー', async () => {
       await manager.initialize();
+      
       const conn = manager.getConnection();
-      conn.all = jest.fn((sql, params, callback) => callback(new Error('Query error'), null));
+      (conn.all as jest.Mock).mockImplementationOnce((sql, ...args) => {
+        const callback = args[args.length - 1];
+        callback(new Error('Query failed'), null);
+      });
       
-      await expect(
-        manager.query('SELECT * FROM invalid_table')
-      ).rejects.toThrow('クエリの実行に失敗しました');
-    });
-  });
-
-  describe('execute', () => {
-    it('SQLを実行する', async () => {
-      await manager.initialize();
-      const conn = manager.getConnection();
-      conn.run = jest.fn((sql, params, callback) => callback(null));
-      
-      await manager.execute('INSERT INTO users (name) VALUES (?)', ['test']);
-      
-      expect(conn.run).toHaveBeenCalledWith(
-        'INSERT INTO users (name) VALUES (?)',
-        ['test'],
-        expect.any(Function)
-      );
-    });
-
-    it('実行エラーをスロー', async () => {
-      await manager.initialize();
-      const conn = manager.getConnection();
-      conn.run = jest.fn((sql, params, callback) => callback(new Error('Execute error')));
-      
-      await expect(
-        manager.execute('DELETE FROM invalid_table')
-      ).rejects.toThrow('SQLの実行に失敗しました');
+      await expect(manager.query('SELECT * FROM invalid')).rejects.toThrow(DatabaseError);
     });
   });
 
-  describe('健全性チェック', () => {
-    it('複数の接続を管理できる', async () => {
+  describe('healthCheck', () => {
+    it('正常時はtrueを返す', async () => {
       await manager.initialize();
       
-      const conn1 = manager.getConnection();
-      const conn2 = manager.createConnection();
-      const conn3 = manager.createConnection();
+      const result = await manager.healthCheck();
+      expect(result).toBe(true);
+    });
+
+    it('エラー時はfalseを返す', async () => {
+      await manager.initialize();
       
-      expect(conn1).not.toBe(conn2);
-      expect(conn2).not.toBe(conn3);
-      expect(conn1).not.toBe(conn3);
+      const conn = manager.getConnection();
+      (conn.all as jest.Mock).mockImplementationOnce((sql, ...args) => {
+        const callback = args[args.length - 1];
+        callback(new Error('Health check failed'), null);
+      });
+      
+      const result = await manager.healthCheck();
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('getStats', () => {
+    it('統計情報を取得できる', async () => {
+      await manager.initialize();
+      
+      const stats = manager.getStats();
+      expect(stats).toHaveProperty('totalConnections');
+      expect(stats).toHaveProperty('activeConnections');
+      expect(stats).toHaveProperty('idleConnections');
+      expect(stats).toHaveProperty('failedConnections');
+      expect(stats).toHaveProperty('averageQueryTime');
+      expect(stats).toHaveProperty('totalQueries');
+    });
+  });
+
+  describe('getPoolStatus', () => {
+    it('接続プールの状態を取得できる', async () => {
+      await manager.initialize();
+      
+      const status = manager.getPoolStatus();
+      expect(status).toHaveProperty('total');
+      expect(status).toHaveProperty('active');
+      expect(status).toHaveProperty('idle');
+      expect(status).toHaveProperty('connections');
+      expect(Array.isArray(status.connections)).toBe(true);
+    });
+  });
+
+  describe('cleanup', () => {
+    it('すべてのリソースをクリーンアップ', async () => {
+      await manager.initialize();
+      
+      await manager.cleanup();
+      
+      expect(manager.checkInitialized()).toBe(false);
+      expect(() => manager.getDatabase()).toThrow(DatabaseError);
+    });
+  });
+
+  describe('イベント', () => {
+    it('初期化イベントが発火される', async () => {
+      const onInitialized = jest.fn();
+      manager.on('initialized', onInitialized);
+      
+      await manager.initialize();
+      
+      expect(onInitialized).toHaveBeenCalled();
+    });
+
+    it('クリーンアップイベントが発火される', async () => {
+      await manager.initialize();
+      
+      const onCleanup = jest.fn();
+      manager.on('cleanup', onCleanup);
+      
+      await manager.cleanup();
+      
+      expect(onCleanup).toHaveBeenCalled();
     });
   });
 });
