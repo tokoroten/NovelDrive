@@ -2,13 +2,14 @@
  * プロジェクトリポジトリ
  */
 
-import * as duckdb from 'duckdb';
 import { BaseRepository } from './base-repository';
 import { Project } from './types';
+import { ConnectionManager } from '../core/database/connection-manager';
+import { NotFoundError } from '../utils/error-handler';
 
 export class ProjectRepository extends BaseRepository<Project> {
-  constructor(conn: duckdb.Connection) {
-    super(conn, 'projects');
+  constructor(connectionManager: ConnectionManager) {
+    super(connectionManager, 'projects');
   }
 
   protected mapRowToEntity(row: any): Project {
@@ -60,7 +61,7 @@ export class ProjectRepository extends BaseRepository<Project> {
     
     const created = await this.findById(id);
     if (!created) {
-      throw new Error('Failed to create project');
+      throw new NotFoundError('作成したプロジェクト');
     }
     
     return created;
@@ -69,7 +70,7 @@ export class ProjectRepository extends BaseRepository<Project> {
   async update(id: string, updates: Partial<Project>): Promise<Project> {
     const existing = await this.findById(id);
     if (!existing) {
-      throw new Error('Project not found');
+      throw new NotFoundError('プロジェクト');
     }
 
     const updated = { ...existing, ...updates };
@@ -84,7 +85,7 @@ export class ProjectRepository extends BaseRepository<Project> {
     
     const result = await this.findById(id);
     if (!result) {
-      throw new Error('Failed to update project');
+      throw new NotFoundError('更新したプロジェクト');
     }
     
     return result;

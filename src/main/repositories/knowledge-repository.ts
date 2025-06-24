@@ -2,17 +2,18 @@
  * 知識リポジトリ
  */
 
-import * as duckdb from 'duckdb';
 import { BaseRepository } from './base-repository';
 import { Knowledge, SearchResult, SearchOptions } from './types';
 import { LocalEmbeddingService } from '../services/local-embedding-service';
 import { getSearchTokens } from '../services/japanese-tokenizer';
+import { ConnectionManager } from '../core/database/connection-manager';
+import { NotFoundError } from '../utils/error-handler';
 
 export class KnowledgeRepository extends BaseRepository<Knowledge> {
   private embeddingService: LocalEmbeddingService;
 
-  constructor(conn: duckdb.Connection) {
-    super(conn, 'knowledge');
+  constructor(connectionManager: ConnectionManager) {
+    super(connectionManager, 'knowledge');
     this.embeddingService = LocalEmbeddingService.getInstance();
   }
 
@@ -92,7 +93,7 @@ export class KnowledgeRepository extends BaseRepository<Knowledge> {
     
     const created = await this.findById(id);
     if (!created) {
-      throw new Error('Failed to create knowledge');
+      throw new NotFoundError('作成した知識');
     }
     
     return created;
@@ -101,7 +102,7 @@ export class KnowledgeRepository extends BaseRepository<Knowledge> {
   async update(id: string, updates: Partial<Knowledge>): Promise<Knowledge> {
     const existing = await this.findById(id);
     if (!existing) {
-      throw new Error('Knowledge not found');
+      throw new NotFoundError('知識');
     }
 
     const updated = { ...existing, ...updates };
@@ -127,7 +128,7 @@ export class KnowledgeRepository extends BaseRepository<Knowledge> {
     
     const result = await this.findById(id);
     if (!result) {
-      throw new Error('Failed to update knowledge');
+      throw new NotFoundError('更新した知識');
     }
     
     return result;

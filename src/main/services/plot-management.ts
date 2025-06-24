@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { ipcMain } from 'electron';
 import * as duckdb from 'duckdb';
+import { wrapIPCHandler, ValidationError, NotFoundError } from '../utils/error-handler';
 
 export interface PlotNode {
   id: string;
@@ -384,63 +385,68 @@ export class PlotManager {
 export function setupPlotHandlers(conn: duckdb.Connection): void {
   const manager = new PlotManager(conn);
 
-  ipcMain.handle('plots:create', async (_, data) => {
-    try {
+  ipcMain.handle('plots:create', wrapIPCHandler(
+    async (_, data) => {
+      if (!data || !data.projectId) {
+        throw new ValidationError('プロジェクトIDが指定されていません');
+      }
+      if (!data.title || !data.synopsis) {
+        throw new ValidationError('タイトルと概要は必須です');
+      }
       const plot = await manager.createPlot(data.projectId, data);
       return { success: true, plot };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
-  });
+    },
+    'プロットの作成中にエラーが発生しました'
+  ));
 
-  ipcMain.handle('plots:fork', async (_, plotId: string, modifications: any) => {
-    try {
+  ipcMain.handle('plots:fork', wrapIPCHandler(
+    async (_, plotId: string, modifications: any) => {
+      if (!plotId) {
+        throw new ValidationError('プロットIDが指定されていません');
+      }
       const plot = await manager.forkPlot(plotId, modifications);
       return { success: true, plot };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
-  });
+    },
+    'プロットのフォーク中にエラーが発生しました'
+  ));
 
-  ipcMain.handle('plots:get', async (_, plotId: string) => {
-    try {
+  ipcMain.handle('plots:get', wrapIPCHandler(
+    async (_, plotId: string) => {
+      if (!plotId) {
+        throw new ValidationError('プロットIDが指定されていません');
+      }
       const plot = await manager.getPlot(plotId);
+      if (!plot) {
+        throw new NotFoundError('プロット');
+      }
       return { success: true, plot };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
-  });
+    },
+    'プロットの取得中にエラーが発生しました'
+  ));
 
-  ipcMain.handle('plots:history', async (_, projectId: string) => {
-    try {
+  ipcMain.handle('plots:history', wrapIPCHandler(
+    async (_, projectId: string) => {
+      if (!projectId) {
+        throw new ValidationError('プロジェクトIDが指定されていません');
+      }
       const plots = await manager.getPlotHistory(projectId);
       return { success: true, plots };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
-  });
+    },
+    'プロット履歴の取得中にエラーが発生しました'
+  ));
 
-  ipcMain.handle('plots:updateStatus', async (_, plotId: string, status: string) => {
-    try {
+  ipcMain.handle('plots:updateStatus', wrapIPCHandler(
+    async (_, plotId: string, status: string) => {
+      if (!plotId) {
+        throw new ValidationError('プロットIDが指定されていません');
+      }
+      const validStatuses = ['draft', 'reviewing', 'approved', 'rejected'];
+      if (!validStatuses.includes(status)) {
+        throw new ValidationError('無効なステータスです');
+      }
       await manager.updatePlotStatus(plotId, status as any);
       return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
-  });
+    },
+    'プロットステータスの更新中にエラーが発生しました'
+  ));
 }

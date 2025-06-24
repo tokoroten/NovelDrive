@@ -2,9 +2,9 @@
  * リポジトリの基底クラス
  */
 
-import * as duckdb from 'duckdb';
 import { v4 as uuidv4 } from 'uuid';
 import { DatabaseError } from '../utils/error-handler';
+import { ConnectionManager } from '../core/database/connection-manager';
 
 export interface BaseEntity {
   id?: string;
@@ -14,7 +14,7 @@ export interface BaseEntity {
 
 export abstract class BaseRepository<T extends BaseEntity> {
   constructor(
-    protected conn: duckdb.Connection,
+    protected connectionManager: ConnectionManager,
     protected tableName: string
   ) {}
 
@@ -64,19 +64,17 @@ export abstract class BaseRepository<T extends BaseEntity> {
    * 単一行の実行
    */
   protected async executeQuery<R = any>(sql: string, params: any[] = []): Promise<R[]> {
-    return new Promise((resolve, reject) => {
-      this.conn.all(sql, ...params, (err: Error | null, result: any) => {
-        if (err) {
-          const dbError = new DatabaseError(
-            `クエリ実行エラー: ${err.message}`,
-            err
-          );
-          reject(dbError);
-        } else {
-          resolve(result as R[]);
-        }
-      });
-    });
+    try {
+      return await this.connectionManager.query<R>(sql, params);
+    } catch (error) {
+      if (error instanceof DatabaseError) {
+        throw error;
+      }
+      throw new DatabaseError(
+        `クエリ実行エラー: ${error instanceof Error ? error.message : '不明なエラー'}`,
+        error instanceof Error ? error : undefined
+      );
+    }
   }
 
   /**
@@ -121,5 +119,14 @@ export abstract class BaseRepository<T extends BaseEntity> {
     const sql = `SELECT 1 FROM ${this.tableName} WHERE id = ? LIMIT 1`;
     const results = await this.executeQuery(sql, [id]);
     return results.length > 0;
+  }
+
+  /**
+   * トランザクション内で実行
+   */
+  async withTransaction<R>(callback: () => Promise<R>): Promise<R> {
+    return this.connectionManager.transaction(async () => {
+      return callback();
+    });
   }
 }

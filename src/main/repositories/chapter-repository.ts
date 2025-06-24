@@ -2,13 +2,14 @@
  * 章リポジトリ
  */
 
-import * as duckdb from 'duckdb';
 import { BaseRepository } from './base-repository';
 import { Chapter } from './types';
+import { ConnectionManager } from '../core/database/connection-manager';
+import { NotFoundError } from '../utils/error-handler';
 
 export class ChapterRepository extends BaseRepository<Chapter> {
-  constructor(conn: duckdb.Connection) {
-    super(conn, 'chapters');
+  constructor(connectionManager: ConnectionManager) {
+    super(connectionManager, 'chapters');
   }
 
   protected mapRowToEntity(row: any): Chapter {
@@ -77,7 +78,7 @@ export class ChapterRepository extends BaseRepository<Chapter> {
     
     const created = await this.findById(id);
     if (!created) {
-      throw new Error('Failed to create chapter');
+      throw new NotFoundError('作成した章');
     }
     
     return created;
@@ -86,7 +87,7 @@ export class ChapterRepository extends BaseRepository<Chapter> {
   async update(id: string, updates: Partial<Chapter>): Promise<Chapter> {
     const existing = await this.findById(id);
     if (!existing) {
-      throw new Error('Chapter not found');
+      throw new NotFoundError('章');
     }
 
     const updated = { ...existing, ...updates };
@@ -108,7 +109,7 @@ export class ChapterRepository extends BaseRepository<Chapter> {
     
     const result = await this.findById(id);
     if (!result) {
-      throw new Error('Failed to update chapter');
+      throw new NotFoundError('更新した章');
     }
     
     return result;
