@@ -3,6 +3,7 @@ const path = require('path');
 const Database = require('./database');
 const { createLogger } = require('./utils/logger');
 const { getErrorHandler, ValidationError } = require('./utils/error-handler');
+const setupIPCHandlers = require('./ipc-handlers');
 
 let mainWindow = null;
 let db = null;
@@ -72,6 +73,10 @@ app.whenReady().then(() => {
     // Initialize database
     db = new Database();
     logger.info('Database initialized successfully');
+    
+    // Setup all IPC handlers
+    setupIPCHandlers(db);
+    logger.info('IPC handlers initialized successfully');
   } catch (error) {
     logger.error('Failed to initialize database:', error);
     app.quit();

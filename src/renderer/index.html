@@ -9,76 +9,41 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             margin: 0;
-            padding: 20px;
+            padding: 0;
             background-color: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
         }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #333;
+        .loading-container {
             text-align: center;
-            margin-bottom: 30px;
         }
-        .status {
-            text-align: center;
-            padding: 20px;
-            background-color: #e3f2fd;
-            border-radius: 4px;
+        .loading-icon {
+            font-size: 48px;
+            animation: spin 2s linear infinite;
             margin-bottom: 20px;
         }
-        .info {
-            margin: 10px 0;
-            padding: 10px;
-            background-color: #f0f0f0;
-            border-radius: 4px;
-            font-family: monospace;
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .loading-text {
+            color: #666;
+            font-size: 18px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>NovelDrive</h1>
-        <div class="status">
-            <h2>Electronアプリケーションが正常に起動しました！</h2>
-            <p>これは基本的なElectron + TypeScriptのセットアップです。</p>
-        </div>
-        <div class="info">
-            <p><strong>Electron:</strong> <span id="electron-version"></span></p>
-            <p><strong>Node.js:</strong> <span id="node-version"></span></p>
-            <p><strong>Chrome:</strong> <span id="chrome-version"></span></p>
-        </div>
-        <div class="info">
-            <p><strong>プラットフォーム:</strong> <span id="platform"></span></p>
-            <p><strong>アーキテクチャ:</strong> <span id="arch"></span></p>
-        </div>
-        
-        <div style="margin-top: 30px; padding: 20px; background-color: #f9f9f9; border-radius: 4px;">
-            <h3>データベース接続テスト（カウンター）</h3>
-            <p>カウンター値: <span id="counter-value" style="font-size: 24px; font-weight: bold;">0</span></p>
-            <button id="increment-btn" style="padding: 10px 20px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                カウントアップ
-            </button>
-        </div>
-        
-        <div style="margin-top: 20px; padding: 20px; background-color: #f9f9f9; border-radius: 4px;">
-            <h3>アイテムリスト</h3>
-            <div style="margin-bottom: 10px;">
-                <input type="text" id="item-input" placeholder="新しいアイテムを入力" style="padding: 8px; width: 300px; margin-right: 10px;">
-                <button id="add-item-btn" style="padding: 8px 16px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                    追加
-                </button>
-            </div>
-            <ul id="items-list" style="list-style: none; padding: 0;">
-                <!-- Items will be populated here -->
-            </ul>
-        </div>
+    <div class="loading-container">
+        <div class="loading-icon">⏳</div>
+        <div class="loading-text">NovelDriveを起動しています...</div>
     </div>
-    <script src="./renderer.js"></script>
+    <script>
+        // Redirect to projects page after a short delay
+        setTimeout(() => {
+            window.location.href = './projects.html';
+        }, 1000);
+    </script>
 </body>
 </html>

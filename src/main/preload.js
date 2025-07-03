@@ -24,7 +24,15 @@ contextBridge.exposeInMainWorld('api', {
       'db:getCounter',
       'db:incrementCounter',
       'db:addItem',
-      'db:getItems'
+      'db:getItems',
+      // Project channels
+      'project:getAll',
+      'project:getById',
+      'project:create',
+      'project:update',
+      'project:delete',
+      'project:getActivitySummary',
+      'project:export'
     ];
     if (validChannels.includes(channel)) {
       return await ipcRenderer.invoke(channel, data);

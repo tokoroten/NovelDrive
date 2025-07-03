@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+    <title>プロジェクト管理 - NovelDrive</title>
+    <link rel="stylesheet" href="./styles/common.css">
+    <link rel="stylesheet" href="./styles/projects.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- サイドバー -->
+        <nav class="sidebar">
+            <div class="app-title">
+                <h1>NovelDrive</h1>
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item active">
+                    <a href="#" data-page="projects">
+                        <span class="icon">📁</span>
+                        <span>プロジェクト</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" data-page="anything-box">
+                        <span class="icon">📥</span>
+                        <span>なんでもボックス</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" data-page="knowledge-graph">
+                        <span class="icon">🕸️</span>
+                        <span>ナレッジグラフ</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" data-page="settings">
+                        <span class="icon">⚙️</span>
+                        <span>設定</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- メインコンテンツ -->
+        <main class="main-content">
+            <header class="page-header">
+                <h2>プロジェクト管理</h2>
+                <button id="create-project-btn" class="primary-btn">
+                    <span class="icon">➕</span>
+                    新規プロジェクト
+                </button>
+            </header>
+
+            <!-- プロジェクト一覧 -->
+            <div id="projects-container" class="projects-grid">
+                <!-- プロジェクトカードがここに動的に追加されます -->
+            </div>
+
+            <!-- 空の状態 -->
+            <div id="empty-state" class="empty-state" style="display: none;">
+                <div class="empty-icon">📚</div>
+                <h3>プロジェクトがありません</h3>
+                <p>最初のプロジェクトを作成して、創作を始めましょう。</p>
+                <button class="primary-btn" onclick="showCreateProjectModal()">
+                    <span class="icon">➕</span>
+                    プロジェクトを作成
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <!-- プロジェクト作成モーダル -->
+    <div id="create-project-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>新規プロジェクト作成</h3>
+                <button class="close-btn" onclick="hideCreateProjectModal()">✕</button>
+            </div>
+            <form id="create-project-form" class="modal-form">
+                <div class="form-group">
+                    <label for="project-name">プロジェクト名 <span class="required">*</span></label>
+                    <input type="text" id="project-name" name="name" required 
+                           placeholder="例: 星降る夜の物語">
+                </div>
+                <div class="form-group">
+                    <label for="project-description">説明</label>
+                    <textarea id="project-description" name="description" rows="3"
+                              placeholder="プロジェクトの概要を入力してください"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="project-genre">ジャンル</label>
+                    <select id="project-genre" name="genre">
+                        <option value="">選択してください</option>
+                        <option value="fantasy">ファンタジー</option>
+                        <option value="scifi">SF</option>
+                        <option value="mystery">ミステリー</option>
+                        <option value="romance">恋愛</option>
+                        <option value="literary">純文学</option>
+                        <option value="other">その他</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="target-length">目標文字数</label>
+                    <input type="number" id="target-length" name="targetLength" 
+                           placeholder="100000" min="0" step="1000">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="secondary-btn" onclick="hideCreateProjectModal()">
+                        キャンセル
+                    </button>
+                    <button type="submit" class="primary-btn">
+                        作成
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="./js/projects.js"></script>
+</body>
+</html>
