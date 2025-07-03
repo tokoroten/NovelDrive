@@ -19,6 +19,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+electron.log
 
 # Editor directories and files
 .vscode/
@@ -61,8 +62,9 @@ coverage/
 *.db
 *.sqlite
 *.sqlite3
+data/
 
-# API keys and secrets (though these should be in .env)
+# API keys and secrets
 *.key
 *.pem
 
@@ -96,7 +98,9 @@ e2e/screenshots/
 *.db-journal
 *.db-wal
 *.db-shm
-data/
 
 # Old development files
 old/
+
+# Package lock files (using npm)
+package-lock.json

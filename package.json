@@ -1,0 +1,31 @@
+{
+  "name": "noveldrive",
+  "version": "1.0.0",
+  "description": "Two-layer creative writing platform with serendipity knowledge management and multi-agent novel creation engine",
+  "main": "src/main/index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dev": "npm run build && npm start",
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tokoroten/NovelDrive.git"
+  },
+  "keywords": ["electron", "creative-writing", "ai", "typescript"],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/tokoroten/NovelDrive/issues"
+  },
+  "homepage": "https://github.com/tokoroten/NovelDrive#readme",
+  "devDependencies": {
+    "@types/node": "^24.0.10",
+    "electron": "^37.2.0",
+    "typescript": "^5.8.3"
+  }
+}
