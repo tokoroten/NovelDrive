@@ -218,16 +218,16 @@ function handleNavigation(e) {
     e.preventDefault();
     const page = e.currentTarget.dataset.page;
     
-    // Update active nav item
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.classList.remove('active');
-    });
-    e.currentTarget.closest('.nav-item').classList.add('active');
-    
-    // TODO: Navigate to different pages
-    console.log('Navigating to:', page);
-    if (page !== 'projects') {
-        showInfo(`${e.currentTarget.querySelector('span:last-child').textContent}は開発中です`);
+    // Navigate to page
+    switch (page) {
+        case 'projects':
+            // Already on projects page
+            break;
+        case 'anything-box':
+            window.location.href = './anything-box.html';
+            break;
+        default:
+            showInfo(`${e.currentTarget.querySelector('span:last-child').textContent}は開発中です`);
     }
 }
 

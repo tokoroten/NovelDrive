@@ -32,7 +32,15 @@ contextBridge.exposeInMainWorld('api', {
       'project:update',
       'project:delete',
       'project:getActivitySummary',
-      'project:export'
+      'project:export',
+      // Anything Box channels
+      'anythingBox:processText',
+      'anythingBox:processURL',
+      'anythingBox:processImage',
+      'anythingBox:getRecent',
+      'anythingBox:search',
+      'anythingBox:getById',
+      'anythingBox:delete'
     ];
     if (validChannels.includes(channel)) {
       return await ipcRenderer.invoke(channel, data);

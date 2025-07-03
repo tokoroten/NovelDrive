@@ -1,4 +1,5 @@
 const setupProjectHandlers = require('./project-handlers');
+const setupAnythingBoxHandlers = require('./anything-box-handlers');
 
 /**
  * Setup all IPC handlers
@@ -7,6 +8,7 @@ const setupProjectHandlers = require('./project-handlers');
 function setupIPCHandlers(db) {
   // Setup handlers for different domains
   setupProjectHandlers(db);
+  setupAnythingBoxHandlers(db);
   
   // More handlers will be added here:
   // setupKnowledgeHandlers(db);
