@@ -97,3 +97,6 @@ e2e/screenshots/
 *.db-wal
 *.db-shm
 data/
+
+# Old development files
+old/
