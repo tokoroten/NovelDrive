@@ -1,4 +1,4 @@
-import * as duckdb from 'duckdb';
+import Database from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 import { ipcMain } from 'electron';
 
@@ -45,61 +45,49 @@ export interface ApiUsageStats {
  * API使用ログサービス
  */
 export class ApiUsageLogger {
-  private db: duckdb.Database;
-  private conn: duckdb.Connection;
+  private db: Database.Database;
   private pricingCache: Map<string, any> = new Map();
-  
-  constructor(db: duckdb.Database) {
+
+  constructor(db: Database.Database) {
     this.db = db;
-    this.conn = db.connect();
-    this.loadPricingSettings();
+    this.loadPricingInfo();
+    this.setupHandlers();
   }
-  
+
   /**
-   * 価格設定を読み込み
+   * 価格情報の読み込み
    */
-  private async loadPricingSettings(): Promise<void> {
-    const sql = "SELECT value FROM app_settings WHERE key = 'openai_pricing'";
-    
-    this.conn.all(sql, [], (err, rows) => {
-      if (!err && rows.length > 0) {
-        try {
-          const pricing = JSON.parse(rows[0].value as string);
-          this.pricingCache.set('openai', pricing);
-        } catch (error) {
-          console.error('Failed to parse pricing settings:', error);
-        }
+  private loadPricingInfo(): void {
+    try {
+      const stmt = this.db.prepare("SELECT value FROM app_settings WHERE key = 'openai_pricing'");
+      const row = stmt.get() as { value: string } | undefined;
+      
+      if (row) {
+        const pricing = JSON.parse(row.value);
+        this.pricingCache.set('openai', pricing);
       }
-    });
+    } catch (error) {
+      console.error('Failed to load pricing info:', error);
+    }
   }
-  
+
   /**
-   * APIの使用をログに記録
+   * API使用ログの記録
    */
-  async log(log: ApiUsageLog): Promise<string> {
+  async logApiUsage(log: ApiUsageLog): Promise<void> {
     const id = log.id || uuidv4();
-    const startTime = Date.now();
+    const cost = log.estimatedCost || this.calculateCost(log);
     
-    // コストを計算
-    if (!log.estimatedCost && log.provider === 'openai' && log.model) {
-      log.estimatedCost = this.calculateCost(log);
-    }
-    
-    // 実行時間を記録
-    if (!log.durationMs && startTime) {
-      log.durationMs = Date.now() - startTime;
-    }
-    
-    const sql = `
+    const stmt = this.db.prepare(`
       INSERT INTO api_usage_logs (
         id, apiType, provider, model, operation,
-        input_tokens, output_tokens, totalTokens,
-        estimatedCost, duration_ms, status, error_message,
+        input_tokens, output_tokens, totalTokens, estimatedCost,
+        duration_ms, status, error_message,
         request_data, response_data, metadata
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-    
-    const params = [
+    `);
+
+    stmt.run(
       id,
       log.apiType,
       log.provider,
@@ -108,310 +96,236 @@ export class ApiUsageLogger {
       log.inputTokens || 0,
       log.outputTokens || 0,
       log.totalTokens || 0,
-      log.estimatedCost || 0,
-      log.durationMs || 0,
+      cost,
+      log.durationMs || null,
       log.status,
       log.errorMessage || null,
       JSON.stringify(log.requestData || {}),
       JSON.stringify(log.responseData || {}),
       JSON.stringify(log.metadata || {})
-    ];
-    
-    return new Promise((resolve, reject) => {
-      this.conn.run(sql, params, (err: Error | null) => {
-        if (err) {
-          console.error('Failed to log API usage:', err);
-          reject(err);
-        } else {
-          resolve(id);
-        }
-      });
-    });
+    );
   }
-  
+
   /**
-   * OpenAI APIのコストを計算
+   * コストの計算
    */
   private calculateCost(log: ApiUsageLog): number {
-    const pricing = this.pricingCache.get('openai');
-    if (!pricing || !log.model) {
+    if (log.provider !== 'openai' || !log.model) {
       return 0;
     }
-    
+
+    const pricing = this.pricingCache.get('openai');
+    if (!pricing || !pricing[log.model]) {
+      return 0;
+    }
+
+    const modelPricing = pricing[log.model];
     let cost = 0;
+
+    if (log.apiType === 'image' && modelPricing.standard_1024x1024) {
+      // 画像生成の場合
+      const size = log.metadata?.size || 'standard_1024x1024';
+      cost = modelPricing[size] || modelPricing.standard_1024x1024;
+    } else {
+      // テキスト生成の場合
+      const inputCost = (log.inputTokens || 0) * (modelPricing.input || 0) / 1000;
+      const outputCost = (log.outputTokens || 0) * (modelPricing.output || 0) / 1000;
+      cost = inputCost + outputCost;
+    }
+
+    return Math.round(cost * 10000) / 10000; // 小数点4桁で丸める
+  }
+
+  /**
+   * 期間別の統計情報取得
+   */
+  async getUsageStats(
+    startDate?: Date,
+    endDate?: Date,
+    groupBy: 'day' | 'week' | 'month' = 'day'
+  ): Promise<ApiUsageStats[]> {
+    let query = `
+      SELECT * FROM api_usage_summary_view
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+
+    if (startDate) {
+      query += ' AND date >= ?';
+      params.push(startDate.toISOString().split('T')[0]);
+    }
+
+    if (endDate) {
+      query += ' AND date <= ?';
+      params.push(endDate.toISOString().split('T')[0]);
+    }
+
+    query += ' ORDER BY date DESC';
+
+    const stmt = this.db.prepare(query);
+    const rows = stmt.all(...params) as ApiUsageStats[];
     
-    // テキスト生成モデルと埋め込みモデル
-    if (log.apiType === 'chat' || log.apiType === 'embedding') {
-      const modelPricing = pricing[log.model];
-      if (modelPricing) {
-        const inputCost = (log.inputTokens || 0) * modelPricing.input / 1000;
-        const outputCost = (log.outputTokens || 0) * modelPricing.output / 1000;
-        cost = inputCost + outputCost;
+    return rows;
+  }
+
+  /**
+   * API別の使用状況取得
+   */
+  async getUsageByApi(apiType?: string): Promise<any> {
+    let query = `
+      SELECT 
+        apiType,
+        provider,
+        model,
+        COUNT(*) as requestCount,
+        SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successCount,
+        SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as errorCount,
+        SUM(input_tokens) as totalInputTokens,
+        SUM(output_tokens) as totalOutputTokens,
+        SUM(totalTokens) as totalTokens,
+        SUM(estimatedCost) as totalCost,
+        AVG(duration_ms) as avgDurationMs
+      FROM api_usage_logs
+    `;
+
+    const params: any[] = [];
+    if (apiType) {
+      query += ' WHERE apiType = ?';
+      params.push(apiType);
+    }
+
+    query += ' GROUP BY apiType, provider, model';
+
+    const stmt = this.db.prepare(query);
+    return stmt.all(...params);
+  }
+
+  /**
+   * 総コストの取得
+   */
+  async getTotalCost(startDate?: Date, endDate?: Date): Promise<number> {
+    let query = 'SELECT SUM(estimatedCost) as totalCost FROM api_usage_logs WHERE 1=1';
+    const params: any[] = [];
+
+    if (startDate) {
+      query += ' AND created_at >= ?';
+      params.push(startDate.toISOString());
+    }
+
+    if (endDate) {
+      query += ' AND created_at <= ?';
+      params.push(endDate.toISOString());
+    }
+
+    const stmt = this.db.prepare(query);
+    const row = stmt.get(...params) as { totalCost: number } | undefined;
+    
+    return row?.totalCost || 0;
+  }
+
+  /**
+   * エラー率の取得
+   */
+  async getErrorRate(apiType?: string): Promise<number> {
+    let query = `
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as errors
+      FROM api_usage_logs
+    `;
+    const params: any[] = [];
+
+    if (apiType) {
+      query += ' WHERE apiType = ?';
+      params.push(apiType);
+    }
+
+    const stmt = this.db.prepare(query);
+    const row = stmt.get(...params) as { total: number; errors: number } | undefined;
+    
+    if (!row || row.total === 0) {
+      return 0;
+    }
+
+    return row.errors / row.total;
+  }
+
+  /**
+   * IPCハンドラーの設定
+   */
+  private setupHandlers(): void {
+    // API使用ログの記録
+    ipcMain.handle('api:logUsage', async (_, log: ApiUsageLog) => {
+      try {
+        await this.logApiUsage(log);
+        return { success: true };
+      } catch (error) {
+        console.error('Failed to log API usage:', error);
+        throw error;
       }
-    }
-    
-    // 画像生成モデル
-    else if (log.apiType === 'image' && log.metadata) {
-      const imageSettings = `${log.metadata.quality || 'standard'}_${log.metadata.size || '1024x1024'}`;
-      const imagePricing = pricing['dall-e-3'];
-      if (imagePricing && imagePricing[imageSettings]) {
-        cost = imagePricing[imageSettings];
+    });
+
+    // 統計情報の取得
+    ipcMain.handle('api:getUsageStats', async (_, startDate?: string, endDate?: string, groupBy?: 'day' | 'week' | 'month') => {
+      try {
+        const start = startDate ? new Date(startDate) : undefined;
+        const end = endDate ? new Date(endDate) : undefined;
+        return await this.getUsageStats(start, end, groupBy);
+      } catch (error) {
+        console.error('Failed to get usage stats:', error);
+        throw error;
       }
-    }
-    
-    return cost;
-  }
-  
-  /**
-   * API使用ログを取得
-   */
-  async getLogs(options?: {
-    apiType?: string;
-    provider?: string;
-    status?: string;
-    startDate?: Date;
-    endDate?: Date;
-    limit?: number;
-    offset?: number;
-  }): Promise<ApiUsageLog[]> {
-    let sql = 'SELECT * FROM api_usage_logs WHERE 1=1';
-    const params: any[] = [];
-    
-    if (options?.apiType) {
-      sql += ' AND apiType = ?';
-      params.push(options.apiType);
-    }
-    
-    if (options?.provider) {
-      sql += ' AND provider = ?';
-      params.push(options.provider);
-    }
-    
-    if (options?.status) {
-      sql += ' AND status = ?';
-      params.push(options.status);
-    }
-    
-    if (options?.startDate) {
-      sql += ' AND created_at >= ?';
-      params.push(options.startDate.toISOString());
-    }
-    
-    if (options?.endDate) {
-      sql += ' AND created_at <= ?';
-      params.push(options.endDate.toISOString());
-    }
-    
-    sql += ' ORDER BY created_at DESC';
-    
-    if (options?.limit) {
-      sql += ' LIMIT ?';
-      params.push(options.limit);
-    }
-    
-    if (options?.offset) {
-      sql += ' OFFSET ?';
-      params.push(options.offset);
-    }
-    
-    return new Promise((resolve, reject) => {
-      this.conn.all(sql, params, (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          const logs = rows.map((row: any) => ({
-            id: row.id,
-            apiType: row.apiType,
-            provider: row.provider,
-            model: row.model,
-            operation: row.operation,
-            inputTokens: row.input_tokens,
-            outputTokens: row.output_tokens,
-            totalTokens: row.totalTokens,
-            estimatedCost: row.estimatedCost,
-            durationMs: row.duration_ms,
-            status: row.status,
-            errorMessage: row.error_message,
-            requestData: JSON.parse(row.request_data || '{}'),
-            responseData: JSON.parse(row.response_data || '{}'),
-            metadata: JSON.parse(row.metadata || '{}'),
-            createdAt: new Date(row.created_at)
-          }));
-          resolve(logs);
-        }
-      });
     });
-  }
-  
-  /**
-   * API使用統計を取得
-   */
-  async getUsageStats(options?: {
-    startDate?: Date;
-    endDate?: Date;
-    groupBy?: 'day' | 'week' | 'month';
-  }): Promise<ApiUsageStats[]> {
-    let sql = 'SELECT * FROM api_usage_summary_view WHERE 1=1';
-    const params: any[] = [];
-    
-    if (options?.startDate) {
-      sql += ' AND date >= CAST(? AS DATE)';
-      params.push(options.startDate.toISOString());
-    }
-    
-    if (options?.endDate) {
-      sql += ' AND date <= CAST(? AS DATE)';
-      params.push(options.endDate.toISOString());
-    }
-    
-    sql += ' ORDER BY date DESC';
-    
-    return new Promise((resolve, reject) => {
-      this.conn.all(sql, params, (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          const stats = rows.map((row: any) => ({
-            apiType: row.apiType,
-            provider: row.provider,
-            model: row.model,
-            requestCount: row.requestCount,
-            successCount: row.successCount,
-            errorCount: row.errorCount,
-            totalInputTokens: row.total_input_tokens,
-            totalOutputTokens: row.total_output_tokens,
-            totalTokens: row.totalTokens,
-            totalCost: row.totalCost,
-            avgDurationMs: row.avgDurationMs,
-            date: row.date
-          }));
-          resolve(stats);
-        }
-      });
-    });
-  }
-  
-  /**
-   * 総コストを取得
-   */
-  async getTotalCost(options?: {
-    startDate?: Date;
-    endDate?: Date;
-    provider?: string;
-  }): Promise<number> {
-    let sql = 'SELECT SUM(estimatedCost) as totalCost FROM api_usage_logs WHERE 1=1';
-    const params: any[] = [];
-    
-    if (options?.provider) {
-      sql += ' AND provider = ?';
-      params.push(options.provider);
-    }
-    
-    if (options?.startDate) {
-      sql += ' AND created_at >= ?';
-      params.push(options.startDate.toISOString());
-    }
-    
-    if (options?.endDate) {
-      sql += ' AND created_at <= ?';
-      params.push(options.endDate.toISOString());
-    }
-    
-    return new Promise((resolve, reject) => {
-      this.conn.all(sql, params, (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(rows[0]?.totalCost || 0);
-        }
-      });
-    });
-  }
-  
-  /**
-   * エラーログを取得
-   */
-  async getErrorLogs(limit: number = 100): Promise<ApiUsageLog[]> {
-    return this.getLogs({
-      status: 'error',
-      limit
-    });
-  }
-  
-  /**
-   * クリーンアップ（古いログを削除）
-   */
-  async cleanup(daysToKeep: number = 90): Promise<number> {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
-    
-    const sql = 'DELETE FROM api_usage_logs WHERE created_at < ?';
-    
-    return new Promise((resolve, reject) => {
-      this.conn.run(sql, cutoffDate.toISOString(), function(this: any, err: Error | null) {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(this.changes);
-        }
-      });
-    });
-  }
-}
 
-/**
- * API使用ログのインスタンスを保持
- */
-let apiUsageLogger: ApiUsageLogger | null = null;
+    // API別使用状況の取得
+    ipcMain.handle('api:getUsageByApi', async (_, apiType?: string) => {
+      try {
+        return await this.getUsageByApi(apiType);
+      } catch (error) {
+        console.error('Failed to get usage by API:', error);
+        throw error;
+      }
+    });
 
-/**
- * API使用ログサービスを初期化
- */
-export function initializeApiUsageLogger(db: duckdb.Database): void {
-  apiUsageLogger = new ApiUsageLogger(db);
-}
+    // 総コストの取得
+    ipcMain.handle('api:getTotalCost', async (_, startDate?: string, endDate?: string) => {
+      try {
+        const start = startDate ? new Date(startDate) : undefined;
+        const end = endDate ? new Date(endDate) : undefined;
+        return await this.getTotalCost(start, end);
+      } catch (error) {
+        console.error('Failed to get total cost:', error);
+        throw error;
+      }
+    });
 
-/**
- * API使用ログサービスのインスタンスを取得
- */
-export function getApiUsageLogger(): ApiUsageLogger {
-  if (!apiUsageLogger) {
-    throw new Error('API usage logger not initialized');
+    // エラー率の取得
+    ipcMain.handle('api:getErrorRate', async (_, apiType?: string) => {
+      try {
+        return await this.getErrorRate(apiType);
+      } catch (error) {
+        console.error('Failed to get error rate:', error);
+        throw error;
+      }
+    });
+
+    // 価格情報の更新
+    ipcMain.handle('api:updatePricing', async (_, provider: string, pricing: any) => {
+      try {
+        const stmt = this.db.prepare(`
+          UPDATE app_settings 
+          SET value = ?, updated_at = CURRENT_TIMESTAMP 
+          WHERE key = ?
+        `);
+        
+        stmt.run(JSON.stringify(pricing), `${provider}_pricing`);
+        this.pricingCache.set(provider, pricing);
+        
+        return { success: true };
+      } catch (error) {
+        console.error('Failed to update pricing:', error);
+        throw error;
+      }
+    });
   }
-  return apiUsageLogger;
-}
-
-/**
- * IPCハンドラーの設定
- */
-export function setupApiUsageHandlers(): void {
-  // ログの取得
-  ipcMain.handle('apiUsage:getLogs', async (_, options?: any) => {
-    const logger = getApiUsageLogger();
-    return logger.getLogs(options);
-  });
-  
-  // 統計の取得
-  ipcMain.handle('apiUsage:getStats', async (_, options?: any) => {
-    const logger = getApiUsageLogger();
-    return logger.getUsageStats(options);
-  });
-  
-  // 総コストの取得
-  ipcMain.handle('apiUsage:getTotalCost', async (_, options?: any) => {
-    const logger = getApiUsageLogger();
-    return logger.getTotalCost(options);
-  });
-  
-  // エラーログの取得
-  ipcMain.handle('apiUsage:getErrorLogs', async (_, limit?: number) => {
-    const logger = getApiUsageLogger();
-    return logger.getErrorLogs(limit);
-  });
-  
-  // クリーンアップ
-  ipcMain.handle('apiUsage:cleanup', async (_, daysToKeep?: number) => {
-    const logger = getApiUsageLogger();
-    return logger.cleanup(daysToKeep);
-  });
 }

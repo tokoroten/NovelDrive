@@ -1,15 +1,13 @@
-import * as duckdb from 'duckdb';
+import Database from 'better-sqlite3';
 
 /**
  * データベースマイグレーションサービス
  */
 export class DatabaseMigration {
-  private db: duckdb.Database;
-  private conn: duckdb.Connection;
+  private db: Database.Database;
 
-  constructor(db: duckdb.Database) {
+  constructor(db: Database.Database) {
     this.db = db;
-    this.conn = db.connect();
   }
 
   /**
@@ -19,10 +17,10 @@ export class DatabaseMigration {
     console.log('Starting database migration...');
     
     // マイグレーション管理テーブルの作成
-    await this.createMigrationTable();
+    this.createMigrationTable();
     
     // 実行済みマイグレーションの取得
-    const executedMigrations = await this.getExecutedMigrations();
+    const executedMigrations = this.getExecutedMigrations();
     
     // マイグレーションスクリプトの実行
     const migrations = this.getMigrations();
@@ -32,8 +30,8 @@ export class DatabaseMigration {
         console.log(`Executing migration: ${migration.version} - ${migration.name}`);
         
         try {
-          await this.executeMigration(migration);
-          await this.recordMigration(migration.version, migration.name);
+          this.executeMigration(migration);
+          this.recordMigration(migration.version, migration.name);
           console.log(`Migration ${migration.version} completed successfully`);
         } catch (error) {
           console.error(`Migration ${migration.version} failed:`, error);
@@ -48,7 +46,7 @@ export class DatabaseMigration {
   /**
    * マイグレーション管理テーブルの作成
    */
-  private async createMigrationTable(): Promise<void> {
+  private createMigrationTable(): void {
     const sql = `
       CREATE TABLE IF NOT EXISTS migrations (
         version VARCHAR PRIMARY KEY,
@@ -57,59 +55,43 @@ export class DatabaseMigration {
       )
     `;
     
-    await this.executeSQL(sql);
+    this.db.exec(sql);
   }
   
   /**
    * 実行済みマイグレーションの取得
    */
-  private async getExecutedMigrations(): Promise<string[]> {
-    return new Promise((resolve, reject) => {
-      this.conn.all('SELECT version FROM migrations', (err: Error | null, rows: any[]) => {
-        if (err) {
-          // Migration table might not exist yet
-          resolve([]);
-        } else {
-          resolve(rows.map(row => row.version));
-        }
-      });
-    });
+  private getExecutedMigrations(): string[] {
+    try {
+      const stmt = this.db.prepare('SELECT version FROM migrations');
+      const rows = stmt.all() as { version: string }[];
+      return rows.map(row => row.version);
+    } catch (error) {
+      // Migration table might not exist yet
+      return [];
+    }
   }
   
   /**
    * マイグレーション実行の記録
    */
-  private async recordMigration(version: string, name: string): Promise<void> {
-    const sql = 'INSERT INTO migrations (version, name) VALUES (?, ?)';
-    await this.executeSQL(sql, [version, name]);
+  private recordMigration(version: string, name: string): void {
+    const stmt = this.db.prepare('INSERT INTO migrations (version, name) VALUES (?, ?)');
+    stmt.run(version, name);
   }
   
   /**
-   * SQLの実行
-   */
-  private executeSQL(sql: string, params: unknown[] = []): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (params.length > 0) {
-        this.conn.run(sql, params, (err: Error | null) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      } else {
-        this.conn.run(sql, (err: Error | null) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      }
-    });
-  }
-
-  /**
    * 個別のマイグレーションを実行
    */
-  private async executeMigration(migration: Migration): Promise<void> {
-    for (const sql of migration.sqls) {
-      await this.executeSQL(sql);
-    }
+  private executeMigration(migration: Migration): void {
+    // トランザクション内で実行
+    const transaction = this.db.transaction(() => {
+      for (const sql of migration.sqls) {
+        this.db.exec(sql);
+      }
+    });
+    
+    transaction();
   }
 
   /**
@@ -147,7 +129,8 @@ export class DatabaseMigration {
             source_url VARCHAR,
             source_id VARCHAR,
             metadata JSON DEFAULT '{}',
-            embedding FLOAT[],
+            embedding TEXT,
+            search_tokens TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
@@ -157,6 +140,7 @@ export class DatabaseMigration {
           'CREATE INDEX IF NOT EXISTS idx_knowledge_type ON knowledge(type)',
           'CREATE INDEX IF NOT EXISTS idx_knowledge_project ON knowledge(project_id)',
           'CREATE INDEX IF NOT EXISTS idx_knowledge_created ON knowledge(created_at DESC)',
+          'CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_source_url ON knowledge(source_url) WHERE source_url IS NOT NULL',
           
           // キャラクターテーブル
           `CREATE TABLE IF NOT EXISTS characters (
@@ -169,6 +153,7 @@ export class DatabaseMigration {
             background TEXT,
             dialogue_samples TEXT,
             metadata JSON DEFAULT '{}',
+            search_tokens TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
@@ -190,6 +175,7 @@ export class DatabaseMigration {
             status VARCHAR NOT NULL DEFAULT 'draft',
             created_by VARCHAR NOT NULL,
             metadata JSON DEFAULT '{}',
+            search_tokens TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
@@ -213,6 +199,7 @@ export class DatabaseMigration {
             status VARCHAR NOT NULL DEFAULT 'draft',
             version INTEGER DEFAULT 1,
             metadata JSON DEFAULT '{}',
+            search_tokens TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
@@ -301,7 +288,103 @@ export class DatabaseMigration {
             key VARCHAR PRIMARY KEY,
             value JSON NOT NULL,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          )`
+          )`,
+          
+          // APIの使用ログテーブル
+          `CREATE TABLE IF NOT EXISTS api_usage_logs (
+            id VARCHAR PRIMARY KEY,
+            apiType VARCHAR NOT NULL,
+            provider VARCHAR NOT NULL,
+            model VARCHAR,
+            operation VARCHAR NOT NULL,
+            input_tokens INTEGER DEFAULT 0,
+            output_tokens INTEGER DEFAULT 0,
+            totalTokens INTEGER DEFAULT 0,
+            estimatedCost FLOAT DEFAULT 0,
+            duration_ms INTEGER,
+            status VARCHAR NOT NULL DEFAULT 'success',
+            error_message TEXT,
+            request_data JSON,
+            response_data JSON,
+            metadata JSON DEFAULT '{}',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )`,
+          
+          // APIログのインデックス
+          'CREATE INDEX IF NOT EXISTS idx_api_logs_type ON api_usage_logs(apiType)',
+          'CREATE INDEX IF NOT EXISTS idx_api_logs_provider ON api_usage_logs(provider)',
+          'CREATE INDEX IF NOT EXISTS idx_api_logs_created ON api_usage_logs(created_at DESC)',
+          'CREATE INDEX IF NOT EXISTS idx_api_logs_status ON api_usage_logs(status)',
+          
+          // 自律モード設定テーブル
+          `CREATE TABLE IF NOT EXISTS autonomous_config (
+            project_id TEXT PRIMARY KEY,
+            config TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )`,
+          
+          // 自律モード活動ログテーブル
+          `CREATE TABLE IF NOT EXISTS autonomous_activities (
+            id TEXT PRIMARY KEY,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            type TEXT NOT NULL,
+            project_id TEXT NOT NULL,
+            status TEXT NOT NULL,
+            content TEXT,
+            quality_score INTEGER,
+            tokens_used INTEGER,
+            error TEXT,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+          )`,
+          
+          // 自律モードのインデックス
+          'CREATE INDEX IF NOT EXISTS idx_autonomous_activities_project_timestamp ON autonomous_activities(project_id, timestamp)',
+          'CREATE INDEX IF NOT EXISTS idx_autonomous_activities_type ON autonomous_activities(type)',
+          'CREATE INDEX IF NOT EXISTS idx_autonomous_activities_status ON autonomous_activities(status)',
+          
+          // バックアップ履歴テーブル
+          `CREATE TABLE IF NOT EXISTS backup_history (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            project_ids TEXT NOT NULL,
+            size INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            type TEXT NOT NULL,
+            version TEXT NOT NULL,
+            checksum TEXT NOT NULL,
+            file_path TEXT NOT NULL
+          )`,
+          
+          // バックアップ履歴のインデックス
+          'CREATE INDEX IF NOT EXISTS idx_backup_history_created ON backup_history(created_at DESC)',
+          'CREATE INDEX IF NOT EXISTS idx_backup_history_type ON backup_history(type)',
+          
+          // バージョン履歴テーブル
+          `CREATE TABLE IF NOT EXISTS version_history (
+            id TEXT PRIMARY KEY,
+            document_id TEXT NOT NULL,
+            document_type TEXT NOT NULL,
+            version INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            metadata TEXT DEFAULT '{}',
+            change_type TEXT NOT NULL,
+            change_description TEXT,
+            author_id TEXT,
+            author_name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            previous_version_id TEXT,
+            checksum TEXT NOT NULL,
+            size INTEGER NOT NULL,
+            FOREIGN KEY (previous_version_id) REFERENCES version_history(id)
+          )`,
+          
+          // バージョン履歴のインデックス
+          'CREATE INDEX IF NOT EXISTS idx_version_history_document ON version_history(document_id)',
+          'CREATE INDEX IF NOT EXISTS idx_version_history_type ON version_history(document_type)',
+          'CREATE INDEX IF NOT EXISTS idx_version_history_created ON version_history(created_at DESC)',
+          'CREATE INDEX IF NOT EXISTS idx_version_history_version ON version_history(document_id, version)'
         ]
       },
       {
@@ -355,53 +438,7 @@ export class DatabaseMigration {
             '' as content,
             project_id,
             created_at
-          FROM agent_discussions`
-        ]
-      },
-      {
-        version: '003',
-        name: 'initial_settings',
-        sqls: [
-          // 初期設定の投入
-          `INSERT OR IGNORE INTO app_settings (key, value) VALUES
-            ('app_version', '"1.0.0"'),
-            ('default_ai_model', '"gpt-4-turbo"'),
-            ('serendipity_level', '0.3'),
-            ('max_crawl_depth', '3'),
-            ('vector_dimension', '1536'),
-            ('auto_backup_enabled', 'true'),
-            ('backup_interval_hours', '24')`
-        ]
-      },
-      {
-        version: '004',
-        name: 'api_usage_logs',
-        sqls: [
-          // APIの使用ログテーブル
-          `CREATE TABLE IF NOT EXISTS api_usage_logs (
-            id VARCHAR PRIMARY KEY,
-            apiType VARCHAR NOT NULL, -- 'embedding', 'chat', 'image', 'assistant' など
-            provider VARCHAR NOT NULL, -- 'openai', 'local' など
-            model VARCHAR,
-            operation VARCHAR NOT NULL, -- 具体的な操作名
-            input_tokens INTEGER DEFAULT 0,
-            output_tokens INTEGER DEFAULT 0,
-            totalTokens INTEGER DEFAULT 0,
-            estimatedCost FLOAT DEFAULT 0,
-            duration_ms INTEGER,
-            status VARCHAR NOT NULL DEFAULT 'success', -- 'success', 'error'
-            error_message TEXT,
-            request_data JSON,
-            response_data JSON,
-            metadata JSON DEFAULT '{}',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          )`,
-          
-          // APIログのインデックス
-          'CREATE INDEX IF NOT EXISTS idx_api_logs_type ON api_usage_logs(apiType)',
-          'CREATE INDEX IF NOT EXISTS idx_api_logs_provider ON api_usage_logs(provider)',
-          'CREATE INDEX IF NOT EXISTS idx_api_logs_created ON api_usage_logs(created_at DESC)',
-          'CREATE INDEX IF NOT EXISTS idx_api_logs_status ON api_usage_logs(status)',
+          FROM agent_discussions`,
           
           // API使用状況の集計ビュー
           `CREATE VIEW IF NOT EXISTS api_usage_summary_view AS
@@ -417,12 +454,26 @@ export class DatabaseMigration {
             SUM(totalTokens) as totalTokens,
             SUM(estimatedCost) as totalCost,
             AVG(duration_ms) as avgDurationMs,
-            CAST(created_at AS DATE) as date
+            DATE(created_at) as date
           FROM api_usage_logs
-          GROUP BY apiType, provider, model, CAST(created_at AS DATE)`,
-          
-          // コスト追跡設定
+          GROUP BY apiType, provider, model, DATE(created_at)`
+        ]
+      },
+      {
+        version: '003',
+        name: 'initial_settings',
+        sqls: [
+          // 初期設定の投入
           `INSERT OR IGNORE INTO app_settings (key, value) VALUES
+            ('app_version', '"1.0.0"'),
+            ('default_ai_model', '"gpt-4-turbo"'),
+            ('serendipity_level', '0.3'),
+            ('max_crawl_depth', '3'),
+            ('vector_dimension', '1536'),
+            ('auto_backup_enabled', 'true'),
+            ('backup_interval_hours', '24'),
+            ('backup_config', '{"enabled":true,"intervalHours":24,"maxBackups":10,"includeLogs":false,"compressBackups":true,"backupLocation":""}'),
+            ('version_history_config', '{"maxVersionsPerDocument":50,"autoSaveVersions":true,"saveIntervalMinutes":5,"compressOldVersions":true,"retentionPolicyDays":365}'),
             ('openai_pricing', '{
               "gpt-4-turbo-preview": {
                 "input": 0.01,
@@ -453,264 +504,6 @@ export class DatabaseMigration {
                 "hd_1024x1792": 0.12
               }
             }')`
-        ]
-      },
-      {
-        version: '005',
-        name: 'autonomous_mode_tables',
-        sqls: [
-          // 自律モード設定
-          `CREATE TABLE IF NOT EXISTS autonomous_config (
-            id INTEGER PRIMARY KEY,
-            config TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          )`,
-
-          // 自律操作履歴
-          `CREATE TABLE IF NOT EXISTS autonomous_operations (
-            id TEXT PRIMARY KEY,
-            type TEXT NOT NULL,
-            status TEXT NOT NULL,
-            project_id TEXT,
-            start_time TIMESTAMP NOT NULL,
-            end_time TIMESTAMP,
-            result TEXT,
-            error TEXT,
-            metrics TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-          )`,
-
-          // 自律生成コンテンツ
-          `CREATE TABLE IF NOT EXISTS autonomous_content (
-            id TEXT PRIMARY KEY,
-            type TEXT NOT NULL,
-            content TEXT NOT NULL,
-            quality_score REAL,
-            saved BOOLEAN DEFAULT FALSE,
-            project_id TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-          )`,
-
-          // 自律モードログ
-          `CREATE TABLE IF NOT EXISTS autonomous_logs (
-            id TEXT PRIMARY KEY,
-            timestamp TIMESTAMP NOT NULL,
-            level TEXT NOT NULL,
-            category TEXT NOT NULL,
-            message TEXT NOT NULL,
-            operation_id TEXT,
-            metadata TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (operation_id) REFERENCES autonomous_operations(id) ON DELETE CASCADE
-          )`,
-
-          // 自律モードインデックス
-          'CREATE INDEX IF NOT EXISTS idx_autonomous_ops_status ON autonomous_operations(status)',
-          'CREATE INDEX IF NOT EXISTS idx_autonomous_ops_project ON autonomous_operations(project_id)',
-          'CREATE INDEX IF NOT EXISTS idx_autonomous_logs_operation ON autonomous_logs(operation_id)',
-          'CREATE INDEX IF NOT EXISTS idx_autonomous_logs_level ON autonomous_logs(level)',
-          'CREATE INDEX IF NOT EXISTS idx_autonomous_content_project ON autonomous_content(project_id)',
-          'CREATE INDEX IF NOT EXISTS idx_autonomous_content_saved ON autonomous_content(saved)'
-        ]
-      },
-      {
-        version: '006',
-        name: 'fix_chapters_column_name',
-        sqls: [
-          // chaptersテーブルのchapter_numberカラムを"order"に変更するマイグレーション
-          // 既存のテーブルがある場合のみ実行
-          `DROP INDEX IF EXISTS uk_chapter_number`,
-          
-          // 新しいテーブル構造でchaptersテーブルを再作成
-          `CREATE TABLE IF NOT EXISTS chapters_new (
-            id VARCHAR PRIMARY KEY,
-            project_id VARCHAR NOT NULL,
-            plot_id VARCHAR NOT NULL,
-            "order" INTEGER NOT NULL,
-            title VARCHAR NOT NULL,
-            content TEXT NOT NULL,
-            word_count INTEGER DEFAULT 0,
-            character_count INTEGER DEFAULT 0,
-            status VARCHAR NOT NULL DEFAULT 'draft',
-            version INTEGER DEFAULT 1,
-            metadata JSON DEFAULT '{}',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-            FOREIGN KEY (plot_id) REFERENCES plots(id) ON DELETE CASCADE
-          )`,
-          
-          // 既存データのコピー（もしchapter_numberカラムが存在すれば）
-          `INSERT INTO chapters_new 
-            SELECT id, project_id, plot_id, 
-                   COALESCE("order", chapter_number, 1) as "order",
-                   title, content, word_count, character_count, 
-                   status, version, metadata, created_at, updated_at
-            FROM chapters`,
-          
-          // 古いテーブルを削除
-          `DROP TABLE chapters`,
-          
-          // 新しいテーブルをリネーム
-          `ALTER TABLE chapters_new RENAME TO chapters`,
-          
-          // インデックスの再作成
-          'CREATE INDEX IF NOT EXISTS idx_chapters_status ON chapters(status)',
-          'CREATE UNIQUE INDEX IF NOT EXISTS uk_chapter_order ON chapters(project_id, plot_id, "order")'
-        ]
-      },
-      {
-        version: '007',
-        name: 'add_search_tokens_columns',
-        sqls: [
-          // 日本語テキスト用の検索カラムを追加
-          'ALTER TABLE knowledge ADD COLUMN IF NOT EXISTS search_tokens TEXT',
-          'ALTER TABLE projects ADD COLUMN IF NOT EXISTS search_tokens TEXT',
-          'ALTER TABLE characters ADD COLUMN IF NOT EXISTS search_tokens TEXT',
-          'ALTER TABLE plots ADD COLUMN IF NOT EXISTS search_tokens TEXT',
-          'ALTER TABLE chapters ADD COLUMN IF NOT EXISTS search_tokens TEXT'
-        ]
-      },
-      {
-        version: '008',
-        name: 'embedding_type_consistency',
-        sqls: [
-          // embedding列の型をTEXTに統一（JSON文字列として保存）
-          `CREATE TABLE IF NOT EXISTS knowledge_new (
-            id VARCHAR PRIMARY KEY,
-            title VARCHAR NOT NULL,
-            content TEXT NOT NULL,
-            type VARCHAR NOT NULL,
-            project_id VARCHAR,
-            source_url VARCHAR,
-            source_id VARCHAR,
-            metadata JSON DEFAULT '{}',
-            embedding TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-          )`,
-          
-          // 既存データのコピー
-          `INSERT INTO knowledge_new 
-            SELECT id, title, content, type, project_id, source_url, source_id,
-                   metadata, 
-                   CASE 
-                     WHEN embedding IS NOT NULL THEN embedding::TEXT
-                     ELSE NULL
-                   END as embedding,
-                   created_at, updated_at
-            FROM knowledge`,
-          
-          // 古いテーブルを削除
-          `DROP TABLE knowledge`,
-          
-          // 新しいテーブルをリネーム
-          `ALTER TABLE knowledge_new RENAME TO knowledge`,
-          
-          // インデックスの再作成
-          'CREATE INDEX IF NOT EXISTS idx_knowledge_type ON knowledge(type)',
-          'CREATE INDEX IF NOT EXISTS idx_knowledge_project ON knowledge(project_id)',
-          'CREATE INDEX IF NOT EXISTS idx_knowledge_created ON knowledge(created_at DESC)'
-        ]
-      },
-      {
-        version: '009',
-        name: 'autonomous_mode_enhanced_tables',
-        sqls: [
-          // 自律モード設定テーブル（AutonomousModeService用）
-          `CREATE TABLE IF NOT EXISTS autonomous_config (
-            project_id TEXT PRIMARY KEY,
-            config TEXT NOT NULL,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          )`,
-          
-          // 自律モード活動ログテーブル（AutonomousModeService用）
-          `CREATE TABLE IF NOT EXISTS autonomous_activities (
-            id TEXT PRIMARY KEY,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            type TEXT NOT NULL, -- 'idea_generation' | 'plot_development' | 'chapter_writing' | 'discussion' | 'quality_check'
-            project_id TEXT NOT NULL,
-            status TEXT NOT NULL, -- 'success' | 'failed' | 'pending_approval'
-            content TEXT, -- JSON形式の結果データ
-            quality_score INTEGER, -- 品質スコア（0-100）
-            tokens_used INTEGER, -- 使用トークン数
-            error TEXT, -- エラーメッセージ（失敗時）
-            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-          )`,
-          
-          // インデックス作成
-          'CREATE INDEX IF NOT EXISTS idx_autonomous_activities_project_timestamp ON autonomous_activities(project_id, timestamp)',
-          'CREATE INDEX IF NOT EXISTS idx_autonomous_activities_type ON autonomous_activities(type)',
-          'CREATE INDEX IF NOT EXISTS idx_autonomous_activities_status ON autonomous_activities(status)',
-          
-          // テストデータ挿入（開発用）
-          `INSERT OR IGNORE INTO autonomous_config (project_id, config) VALUES 
-            ('test-project-1', '{"enabled":false,"projectId":"test-project-1","schedule":{"writingInterval":120,"ideaGenerationInterval":60,"discussionInterval":180},"quality":{"minQualityScore":65,"autoSaveThreshold":70,"requireHumanApproval":true},"limits":{"maxChaptersPerDay":3,"maxWordsPerSession":5000,"maxTokensPerDay":100000}}')`
-        ]
-      },
-      {
-        version: '010',
-        name: 'backup_history_table',
-        sqls: [
-          // バックアップ履歴テーブル
-          `CREATE TABLE IF NOT EXISTS backup_history (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            description TEXT,
-            project_ids TEXT NOT NULL, -- JSON array
-            size INTEGER NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            type TEXT NOT NULL, -- 'auto' | 'manual'
-            version TEXT NOT NULL,
-            checksum TEXT NOT NULL,
-            file_path TEXT NOT NULL
-          )`,
-          
-          // バックアップ履歴のインデックス
-          'CREATE INDEX IF NOT EXISTS idx_backup_history_created ON backup_history(created_at DESC)',
-          'CREATE INDEX IF NOT EXISTS idx_backup_history_type ON backup_history(type)',
-          
-          // バックアップ設定をapp_settingsに追加
-          `INSERT OR IGNORE INTO app_settings (key, value) VALUES 
-            ('backup_config', '{"enabled":true,"intervalHours":24,"maxBackups":10,"includeLogs":false,"compressBackups":true,"backupLocation":""}')`,
-        ]
-      },
-      {
-        version: '011',
-        name: 'version_history_table',
-        sqls: [
-          // バージョン履歴テーブル
-          `CREATE TABLE IF NOT EXISTS version_history (
-            id TEXT PRIMARY KEY,
-            document_id TEXT NOT NULL,
-            document_type TEXT NOT NULL, -- 'chapter' | 'plot' | 'character' | 'knowledge' | 'project'
-            version INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            content TEXT NOT NULL,
-            metadata TEXT DEFAULT '{}', -- JSON
-            change_type TEXT NOT NULL, -- 'create' | 'update' | 'delete' | 'restore'
-            change_description TEXT,
-            author_id TEXT,
-            author_name TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            previous_version_id TEXT,
-            checksum TEXT NOT NULL,
-            size INTEGER NOT NULL,
-            FOREIGN KEY (previous_version_id) REFERENCES version_history(id)
-          )`,
-          
-          // バージョン履歴のインデックス
-          'CREATE INDEX IF NOT EXISTS idx_version_history_document ON version_history(document_id)',
-          'CREATE INDEX IF NOT EXISTS idx_version_history_type ON version_history(document_type)',
-          'CREATE INDEX IF NOT EXISTS idx_version_history_created ON version_history(created_at DESC)',
-          'CREATE INDEX IF NOT EXISTS idx_version_history_version ON version_history(document_id, version)',
-          
-          // バージョン履歴設定をapp_settingsに追加
-          `INSERT OR IGNORE INTO app_settings (key, value) VALUES 
-            ('version_history_config', '{"maxVersionsPerDocument":50,"autoSaveVersions":true,"saveIntervalMinutes":5,"compressOldVersions":true,"retentionPolicyDays":365}')`,
         ]
       }
     ];

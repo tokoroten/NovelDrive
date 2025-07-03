@@ -4,7 +4,7 @@
 
 import { getDatabase } from '../database';
 import { getOpenAI } from '../services/openai-service';
-import { getApiUsageLogger } from '../services/api-usage-logger';
+import { ApiUsageLogger } from '../services/api-usage-logger';
 import { PlotManager } from '../services/plot-management';
 import { PlotGenerationWorkflow } from '../services/plot-generation-workflow';
 
@@ -15,7 +15,7 @@ export async function testPlotGenerationWorkflow(): Promise<void> {
     // 必要なサービスの取得
     const db = getDatabase();
     const openai = getOpenAI();
-    const apiLogger = getApiUsageLogger();
+    const apiLogger = new ApiUsageLogger(db);
 
     if (!db) {
       throw new Error('Database not initialized');
@@ -29,13 +29,12 @@ export async function testPlotGenerationWorkflow(): Promise<void> {
       throw new Error('API Logger not initialized');
     }
 
-    const conn = db.connect();
-    const plotManager = new PlotManager(conn);
+    const plotManager = new PlotManager(db);
     
     // ワークフローの初期化
     const workflow = new PlotGenerationWorkflow(
       plotManager,
-      conn,
+      db,
       openai,
       apiLogger
     );

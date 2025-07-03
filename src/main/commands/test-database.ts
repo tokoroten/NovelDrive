@@ -9,10 +9,10 @@
 
 import { app } from 'electron';
 import * as path from 'path';
-import * as duckdb from 'duckdb';
+import Database from 'better-sqlite3';
 import { DatabaseMigration } from '../services/database-migration';
 import { insertSampleData } from '../services/sample-data';
-import { setupDuckDBVSS } from '../services/duckdb-vss-setup';
+import { VectorSearchService } from '../services/vector-search-service';
 import { runDatabaseTests } from '../services/database-test';
 
 // Electronのapp.getPath()をモック
@@ -56,8 +56,7 @@ async function main() {
 
 async function testVectorSearch() {
   const dbPath = path.join((global as any).app.getPath('userData'), 'vss-test.db');
-  const db = new duckdb.Database(dbPath);
-  const conn = db.connect();
+  const db = new Database(dbPath);
   
   try {
     // マイグレーション実行
@@ -65,10 +64,10 @@ async function testVectorSearch() {
     await migration.migrate();
     
     // VSS設定
-    const vss = await setupDuckDBVSS(conn);
+    const vss = new VectorSearchService(db);
     
     // サンプルデータ投入
-    await insertSampleData(conn);
+    await insertSampleData(db);
     
     // ベクトル生成テスト
     console.log('Generating embeddings for knowledge items...');
@@ -79,16 +78,12 @@ async function testVectorSearch() {
     await vss.testVectorSearch();
     
   } finally {
-    // DuckDBの接続を適切にクローズ
+    // SQLite3の接続を閉じる
     try {
-      await new Promise<void>((resolve) => {
-        conn.close(() => {
-          console.log('Connection closed');
-          resolve();
-        });
-      });
+      db.close();
+      console.log('Database closed');
     } catch (error) {
-      console.warn('Error closing connection:', error);
+      console.warn('Error closing database:', error);
     }
   }
 }

@@ -3,7 +3,7 @@
  * DIコンテナへのサービス登録を管理
  */
 
-import * as duckdb from 'duckdb';
+import Database from 'better-sqlite3';
 import { DIContainer } from '../core/di-container';
 import { EventBus, eventBus } from '../core/events/event-bus';
 import { EventStore } from '../core/events/event-store';
@@ -32,7 +32,7 @@ import { ExportService } from './export-service';
  */
 export async function registerServices(
   container: DIContainer,
-  db: duckdb.Database
+  db: Database.Database
 ): Promise<void> {
   // イベントバス（シングルトン）
   container.register('eventBus', async () => eventBus, { singleton: true });
@@ -40,11 +40,11 @@ export async function registerServices(
   // データベース接続
   container.register('db', async () => db, { singleton: true });
 
-  // 接続取得用のファクトリー
+  // 接続取得用のファクトリー（SQLite3ではデータベース自体を返す）
   container.register('connectionFactory', async () => {
     return () => {
       try {
-        return db.connect();
+        return db;
       } catch (err) {
         throw err;
       }

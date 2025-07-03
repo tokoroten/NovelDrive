@@ -2,50 +2,36 @@
  * データベース接続の統一管理
  */
 
-import * as duckdb from 'duckdb';
+import Database from 'better-sqlite3';
 import { EventEmitter } from 'events';
 import { DatabaseError, errorLogger } from '../../utils/error-handler';
 
 export interface ConnectionOptions {
   path: string;
-  readOnly?: boolean;
-  maxConnections?: number;
-  connectTimeout?: number;
+  readonly?: boolean;
+  verbose?: boolean;
+  timeout?: number;
 }
 
 export interface ConnectionStats {
-  totalConnections: number;
-  activeConnections: number;
-  idleConnections: number;
-  failedConnections: number;
-  averageQueryTime: number;
   totalQueries: number;
-}
-
-interface ConnectionWrapper {
-  id: string;
-  connection: duckdb.Connection;
-  inUse: boolean;
-  createdAt: Date;
-  lastUsedAt: Date;
-  queryCount: number;
-  totalQueryTime: number;
+  failedQueries: number;
+  averageQueryTime: number;
+  lastQueryTime: number;
 }
 
 export class ConnectionManager extends EventEmitter {
   private static instance: ConnectionManager | null = null;
-  private database: duckdb.Database | null = null;
-  private connections: Map<string, ConnectionWrapper> = new Map();
+  private database: Database.Database | null = null;
   private options: ConnectionOptions | null = null;
   private isInitialized = false;
   private stats: ConnectionStats = {
-    totalConnections: 0,
-    activeConnections: 0,
-    idleConnections: 0,
-    failedConnections: 0,
+    totalQueries: 0,
+    failedQueries: 0,
     averageQueryTime: 0,
-    totalQueries: 0
+    lastQueryTime: 0
   };
+  private totalQueryTime = 0;
 
   private constructor() {
     super();
@@ -71,14 +57,46 @@ export class ConnectionManager extends EventEmitter {
 
     this.options = {
       path: ':memory:',
-      maxConnections: 10,
-      connectTimeout: 5000,
+      readonly: false,
+      verbose: false,
+      timeout: 5000,
       ...options
     };
 
     try {
-      // DuckDB doesn't support options in constructor, use default
-      this.database = new duckdb.Database(this.options.path);
+      // SQLite3データベースを開く
+      this.database = new Database(this.options.path, {
+        readonly: this.options.readonly,
+        verbose: this.options.verbose ? console.log : undefined,
+        timeout: this.options.timeout
+      });
+
+      // データベースが正しく開けたか確認
+      try {
+        // シンプルなテストクエリ
+        this.database.prepare('SELECT 1').get();
+        
+        // WALモードを有効化（書き込み性能向上）
+        this.database.pragma('journal_mode = WAL');
+        // 外部キー制約を有効化
+        this.database.pragma('foreign_keys = ON');
+      } catch (pragmaError) {
+        console.error('Database pragma error:', pragmaError);
+        // 新しいデータベースファイルとして初期化
+        this.database.close();
+        
+        // ファイルを削除して再作成
+        if (this.options.path !== ':memory:' && require('fs').existsSync(this.options.path)) {
+          require('fs').unlinkSync(this.options.path);
+        }
+        
+        // 再度開く
+        this.database = new Database(this.options.path, {
+          readonly: this.options.readonly,
+          verbose: this.options.verbose ? console.log : undefined,
+          timeout: this.options.timeout
+        });
+      }
 
       this.isInitialized = true;
       this.emit('initialized');
@@ -91,7 +109,7 @@ export class ConnectionManager extends EventEmitter {
   /**
    * データベースインスタンスの取得
    */
-  getDatabase(): duckdb.Database {
+  getDatabase(): Database.Database {
     if (!this.isInitialized || !this.database) {
       throw new DatabaseError('データベースが初期化されていません');
     }
@@ -99,144 +117,103 @@ export class ConnectionManager extends EventEmitter {
   }
 
   /**
-   * コネクションの取得（同期版）
+   * プリペアドステートメントの取得
    */
-  getConnection(): duckdb.Connection {
-    if (!this.isInitialized || !this.database) {
-      throw new DatabaseError('データベースが初期化されていません');
-    }
-
-    // メインコネクションがない場合は作成
-    if (this.connections.size === 0) {
-      const conn = this.database.connect();
-      const wrapper: ConnectionWrapper = {
-        id: 'main',
-        connection: conn,
-        inUse: false,
-        createdAt: new Date(),
-        lastUsedAt: new Date(),
-        queryCount: 0,
-        totalQueryTime: 0
-      };
-      this.connections.set('main', wrapper);
-      return conn;
-    }
-
-    // メインコネクションを返す
-    const mainConn = this.connections.get('main');
-    if (mainConn) {
-      return mainConn.connection;
-    }
-
-    throw new DatabaseError('コネクションの取得に失敗しました');
+  prepare(sql: string): Database.Statement {
+    const db = this.getDatabase();
+    return db.prepare(sql);
   }
 
   /**
-   * 接続の取得（非同期版）
+   * クエリ実行（SELECT）
    */
-  async getConnectionAsync(): Promise<duckdb.Connection> {
-    if (!this.isInitialized || !this.database) {
-      throw new DatabaseError('データベースが初期化されていません');
+  query<T = any>(sql: string, params: any[] = []): T[] {
+    const startTime = Date.now();
+    
+    try {
+      const db = this.getDatabase();
+      const stmt = db.prepare(sql);
+      const result = stmt.all(...params) as T[];
+      
+      this.updateStats(Date.now() - startTime);
+      return result;
+    } catch (error) {
+      this.stats.failedQueries++;
+      errorLogger.log(error as Error, { operation: 'query', sql });
+      throw new DatabaseError('クエリ実行エラー', error as Error);
     }
-
-    // 利用可能な接続を探す
-    for (const [id, wrapper] of this.connections) {
-      if (!wrapper.inUse) {
-        wrapper.inUse = true;
-        wrapper.lastUsedAt = new Date();
-        this.updateStats();
-        this.emit('connectionAcquired', id);
-        return wrapper.connection;
-      }
-    }
-
-    // 最大接続数チェック
-    if (this.connections.size >= (this.options?.maxConnections || 10)) {
-      // 最も古い未使用接続を探して再利用
-      const oldestIdle = this.findOldestIdleConnection();
-      if (oldestIdle) {
-        oldestIdle.inUse = true;
-        oldestIdle.lastUsedAt = new Date();
-        this.updateStats();
-        return oldestIdle.connection;
-      }
-
-      throw new DatabaseError('利用可能な接続がありません（最大接続数に達しています）');
-    }
-
-    // 新しい接続を作成
-    return this.createNewConnection();
   }
 
   /**
-   * 接続の解放
+   * クエリ実行（SELECT - 単一行）
    */
-  releaseConnection(connection: duckdb.Connection): void {
-    for (const [id, wrapper] of this.connections) {
-      if (wrapper.connection === connection) {
-        wrapper.inUse = false;
-        this.updateStats();
-        this.emit('connectionReleased', id);
-        return;
-      }
+  queryOne<T = any>(sql: string, params: any[] = []): T | null {
+    const startTime = Date.now();
+    
+    try {
+      const db = this.getDatabase();
+      const stmt = db.prepare(sql);
+      const result = stmt.get(...params) as T | undefined;
+      
+      this.updateStats(Date.now() - startTime);
+      return result || null;
+    } catch (error) {
+      this.stats.failedQueries++;
+      errorLogger.log(error as Error, { operation: 'queryOne', sql });
+      throw new DatabaseError('クエリ実行エラー', error as Error);
+    }
+  }
+
+  /**
+   * クエリ実行（INSERT/UPDATE/DELETE）
+   */
+  run(sql: string, params: any[] = []): Database.RunResult {
+    const startTime = Date.now();
+    
+    try {
+      const db = this.getDatabase();
+      const stmt = db.prepare(sql);
+      const result = stmt.run(...params);
+      
+      this.updateStats(Date.now() - startTime);
+      return result;
+    } catch (error) {
+      this.stats.failedQueries++;
+      errorLogger.log(error as Error, { operation: 'run', sql });
+      throw new DatabaseError('クエリ実行エラー', error as Error);
     }
   }
 
   /**
    * トランザクション実行
    */
-  async transaction<T>(
-    callback: (conn: duckdb.Connection) => Promise<T>
-  ): Promise<T> {
-    const conn = await this.getConnection();
+  transaction<T>(callback: () => T): T {
+    const db = this.getDatabase();
+    
+    const transaction = db.transaction(() => {
+      return callback();
+    });
     
     try {
-      // トランザクション開始
-      await this.executeQuery(conn, 'BEGIN TRANSACTION');
-      
-      try {
-        const result = await callback(conn);
-        
-        // コミット
-        await this.executeQuery(conn, 'COMMIT');
-        
-        return result;
-      } catch (error) {
-        // ロールバック
-        await this.executeQuery(conn, 'ROLLBACK');
-        throw error;
-      }
-    } finally {
-      this.releaseConnection(conn);
+      return transaction();
+    } catch (error) {
+      errorLogger.log(error as Error, { operation: 'transaction' });
+      throw new DatabaseError('トランザクション実行エラー', error as Error);
     }
   }
 
   /**
-   * クエリ実行（統計情報付き）
+   * バッチ実行（高速な複数クエリ実行）
    */
-  async query<T = any>(
-    sql: string,
-    params: any[] = []
-  ): Promise<T[]> {
-    const conn = await this.getConnection();
-    const startTime = Date.now();
+  batch<T = any>(operations: Array<{ sql: string; params: any[] }>): T[] {
+    const db = this.getDatabase();
     
-    try {
-      const result = await this.executeQuery<T>(conn, sql, params);
-      
-      // 統計情報を更新
-      const wrapper = this.findWrapper(conn);
-      if (wrapper) {
-        wrapper.queryCount++;
-        wrapper.totalQueryTime += Date.now() - startTime;
-        this.stats.totalQueries++;
-        this.updateAverageQueryTime();
-      }
-      
-      return result;
-    } finally {
-      this.releaseConnection(conn);
-    }
+    return this.transaction(() => {
+      return operations.map(({ sql, params }) => {
+        const stmt = db.prepare(sql);
+        return stmt.run(...params) as T;
+      });
+    });
   }
 
   /**
@@ -244,8 +221,8 @@ export class ConnectionManager extends EventEmitter {
    */
   async healthCheck(): Promise<boolean> {
     try {
-      const result = await this.query('SELECT 1 as health');
-      return result.length > 0 && result[0].health === 1;
+      const result = this.queryOne<{ health: number }>('SELECT 1 as health');
+      return result?.health === 1;
     } catch (error) {
       errorLogger.log(error as Error, { operation: 'healthCheck' });
       return false;
@@ -263,7 +240,19 @@ export class ConnectionManager extends EventEmitter {
    * データベース接続を閉じる
    */
   async close(): Promise<void> {
-    await this.cleanup();
+    if (this.database && !this.database.readonly) {
+      try {
+        // WALモードのチェックポイント実行
+        this.database.pragma('wal_checkpoint(TRUNCATE)');
+        this.database.close();
+      } catch (error) {
+        errorLogger.log(error as Error, { operation: 'close' });
+      }
+    }
+    
+    this.database = null;
+    this.isInitialized = false;
+    this.emit('closed');
   }
 
   /**
@@ -274,179 +263,21 @@ export class ConnectionManager extends EventEmitter {
   }
 
   /**
-   * 接続プールの状態を取得
+   * バキューム（データベース最適化）
    */
-  getPoolStatus(): {
-    total: number;
-    active: number;
-    idle: number;
-    connections: Array<{
-      id: string;
-      inUse: boolean;
-      createdAt: Date;
-      lastUsedAt: Date;
-      queryCount: number;
-      averageQueryTime: number;
-    }>;
-  } {
-    const connections = Array.from(this.connections.entries()).map(([id, wrapper]) => ({
-      id,
-      inUse: wrapper.inUse,
-      createdAt: wrapper.createdAt,
-      lastUsedAt: wrapper.lastUsedAt,
-      queryCount: wrapper.queryCount,
-      averageQueryTime: wrapper.queryCount > 0 
-        ? wrapper.totalQueryTime / wrapper.queryCount 
-        : 0
-    }));
-
-    return {
-      total: this.connections.size,
-      active: this.stats.activeConnections,
-      idle: this.stats.idleConnections,
-      connections
-    };
-  }
-
-  /**
-   * クリーンアップ
-   */
-  async cleanup(): Promise<void> {
-    // すべての接続をクローズ
-    for (const [id, wrapper] of this.connections) {
-      try {
-        // DuckDBの接続は明示的にクローズする必要がない
-        this.emit('connectionClosed', id);
-      } catch (error) {
-        errorLogger.log(error as Error, { operation: 'cleanup', connectionId: id });
-      }
-    }
-
-    this.connections.clear();
-    
-    if (this.database) {
-      this.database = null;
-    }
-
-    this.isInitialized = false;
-    this.emit('cleanup');
-  }
-
-  /**
-   * 新しい接続の作成
-   */
-  private async createNewConnection(): Promise<duckdb.Connection> {
-    if (!this.database) {
-      throw new DatabaseError('データベースが初期化されていません');
-    }
-
-    const id = `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    try {
-      const connection = this.database.connect();
-      
-      const wrapper: ConnectionWrapper = {
-        id,
-        connection,
-        inUse: true,
-        createdAt: new Date(),
-        lastUsedAt: new Date(),
-        queryCount: 0,
-        totalQueryTime: 0
-      };
-
-      this.connections.set(id, wrapper);
-      this.stats.totalConnections++;
-      this.updateStats();
-      
-      this.emit('connectionCreated', id);
-      
-      return connection;
-    } catch (error) {
-      this.stats.failedConnections++;
-      errorLogger.log(error as Error, { operation: 'createNewConnection' });
-      throw new DatabaseError('接続の作成に失敗しました', error as Error);
-    }
-  }
-
-  /**
-   * 最も古い未使用接続を探す
-   */
-  private findOldestIdleConnection(): ConnectionWrapper | null {
-    let oldest: ConnectionWrapper | null = null;
-    
-    for (const wrapper of this.connections.values()) {
-      if (!wrapper.inUse && (!oldest || wrapper.lastUsedAt < oldest.lastUsedAt)) {
-        oldest = wrapper;
-      }
-    }
-    
-    return oldest;
-  }
-
-  /**
-   * 接続ラッパーを探す
-   */
-  private findWrapper(connection: duckdb.Connection): ConnectionWrapper | null {
-    for (const wrapper of this.connections.values()) {
-      if (wrapper.connection === connection) {
-        return wrapper;
-      }
-    }
-    return null;
+  vacuum(): void {
+    const db = this.getDatabase();
+    db.exec('VACUUM');
   }
 
   /**
    * 統計情報の更新
    */
-  private updateStats(): void {
-    let active = 0;
-    let idle = 0;
-    
-    for (const wrapper of this.connections.values()) {
-      if (wrapper.inUse) {
-        active++;
-      } else {
-        idle++;
-      }
-    }
-    
-    this.stats.activeConnections = active;
-    this.stats.idleConnections = idle;
-  }
-
-  /**
-   * 平均クエリ時間の更新
-   */
-  private updateAverageQueryTime(): void {
-    let totalTime = 0;
-    let totalQueries = 0;
-    
-    for (const wrapper of this.connections.values()) {
-      totalTime += wrapper.totalQueryTime;
-      totalQueries += wrapper.queryCount;
-    }
-    
-    this.stats.averageQueryTime = totalQueries > 0 ? totalTime / totalQueries : 0;
-  }
-
-  /**
-   * クエリの実行
-   */
-  private executeQuery<T = any>(
-    conn: duckdb.Connection,
-    sql: string,
-    params: any[] = []
-  ): Promise<T[]> {
-    return new Promise((resolve, reject) => {
-      conn.all(sql, ...params, (err: Error | null, result: any) => {
-        if (err) {
-          reject(new DatabaseError(`クエリ実行エラー: ${err.message}`, err));
-        } else {
-          resolve(result as T[]);
-        }
-      });
-    });
+  private updateStats(queryTime: number): void {
+    this.stats.totalQueries++;
+    this.stats.lastQueryTime = queryTime;
+    this.totalQueryTime += queryTime;
+    this.stats.averageQueryTime = this.totalQueryTime / this.stats.totalQueries;
   }
 }
 
@@ -470,7 +301,7 @@ export function getConnectionManager(options?: ConnectionOptions): ConnectionMan
 
 export function resetConnectionManager(): void {
   if (connectionManager) {
-    connectionManager.cleanup();
+    connectionManager.close();
     connectionManager = null;
   }
 }

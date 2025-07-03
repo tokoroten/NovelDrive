@@ -1,8 +1,8 @@
 import { LocalEmbeddingService } from '../services/local-embedding-service';
-import * as duckdb from 'duckdb';
+import Database from 'better-sqlite3';
 import * as path from 'path';
 import { DatabaseMigration } from '../services/database-migration';
-import { initializeApiUsageLogger, getApiUsageLogger } from '../services/api-usage-logger';
+import { ApiUsageLogger } from '../services/api-usage-logger';
 
 /**
  * ローカル埋め込みサービスのテスト
@@ -12,7 +12,7 @@ async function testLocalEmbedding() {
   
   // データベースの初期化
   const dbPath = path.join(process.cwd(), 'test-local-embedding.db');
-  const db = new duckdb.Database(dbPath);
+  const db = new Database(dbPath);
   
   try {
     // マイグレーションの実行
@@ -20,8 +20,7 @@ async function testLocalEmbedding() {
     await migration.migrate();
     
     // API使用ログサービスの初期化
-    initializeApiUsageLogger(db);
-    const logger = getApiUsageLogger();
+    const logger = new ApiUsageLogger(db);
     
     // ローカル埋め込みサービスの初期化
     const embeddingService = LocalEmbeddingService.getInstance();
@@ -57,7 +56,7 @@ async function testLocalEmbedding() {
         console.log(`Duration: ${duration}ms`);
         
         // API使用をログに記録
-        await logger.log({
+        await logger.logApiUsage({
           apiType: 'embedding',
           provider: 'local',
           model: modelInfo.modelName,
@@ -73,7 +72,7 @@ async function testLocalEmbedding() {
         console.error(`Error generating embedding: ${error}`);
         
         // エラーをログに記録
-        await logger.log({
+        await logger.logApiUsage({
           apiType: 'embedding',
           provider: 'local',
           model: modelInfo.modelName,
@@ -142,9 +141,7 @@ async function testLocalEmbedding() {
     console.error('Test failed:', error);
   } finally {
     // データベースのクローズ
-    await new Promise<void>((resolve) => {
-      db.close(() => resolve());
-    });
+    db.close();
   }
 }
 

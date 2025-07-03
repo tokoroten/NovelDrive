@@ -6,7 +6,7 @@ import { DiscussionManager } from '../services/agents/discussion-manager';
 import { ApiUsageLogger } from '../services/api-usage-logger';
 import { DatabaseMigration } from '../services/database-migration';
 import OpenAI from 'openai';
-import * as duckdb from 'duckdb';
+import Database from "better-sqlite3";
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
@@ -14,12 +14,10 @@ import * as path from 'path';
 dotenv.config({ path: path.join(__dirname, '../../../.env') });
 
 async function createTestDatabase() {
-  const db = new duckdb.Database(':memory:');
-  const conn = db.connect();
+  const db = new Database(':memory:');
   
   // Create minimal required tables for testing
-  await new Promise<void>((resolve, reject) => {
-    conn.run(`
+  db.exec(`
       CREATE TABLE IF NOT EXISTS agent_discussions (
         id VARCHAR PRIMARY KEY,
         project_id VARCHAR,
@@ -32,14 +30,9 @@ async function createTestDatabase() {
         created_at TIMESTAMP,
         updated_at TIMESTAMP
       )
-    `, (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+    `);
   
-  await new Promise<void>((resolve, reject) => {
-    conn.run(`
+  db.exec(`
       CREATE TABLE IF NOT EXISTS agent_messages (
         id VARCHAR PRIMARY KEY,
         discussion_id VARCHAR NOT NULL,
@@ -50,14 +43,9 @@ async function createTestDatabase() {
         metadata TEXT,
         created_at TIMESTAMP
       )
-    `, (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+    `);
   
-  await new Promise<void>((resolve, reject) => {
-    conn.run(`
+  db.exec(`
       CREATE TABLE IF NOT EXISTS api_usage_logs (
         id VARCHAR PRIMARY KEY,
         timestamp TIMESTAMP,
@@ -71,11 +59,7 @@ async function createTestDatabase() {
         success BOOLEAN,
         error_message TEXT
       )
-    `, (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+    `);
   
   return db;
 }
@@ -91,10 +75,9 @@ async function testSummarization() {
 
   // Initialize services
   const db = await createTestDatabase();
-  const connection = db.connect();
   const apiLogger = new ApiUsageLogger(db);
   const openai = new OpenAI({ apiKey });
-  const discussionManager = new DiscussionManager(openai, connection, apiLogger);
+  const discussionManager = new DiscussionManager(openai, db, apiLogger);
 
   // Set up event listeners for monitoring
   discussionManager.on('discussionStarted', (data) => {

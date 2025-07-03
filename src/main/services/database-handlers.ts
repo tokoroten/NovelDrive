@@ -3,12 +3,15 @@
  */
 
 import { ipcMain } from 'electron';
-import * as duckdb from 'duckdb';
+import Database from 'better-sqlite3';
+import { ConnectionManager } from '../core/database/connection-manager';
 import { createRepositories, RepositoryContainer } from '../repositories';
 import { SearchOptions } from '../repositories/types';
 
-export function setupDatabaseHandlers(conn: duckdb.Connection): void {
-  const repositories = createRepositories(conn);
+export function setupDatabaseHandlers(db: Database.Database): void {
+  const connectionManager = ConnectionManager.getInstance();
+  connectionManager.initialize({ path: db.filename });
+  const repositories = createRepositories(connectionManager);
 
   // プロジェクト関連
   setupProjectHandlers(repositories);
@@ -48,7 +51,7 @@ function setupProjectHandlers(repos: RepositoryContainer) {
     }
   });
 
-  ipcMain.handle('db:projects:get', async (_, id) => {
+  ipcMain.handle('db:projects:get', async (_, id: string) => {
     try {
       return await repos.projects.findById(id);
     } catch (error) {
@@ -57,7 +60,7 @@ function setupProjectHandlers(repos: RepositoryContainer) {
     }
   });
 
-  ipcMain.handle('db:projects:update', async (_, id, updates) => {
+  ipcMain.handle('db:projects:update', async (_, id: string, updates) => {
     try {
       return await repos.projects.update(id, updates);
     } catch (error) {
@@ -66,18 +69,19 @@ function setupProjectHandlers(repos: RepositoryContainer) {
     }
   });
 
-  ipcMain.handle('db:projects:delete', async (_, id) => {
+  ipcMain.handle('db:projects:delete', async (_, id: string) => {
     try {
-      return await repos.projects.delete(id);
+      await repos.projects.delete(id);
+      return { success: true };
     } catch (error) {
       console.error('Failed to delete project:', error);
       throw error;
     }
   });
 
-  ipcMain.handle('db:projects:list', async () => {
+  ipcMain.handle('db:projects:list', async (_, options?: SearchOptions) => {
     try {
-      return await repos.projects.findAll();
+      return await repos.projects.findAll(options);
     } catch (error) {
       console.error('Failed to list projects:', error);
       throw error;
@@ -95,7 +99,7 @@ function setupKnowledgeHandlers(repos: RepositoryContainer) {
     }
   });
 
-  ipcMain.handle('db:knowledge:get', async (_, id) => {
+  ipcMain.handle('db:knowledge:get', async (_, id: string) => {
     try {
       return await repos.knowledge.findById(id);
     } catch (error) {
@@ -104,7 +108,7 @@ function setupKnowledgeHandlers(repos: RepositoryContainer) {
     }
   });
 
-  ipcMain.handle('db:knowledge:update', async (_, id, updates) => {
+  ipcMain.handle('db:knowledge:update', async (_, id: string, updates) => {
     try {
       return await repos.knowledge.update(id, updates);
     } catch (error) {
@@ -113,25 +117,30 @@ function setupKnowledgeHandlers(repos: RepositoryContainer) {
     }
   });
 
-  ipcMain.handle('db:knowledge:delete', async (_, id) => {
+  ipcMain.handle('db:knowledge:delete', async (_, id: string) => {
     try {
-      return await repos.knowledge.delete(id);
+      await repos.knowledge.delete(id);
+      return { success: true };
     } catch (error) {
       console.error('Failed to delete knowledge:', error);
       throw error;
     }
   });
 
-  ipcMain.handle('db:knowledge:list', async (_, projectId) => {
+  ipcMain.handle('db:knowledge:search', async (_, options: SearchOptions) => {
     try {
-      if (projectId) {
-        return await repos.knowledge.findByProject(projectId);
-      }
-      // プロジェクトIDが指定されていない場合は全件取得
-      // TODO: Implement findAll method in KnowledgeRepository
-      return [];
+      return await repos.knowledge.search(options);
     } catch (error) {
-      console.error('Failed to list knowledge:', error);
+      console.error('Failed to search knowledge:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db:knowledge:findSimilar', async (_, id: string, limit: number = 10) => {
+    try {
+      return await repos.knowledge.findSimilar(id, limit);
+    } catch (error) {
+      console.error('Failed to find similar knowledge:', error);
       throw error;
     }
   });
@@ -147,7 +156,7 @@ function setupCharacterHandlers(repos: RepositoryContainer) {
     }
   });
 
-  ipcMain.handle('db:characters:get', async (_, id) => {
+  ipcMain.handle('db:characters:get', async (_, id: string) => {
     try {
       return await repos.characters.findById(id);
     } catch (error) {
@@ -156,7 +165,7 @@ function setupCharacterHandlers(repos: RepositoryContainer) {
     }
   });
 
-  ipcMain.handle('db:characters:update', async (_, id, updates) => {
+  ipcMain.handle('db:characters:update', async (_, id: string, updates) => {
     try {
       return await repos.characters.update(id, updates);
     } catch (error) {
@@ -165,18 +174,19 @@ function setupCharacterHandlers(repos: RepositoryContainer) {
     }
   });
 
-  ipcMain.handle('db:characters:delete', async (_, id) => {
+  ipcMain.handle('db:characters:delete', async (_, id: string) => {
     try {
-      return await repos.characters.delete(id);
+      await repos.characters.delete(id);
+      return { success: true };
     } catch (error) {
       console.error('Failed to delete character:', error);
       throw error;
     }
   });
 
-  ipcMain.handle('db:characters:list', async (_, projectId) => {
+  ipcMain.handle('db:characters:listByProject', async (_, projectId: string) => {
     try {
-      return await repos.characters.findByProject(projectId);
+      return await repos.characters.findByProjectId(projectId);
     } catch (error) {
       console.error('Failed to list characters:', error);
       throw error;
@@ -194,7 +204,7 @@ function setupPlotHandlers(repos: RepositoryContainer) {
     }
   });
 
-  ipcMain.handle('db:plots:get', async (_, id) => {
+  ipcMain.handle('db:plots:get', async (_, id: string) => {
     try {
       return await repos.plots.findById(id);
     } catch (error) {
@@ -203,7 +213,7 @@ function setupPlotHandlers(repos: RepositoryContainer) {
     }
   });
 
-  ipcMain.handle('db:plots:update', async (_, id, updates) => {
+  ipcMain.handle('db:plots:update', async (_, id: string, updates) => {
     try {
       return await repos.plots.update(id, updates);
     } catch (error) {
@@ -212,20 +222,20 @@ function setupPlotHandlers(repos: RepositoryContainer) {
     }
   });
 
-  ipcMain.handle('db:plots:delete', async (_, id) => {
+  ipcMain.handle('db:plots:listByProject', async (_, projectId: string) => {
     try {
-      return await repos.plots.delete(id);
+      return await repos.plots.findByProjectId(projectId);
     } catch (error) {
-      console.error('Failed to delete plot:', error);
+      console.error('Failed to list plots:', error);
       throw error;
     }
   });
 
-  ipcMain.handle('db:plots:list', async (_, projectId) => {
+  ipcMain.handle('db:plots:getVersionHistory', async (_, projectId: string) => {
     try {
-      return await repos.plots.findByProject(projectId);
+      return await repos.plots.getVersionHistory(projectId);
     } catch (error) {
-      console.error('Failed to list plots:', error);
+      console.error('Failed to get version history:', error);
       throw error;
     }
   });
@@ -241,7 +251,7 @@ function setupChapterHandlers(repos: RepositoryContainer) {
     }
   });
 
-  ipcMain.handle('db:chapters:get', async (_, id) => {
+  ipcMain.handle('db:chapters:get', async (_, id: string) => {
     try {
       return await repos.chapters.findById(id);
     } catch (error) {
@@ -250,7 +260,7 @@ function setupChapterHandlers(repos: RepositoryContainer) {
     }
   });
 
-  ipcMain.handle('db:chapters:update', async (_, id, updates) => {
+  ipcMain.handle('db:chapters:update', async (_, id: string, updates) => {
     try {
       return await repos.chapters.update(id, updates);
     } catch (error) {
@@ -259,20 +269,30 @@ function setupChapterHandlers(repos: RepositoryContainer) {
     }
   });
 
-  ipcMain.handle('db:chapters:delete', async (_, id) => {
+  ipcMain.handle('db:chapters:delete', async (_, id: string) => {
     try {
-      return await repos.chapters.delete(id);
+      await repos.chapters.delete(id);
+      return { success: true };
     } catch (error) {
       console.error('Failed to delete chapter:', error);
       throw error;
     }
   });
 
-  ipcMain.handle('db:chapters:list', async (_, plotId) => {
+  ipcMain.handle('db:chapters:listByPlot', async (_, plotId: string) => {
     try {
-      return await repos.chapters.findByPlot(plotId);
+      return await repos.chapters.findByPlotId(plotId);
     } catch (error) {
       console.error('Failed to list chapters:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db:chapters:reorder', async (_, plotId: string, chapterIds: string[]) => {
+    try {
+      return await repos.chapters.reorderChapters(plotId, chapterIds);
+    } catch (error) {
+      console.error('Failed to reorder chapters:', error);
       throw error;
     }
   });
@@ -288,7 +308,7 @@ function setupDiscussionHandlers(repos: RepositoryContainer) {
     }
   });
 
-  ipcMain.handle('db:discussions:get', async (_, id) => {
+  ipcMain.handle('db:discussions:get', async (_, id: string) => {
     try {
       return await repos.discussions.findById(id);
     } catch (error) {
@@ -297,29 +317,34 @@ function setupDiscussionHandlers(repos: RepositoryContainer) {
     }
   });
 
-  ipcMain.handle('db:discussions:list', async (_, projectId) => {
+  ipcMain.handle('db:discussions:update', async (_, id: string, updates) => {
     try {
-      if (projectId) {
-        return await repos.discussions.findByProject(projectId);
-      }
-      // TODO: Implement findAll method in DiscussionRepository
-      return [];
+      return await repos.discussions.update(id, updates);
+    } catch (error) {
+      console.error('Failed to update discussion:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db:discussions:listByProject', async (_, projectId: string) => {
+    try {
+      return await repos.discussions.findByProjectId(projectId);
     } catch (error) {
       console.error('Failed to list discussions:', error);
       throw error;
     }
   });
 
-  ipcMain.handle('db:discussions:addMessage', async (_, message) => {
+  ipcMain.handle('db:discussions:addMessage', async (_, discussionId: string, message) => {
     try {
-      return await repos.discussions.addMessage(message);
+      return await repos.discussions.addMessage(discussionId, message);
     } catch (error) {
       console.error('Failed to add message:', error);
       throw error;
     }
   });
 
-  ipcMain.handle('db:discussions:getMessages', async (_, discussionId) => {
+  ipcMain.handle('db:discussions:getMessages', async (_, discussionId: string) => {
     try {
       return await repos.discussions.getMessages(discussionId);
     } catch (error) {
@@ -330,7 +355,7 @@ function setupDiscussionHandlers(repos: RepositoryContainer) {
 }
 
 function setupSettingsHandlers(repos: RepositoryContainer) {
-  ipcMain.handle('db:settings:get', async (_, key) => {
+  ipcMain.handle('db:settings:get', async (_, key: string) => {
     try {
       return await repos.settings.get(key);
     } catch (error) {
@@ -339,7 +364,7 @@ function setupSettingsHandlers(repos: RepositoryContainer) {
     }
   });
 
-  ipcMain.handle('db:settings:set', async (_, key, value) => {
+  ipcMain.handle('db:settings:set', async (_, key: string, value: any) => {
     try {
       return await repos.settings.set(key, value);
     } catch (error) {
@@ -356,56 +381,94 @@ function setupSettingsHandlers(repos: RepositoryContainer) {
       throw error;
     }
   });
+
+  ipcMain.handle('db:settings:delete', async (_, key: string) => {
+    try {
+      await repos.settings.delete(key);
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to delete setting:', error);
+      throw error;
+    }
+  });
 }
 
 function setupAnalyticsHandlers(repos: RepositoryContainer) {
-  ipcMain.handle('db:analytics:overview', async () => {
+  ipcMain.handle('db:analytics:getProjectStats', async (_, projectId: string) => {
     try {
-      return await repos.analytics.getOverview();
+      return await repos.analytics.getProjectStats(projectId);
     } catch (error) {
-      console.error('Failed to get analytics overview:', error);
+      console.error('Failed to get project stats:', error);
       throw error;
     }
   });
 
-  ipcMain.handle('db:analytics:activity', async (_, startDate, endDate) => {
+  ipcMain.handle('db:analytics:getSystemStats', async () => {
     try {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      return await repos.analytics.getActivityData(start, end);
+      return await repos.analytics.getSystemStats();
     } catch (error) {
-      console.error('Failed to get activity data:', error);
+      console.error('Failed to get system stats:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db:analytics:getWritingProgress', async (_, projectId: string, days: number = 30) => {
+    try {
+      return await repos.analytics.getWritingProgress(projectId, days);
+    } catch (error) {
+      console.error('Failed to get writing progress:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('db:analytics:getKnowledgeGrowth', async (_, projectId?: string, days: number = 30) => {
+    try {
+      return await repos.analytics.getKnowledgeGrowth(projectId, days);
+    } catch (error) {
+      console.error('Failed to get knowledge growth:', error);
       throw error;
     }
   });
 }
 
 function setupSearchHandlers(repos: RepositoryContainer) {
-  ipcMain.handle('db:search:hybrid', async (_, options: SearchOptions) => {
+  ipcMain.handle('db:search:global', async (_, query: string, options?: SearchOptions) => {
     try {
-      return await repos.knowledge.search(options);
+      const results = {
+        projects: await repos.projects.search({ ...options, query }),
+        knowledge: await repos.knowledge.search({ ...options, query }),
+        characters: await repos.characters.search({ ...options, query }),
+        chapters: await repos.chapters.search({ ...options, query })
+      };
+      return results;
     } catch (error) {
-      console.error('Failed to perform hybrid search:', error);
+      console.error('Failed to perform global search:', error);
       throw error;
     }
   });
 
-  ipcMain.handle('db:links:create', async (_, link) => {
+  ipcMain.handle('db:search:byType', async (_, type: string, query: string, options?: SearchOptions) => {
     try {
-      // 知識リンクの作成（将来的に実装）
-      return { success: true };
+      const searchOptions = { ...options, query };
+      
+      switch (type) {
+        case 'projects':
+          // TODO: Implement search method
+          throw new Error('Search not yet implemented for projects');
+        case 'knowledge':
+          // TODO: Implement search method
+          throw new Error('Search not yet implemented for knowledge');
+        case 'characters':
+          // TODO: Implement search method
+          throw new Error('Search not yet implemented for characters');
+        case 'chapters':
+          // TODO: Implement search method
+          throw new Error('Search not yet implemented for chapters');
+        default:
+          throw new Error(`Unknown search type: ${type}`);
+      }
     } catch (error) {
-      console.error('Failed to create link:', error);
-      throw error;
-    }
-  });
-
-  ipcMain.handle('db:links:getForNode', async (_, nodeId) => {
-    try {
-      // ノードのリンク取得（将来的に実装）
-      return [];
-    } catch (error) {
-      console.error('Failed to get links:', error);
+      console.error(`Failed to search ${type}:`, error);
       throw error;
     }
   });

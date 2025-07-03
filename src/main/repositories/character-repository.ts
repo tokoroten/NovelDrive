@@ -2,12 +2,12 @@
  * キャラクターリポジトリ
  */
 
-import * as duckdb from 'duckdb';
+import Database from 'better-sqlite3';
 import { BaseRepository } from './base-repository';
 import { Character } from './types';
 
 export class CharacterRepository extends BaseRepository<Character> {
-  constructor(conn: duckdb.Connection) {
+  constructor(conn: Database.Database) {
     super(conn, 'characters');
   }
 

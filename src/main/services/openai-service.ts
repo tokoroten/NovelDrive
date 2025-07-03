@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { ipcMain } from 'electron';
 import dotenv from 'dotenv';
-import { getApiUsageLogger, ApiUsageLog } from './api-usage-logger';
+import { ApiUsageLogger, ApiUsageLog } from './api-usage-logger';
 import { initializePlotGenerationWorkflow } from './service-initializer';
 import { getDatabase } from '../database';
 
@@ -42,11 +42,10 @@ function tryInitializeDependentServices(): void {
 
   try {
     const db = getDatabase();
-    const apiLogger = getApiUsageLogger();
     
-    if (db && apiLogger) {
-      const conn = db.connect();
-      initializePlotGenerationWorkflow(openai, conn, apiLogger);
+    if (db) {
+      const apiLogger = new ApiUsageLogger(db);
+      initializePlotGenerationWorkflow(openai, db, apiLogger);
     }
   } catch (error) {
     console.error('Failed to initialize dependent services:', error);
@@ -76,7 +75,8 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
   }
 
   const startTime = Date.now();
-  const logger = getApiUsageLogger();
+  const db = getDatabase();
+  const logger = db ? new ApiUsageLogger(db) : null;
   const model = 'text-embedding-3-small';
   
   const logData: ApiUsageLog = {
@@ -107,7 +107,7 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
     };
     
     // 使用状況をログに記録
-    await logger.log(logData).catch(err => 
+    await logger.logApiUsage(logData).catch((err: any) => 
       console.error('Failed to log API usage:', err)
     );
 
@@ -118,7 +118,7 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
     logData.durationMs = Date.now() - startTime;
     
     // エラーをログに記録
-    await logger.log(logData).catch(err => 
+    await logger.logApiUsage(logData).catch((err: any) => 
       console.error('Failed to log API error:', err)
     );
     
@@ -144,7 +144,8 @@ export async function generateChatCompletion(
   }
 
   const startTime = Date.now();
-  const logger = getApiUsageLogger();
+  const db = getDatabase();
+  const logger = db ? new ApiUsageLogger(db) : null;
   const model = options?.model || 'gpt-4-turbo-preview';
   
   const logData: ApiUsageLog = {
@@ -185,7 +186,7 @@ export async function generateChatCompletion(
     };
     
     // 使用状況をログに記録
-    await logger.log(logData).catch(err => 
+    await logger.logApiUsage(logData).catch((err: any) => 
       console.error('Failed to log API usage:', err)
     );
 
@@ -196,7 +197,7 @@ export async function generateChatCompletion(
     logData.durationMs = Date.now() - startTime;
     
     // エラーをログに記録
-    await logger.log(logData).catch(err => 
+    await logger.logApiUsage(logData).catch((err: any) => 
       console.error('Failed to log API error:', err)
     );
     
@@ -282,7 +283,8 @@ export async function generateImage(
   }
 
   const startTime = Date.now();
-  const logger = getApiUsageLogger();
+  const db = getDatabase();
+  const logger = db ? new ApiUsageLogger(db) : null;
   const model = 'dall-e-3';
   const size = options?.size || '1024x1024';
   const quality = options?.quality || 'standard';
@@ -319,7 +321,7 @@ export async function generateImage(
     };
     
     // 使用状況をログに記録
-    await logger.log(logData).catch(err => 
+    await logger.logApiUsage(logData).catch((err: any) => 
       console.error('Failed to log API usage:', err)
     );
 
@@ -330,7 +332,7 @@ export async function generateImage(
     logData.durationMs = Date.now() - startTime;
     
     // エラーをログに記録
-    await logger.log(logData).catch(err => 
+    await logger.logApiUsage(logData).catch((err: any) => 
       console.error('Failed to log API error:', err)
     );
     
@@ -404,7 +406,8 @@ export async function createThread(metadata?: Record<string, any>): Promise<stri
   }
 
   const startTime = Date.now();
-  const logger = getApiUsageLogger();
+  const db = getDatabase();
+  const logger = db ? new ApiUsageLogger(db) : null;
   
   const logData: ApiUsageLog = {
     apiType: 'thread',
@@ -423,7 +426,7 @@ export async function createThread(metadata?: Record<string, any>): Promise<stri
     logData.responseData = { threadId: thread.id };
     
     // 使用状況をログに記録
-    await logger.log(logData).catch(err => 
+    await logger.logApiUsage(logData).catch((err: any) => 
       console.error('Failed to log API usage:', err)
     );
     
@@ -434,7 +437,7 @@ export async function createThread(metadata?: Record<string, any>): Promise<stri
     logData.durationMs = Date.now() - startTime;
     
     // エラーをログに記録
-    await logger.log(logData).catch(err => 
+    await logger.logApiUsage(logData).catch((err: any) => 
       console.error('Failed to log API error:', err)
     );
     
@@ -507,7 +510,8 @@ export async function runAssistant(
   }
 
   const startTime = Date.now();
-  const logger = getApiUsageLogger();
+  const db = getDatabase();
+  const logger = db ? new ApiUsageLogger(db) : null;
   
   const logData: ApiUsageLog = {
     apiType: 'assistant',
@@ -554,7 +558,7 @@ export async function runAssistant(
     };
     
     // 使用状況をログに記録
-    await logger.log(logData).catch(err => 
+    await logger.logApiUsage(logData).catch((err: any) => 
       console.error('Failed to log API usage:', err)
     );
     
@@ -565,7 +569,7 @@ export async function runAssistant(
     logData.durationMs = Date.now() - startTime;
     
     // エラーをログに記録
-    await logger.log(logData).catch(err => 
+    await logger.logApiUsage(logData).catch((err: any) => 
       console.error('Failed to log API error:', err)
     );
     

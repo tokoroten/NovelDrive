@@ -1,7 +1,8 @@
 import { ipcMain } from 'electron';
-import * as duckdb from 'duckdb';
+import Database from 'better-sqlite3';
 import { generateSerendipitousEmbedding, cosineSimilarity, rerankResults } from './vector-search';
 import { wrapIPCHandler, ValidationError } from '../utils/error-handler';
+import { VectorSearchService } from './vector-search-service';
 
 interface SearchOptions {
   limit?: number;
@@ -26,7 +27,7 @@ interface SearchResult {
 }
 
 export async function performSerendipitySearch(
-  conn: duckdb.Connection,
+  db: Database.Database,
   query: string,
   options: SearchOptions = {}
 ): Promise<SearchResult[]> {
@@ -47,256 +48,227 @@ export async function performSerendipitySearch(
     throw new Error('Failed to generate query embedding');
   }
 
-  // データベースから候補を取得
-  let sql = `
-    SELECT 
-      id, title, content, type, project_id, embedding, metadata,
-      created_at, updated_at
-    FROM knowledge
-    WHERE embedding IS NOT NULL
-  `;
-
-  const params: any[] = [];
-
-  if (projectId) {
-    sql += ` AND (project_id = ? OR project_id IS NULL)`;
-    params.push(projectId);
-  }
-
-  if (type) {
-    sql += ` AND type = ?`;
-    params.push(type);
-  }
-
-  // 最大1000件まで取得して後でフィルタリング
-  sql += ` LIMIT 1000`;
-
-  return new Promise((resolve, reject) => {
-    conn.all(sql, params, async (err: any, rows: any[]) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-
-      // ベクトル類似度でフィルタリング
-      const candidates = rows.filter((row) => {
-        try {
-          const embedding = JSON.parse(row.embedding);
-          const similarity = cosineSimilarity(queryEmbedding, embedding);
-          return similarity >= minScore;
-        } catch {
-          return false;
-        }
-      });
-
-      // リランキング
-      const reranked = rerankResults(candidates, queryEmbedding, {
-        diversityWeight,
-        temporalDecay,
-        createdAt: (item) => new Date(item.created_at),
-      });
-
-      // 上位N件を返す
-      const results = reranked.slice(0, limit).map((item) => ({
-        ...item,
-        metadata: JSON.parse(item.metadata || '{}'),
-      }));
-
-      resolve(results);
-    });
+  // ベクトル検索サービスを使用
+  const vectorSearch = new VectorSearchService(db);
+  
+  // ベクトル検索を実行
+  const vectorResults = await vectorSearch.vectorSearch(queryEmbedding, {
+    limit: limit * 3, // 再ランキング用に多めに取得
+    threshold: minScore,
+    projectId,
+    type
   });
+
+  // 結果を SearchResult 形式に変換
+  const searchResults: SearchResult[] = vectorResults.map(row => ({
+    id: row.id,
+    title: row.title,
+    content: row.content,
+    type: row.type,
+    score: row.similarity,
+    metadata: row.metadata ? JSON.parse(row.metadata) : undefined
+  }));
+
+  // 多様性を考慮した再ランキング
+  const rerankedResults = await rerankResults(
+    searchResults,
+    queryEmbedding,
+    {
+      diversityWeight,
+      temporalDecay,
+      limit
+    }
+  ) as SearchResult[];
+
+  return rerankedResults;
 }
 
 /**
- * ハイブリッド検索（FTS + VSS + セレンディピティ）
+ * ハイブリッド検索（テキスト検索＋ベクトル検索）
  */
 export async function performHybridSearch(
-  conn: any,
+  db: Database.Database,
   query: string,
-  options: SearchOptions & { ftsWeight?: number; vssWeight?: number } = {}
-): Promise<any[]> {
+  options: SearchOptions = {}
+): Promise<SearchResult[]> {
   const {
     limit = 20,
     projectId,
     type,
-    ftsWeight = 0.3,
-    vssWeight = 0.7,
-    ...serendipityOptions
+    serendipityLevel = 0.3,
+    minScore = 0.3,
   } = options;
 
-  // 並行して3種類の検索を実行
-  const [ftsResults, vssResults] = await Promise.all([
-    // FTS検索
-    performFTSSearch(conn, query, { limit: limit * 2, projectId, type }),
-    // ベクトル検索（セレンディピティ付き）
-    performSerendipitySearch(conn, query, {
-      ...serendipityOptions,
-      limit: limit * 2,
-      projectId,
+  // テキスト検索の実行
+  const textResults = await performTextSearch(db, query, { projectId, type, limit: limit * 2 });
+
+  // セレンディピティ検索の実行
+  const vectorResults = await performSerendipitySearch(db, query, {
+    ...options,
+    limit: limit * 2,
+  });
+
+  // 結果のマージとスコアの正規化
+  const mergedResults = mergeSearchResults(textResults, vectorResults, {
+    textWeight: 0.4,
+    vectorWeight: 0.6,
+    minScore,
+  });
+
+  // 上位結果を返す
+  return mergedResults.slice(0, limit);
+}
+
+/**
+ * テキスト検索の実行
+ */
+async function performTextSearch(
+  db: Database.Database,
+  query: string,
+  options: { projectId?: string; type?: string; limit: number }
+): Promise<SearchResult[]> {
+  // SQLite3のFTSまたはLIKE検索を使用
+  const whereClauses = [];
+  const params: any[] = [];
+
+  // 検索条件
+  whereClauses.push('(title LIKE ? OR content LIKE ?)');
+  const searchPattern = `%${query}%`;
+  params.push(searchPattern, searchPattern);
+
+  if (options.projectId) {
+    whereClauses.push('(project_id = ? OR project_id IS NULL)');
+    params.push(options.projectId);
+  }
+
+  if (options.type) {
+    whereClauses.push('type = ?');
+    params.push(options.type);
+  }
+
+  const sql = `
+    SELECT 
+      id,
+      title,
+      content,
       type,
-    }),
-  ]);
+      metadata,
+      LENGTH(content) as content_length
+    FROM knowledge
+    WHERE ${whereClauses.join(' AND ')}
+    ORDER BY 
+      CASE 
+        WHEN title LIKE ? THEN 1
+        WHEN content LIKE ? THEN 2
+        ELSE 3
+      END,
+      content_length
+    LIMIT ?
+  `;
 
-  // 結果をマージしてスコアを統合
-  const resultMap = new Map<string, any>();
+  params.push(searchPattern, searchPattern, options.limit);
 
-  // FTS結果を追加
-  ftsResults.forEach((item, index) => {
-    const ftsScore = 1 - index / ftsResults.length; // 順位に基づくスコア
-    resultMap.set(item.id, {
-      ...item,
-      ftsScore: ftsScore * ftsWeight,
-      vssScore: 0,
-      combinedScore: ftsScore * ftsWeight,
+  const stmt = db.prepare(sql);
+  const rows = stmt.all(...params);
+
+  // スコアリング
+  return rows.map((row: any) => {
+    let score = 0.5; // ベーススコア
+    
+    // タイトルに含まれる場合は高スコア
+    if (row.title.toLowerCase().includes(query.toLowerCase())) {
+      score += 0.3;
+    }
+    
+    // コンテンツの先頭に含まれる場合は中スコア
+    const contentPreview = row.content.substring(0, 200).toLowerCase();
+    if (contentPreview.includes(query.toLowerCase())) {
+      score += 0.2;
+    }
+
+    return {
+      id: row.id,
+      title: row.title,
+      content: row.content,
+      type: row.type,
+      score,
+      metadata: row.metadata ? JSON.parse(row.metadata) : undefined
+    };
+  });
+}
+
+/**
+ * 検索結果のマージ
+ */
+function mergeSearchResults(
+  textResults: SearchResult[],
+  vectorResults: SearchResult[],
+  options: { textWeight: number; vectorWeight: number; minScore: number }
+): SearchResult[] {
+  const { textWeight, vectorWeight, minScore } = options;
+  const resultMap = new Map<string, SearchResult>();
+
+  // テキスト検索結果を追加
+  textResults.forEach(result => {
+    resultMap.set(result.id, {
+      ...result,
+      score: result.score * textWeight
     });
   });
 
-  // VSS結果を追加/更新
-  vssResults.forEach((item) => {
-    const existing = resultMap.get(item.id);
+  // ベクトル検索結果を追加またはマージ
+  vectorResults.forEach(result => {
+    const existing = resultMap.get(result.id);
     if (existing) {
-      existing.vssScore = item.score * vssWeight;
-      existing.combinedScore = existing.ftsScore + existing.vssScore;
+      // 両方に存在する場合はスコアを合計
+      existing.score += result.score * vectorWeight;
     } else {
-      resultMap.set(item.id, {
-        ...item,
-        ftsScore: 0,
-        vssScore: item.score * vssWeight,
-        combinedScore: item.score * vssWeight,
+      // ベクトル検索のみの結果
+      resultMap.set(result.id, {
+        ...result,
+        score: result.score * vectorWeight
       });
     }
   });
 
-  // スコアでソートして上位N件を返す
-  const results = Array.from(resultMap.values())
-    .sort((a, b) => b.combinedScore - a.combinedScore)
-    .slice(0, limit);
-
-  return results;
+  // スコアでソートし、閾値以上のものを返す
+  return Array.from(resultMap.values())
+    .filter(result => result.score >= minScore)
+    .sort((a, b) => b.score - a.score);
 }
 
-/**
- * 全文検索を実行
- */
-async function performFTSSearch(
-  conn: any,
-  query: string,
-  options: { limit?: number; projectId?: string; type?: string } = {}
-): Promise<any[]> {
-  const { limit = 20, projectId, type } = options;
-
-  // 検索トークンを空白区切りで結合
-  const searchQuery = query.split(/\s+/).join(' ');
-
-  let sql = `
-    SELECT 
-      id, title, content, type, project_id, embedding, metadata,
-      created_at, updated_at
-    FROM knowledge
-    WHERE search_tokens LIKE ?
-  `;
-
-  const params: any[] = [`%${searchQuery}%`];
-
-  if (projectId) {
-    sql += ` AND (project_id = ? OR project_id IS NULL)`;
-    params.push(projectId);
-  }
-
-  if (type) {
-    sql += ` AND type = ?`;
-    params.push(type);
-  }
-
-  sql += ` ORDER BY updated_at DESC LIMIT ?`;
-  params.push(limit);
-
-  return new Promise((resolve, reject) => {
-    conn.all(sql, params, (err: any, rows: any[]) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-
-      const results = rows.map((row) => ({
-        ...row,
-        metadata: JSON.parse(row.metadata || '{}'),
-      }));
-
-      resolve(results);
-    });
-  });
-}
-
-/**
- * 関連アイテムを発見（アイテムベース）
- */
-export async function findRelatedItems(
-  conn: any,
-  itemId: string,
-  options: SearchOptions = {}
-): Promise<any[]> {
-  // 元のアイテムを取得
-  const sql = `SELECT * FROM knowledge WHERE id = ?`;
-
-  return new Promise((resolve, reject) => {
-    conn.all(sql, [itemId], async (err: any, row: any) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-
-      if (!row || !row.embedding) {
-        resolve([]);
-        return;
-      }
-
-      // アイテムの内容でセレンディピティ検索
-      const results = await performSerendipitySearch(conn, row.title + ' ' + row.content, {
-        ...options,
-        minScore: 0.5, // 関連アイテムは類似度を高めに設定
-      });
-
-      // 元のアイテムを除外
-      resolve(results.filter((item) => item.id !== itemId));
-    });
-  });
-}
-
-/**
- * IPCハンドラーの設定
- */
-export function setupSerendipitySearchHandlers(conn: duckdb.Connection): void {
+export function setupSerendipitySearchHandlers(db: Database.Database): void {
   // セレンディピティ検索
   ipcMain.handle('search:serendipity', wrapIPCHandler(
     async (_, query: string, options?: SearchOptions) => {
-      if (!query) {
+      if (!query || query.trim().length === 0) {
         throw new ValidationError('検索クエリが指定されていません');
       }
-      return performSerendipitySearch(conn, query, options);
+
+      return await performSerendipitySearch(db, query, options);
     },
-    'セレンディピティ検索中にエラーが発生しました'
+    'セレンディピティ検索の実行中にエラーが発生しました'
   ));
 
   // ハイブリッド検索
   ipcMain.handle('search:hybrid', wrapIPCHandler(
-    async (_, query: string, options?: any) => {
-      if (!query) {
+    async (_, query: string, options?: SearchOptions) => {
+      if (!query || query.trim().length === 0) {
         throw new ValidationError('検索クエリが指定されていません');
       }
-      return performHybridSearch(conn, query, options);
+
+      return await performHybridSearch(db, query, options);
     },
-    'ハイブリッド検索中にエラーが発生しました'
+    'ハイブリッド検索の実行中にエラーが発生しました'
   ));
 
-  // 関連アイテム検索
-  ipcMain.handle('search:related', wrapIPCHandler(
-    async (_, itemId: string, options?: SearchOptions) => {
-      if (!itemId) {
-        throw new ValidationError('アイテムIDが指定されていません');
-      }
-      return findRelatedItems(conn, itemId, options);
+  // ベクトル埋め込みの生成
+  ipcMain.handle('embedding:generateMissing', wrapIPCHandler(
+    async (_, batchSize: number = 10) => {
+      const vectorSearch = new VectorSearchService(db);
+      const generated = await vectorSearch.generateMissingEmbeddings(batchSize);
+      return { generated };
     },
-    '関連アイテム検索中にエラーが発生しました'
+    '埋め込みの生成中にエラーが発生しました'
   ));
 }

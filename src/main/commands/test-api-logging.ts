@@ -4,7 +4,7 @@
  * API使用ログシステムのテスト
  */
 
-import * as duckdb from 'duckdb';
+import Database from 'better-sqlite3';
 import * as path from 'path';
 import * as fs from 'fs';
 import dotenv from 'dotenv';
@@ -36,7 +36,7 @@ async function testAPILogging() {
   }
   
   const dbPath = path.join(getUserDataPath(), 'noveldrive.db');
-  const db = new duckdb.Database(dbPath);
+  const db = new Database(dbPath);
   
   try {
     // データベースマイグレーション
@@ -46,7 +46,6 @@ async function testAPILogging() {
     console.log('✓ Migration completed\n');
     
     // ApiUsageLoggerの初期化
-    const conn = db.connect();
     const logger = new ApiUsageLogger(db);
     
     // OpenAI APIクライアント
@@ -71,7 +70,7 @@ async function testAPILogging() {
       const chatDuration = Date.now() - chatStart;
       
       // ログ記録
-      await logger.log({
+      await logger.logApiUsage({
         apiType: 'chat',
         provider: 'openai',
         model: chatResponse.model,
@@ -100,7 +99,7 @@ async function testAPILogging() {
       console.error('❌ Chat completion failed:', error);
       
       // エラーログの記録
-      await logger.log({
+      await logger.logApiUsage({
         apiType: 'chat',
         provider: 'openai',
         model: 'gpt-3.5-turbo',
@@ -164,7 +163,7 @@ async function testAPILogging() {
     
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - 7); // 過去7日間
-    const stats = await logger.getUsageStats({ startDate });
+    const stats = await logger.getUsageStats(startDate);
     console.log('\nAPI Usage Summary:');
     
     for (const stat of stats) {
@@ -179,10 +178,10 @@ async function testAPILogging() {
     // 最近のログ確認
     console.log('\n6. Recent API logs...');
     
-    const recentLogs = await logger.getLogs({ limit: 5 });
+    const recentLogs = await logger.getUsageByApi();
     console.log(`\nFound ${recentLogs.length} recent logs:`);
     
-    recentLogs.forEach((log, i) => {
+    recentLogs.forEach((log: any, i: number) => {
       console.log(`\n[${i + 1}] ${log.apiType || log.apiType}/${log.operation}`);
       console.log(`  Time: ${new Date().toLocaleString()}`); // ログには timestamp がないため現在時刻を表示
       console.log(`  Status: ${log.status}`);
@@ -195,9 +194,8 @@ async function testAPILogging() {
   } catch (error) {
     console.error('\n❌ Test failed:', error);
   } finally {
-    db.close(() => {
-      console.log('\nDatabase connection closed');
-    });
+    db.close();
+    console.log('\nDatabase connection closed');
   }
 }
 

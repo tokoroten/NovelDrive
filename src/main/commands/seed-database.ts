@@ -7,7 +7,7 @@
  * npm run db:seed
  */
 
-import * as duckdb from 'duckdb';
+import Database from "better-sqlite3";
 import * as path from 'path';
 import * as fs from 'fs';
 import { DatabaseMigration } from '../services/database-migration';
@@ -49,7 +49,7 @@ async function main() {
   
   try {
     // データベース接続
-    const db = new duckdb.Database(dbPath);
+    const db = new Database(dbPath);
     const conn = db.connect();
     
     // マイグレーションの確認

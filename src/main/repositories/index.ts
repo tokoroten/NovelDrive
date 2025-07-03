@@ -13,7 +13,8 @@ export * from './discussion-repository';
 export * from './settings-repository';
 export * from './analytics-repository';
 
-import * as duckdb from 'duckdb';
+import Database from 'better-sqlite3';
+import { ConnectionManager } from '../core/database/connection-manager';
 import { ProjectRepository } from './project-repository';
 import { KnowledgeRepository } from './knowledge-repository';
 import { CharacterRepository } from './character-repository';
@@ -37,15 +38,15 @@ export interface RepositoryContainer {
 /**
  * すべてのリポジトリを初期化
  */
-export function createRepositories(conn: duckdb.Connection): RepositoryContainer {
+export function createRepositories(connectionManager: ConnectionManager): RepositoryContainer {
   return {
-    projects: new ProjectRepository(conn),
-    knowledge: new KnowledgeRepository(conn),
-    characters: new CharacterRepository(conn),
-    plots: new PlotRepository(conn),
-    chapters: new ChapterRepository(conn),
-    discussions: new DiscussionRepository(conn),
-    settings: new SettingsRepository(conn),
-    analytics: new AnalyticsRepository(conn)
+    projects: new ProjectRepository(connectionManager),
+    knowledge: new KnowledgeRepository(connectionManager),
+    characters: new CharacterRepository(connectionManager),
+    plots: new PlotRepository(connectionManager),
+    chapters: new ChapterRepository(connectionManager),
+    discussions: new DiscussionRepository(connectionManager),
+    settings: new SettingsRepository(connectionManager),
+    analytics: new AnalyticsRepository(connectionManager)
   };
 }

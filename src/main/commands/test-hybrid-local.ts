@@ -4,7 +4,7 @@
  * ローカル埋め込みを使用したハイブリッド検索テスト
  */
 
-import * as duckdb from 'duckdb';
+import Database from "better-sqlite3";
 import * as path from 'path';
 import * as fs from 'fs';
 import { WeightedReranking, RankingFactors } from '../services/weighted-reranking';

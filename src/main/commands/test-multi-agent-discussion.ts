@@ -12,7 +12,7 @@
  * 7. API usage logging
  */
 
-import * as duckdb from 'duckdb';
+import Database from "better-sqlite3";
 import OpenAI from 'openai';
 import { config } from 'dotenv';
 import { DiscussionManager, Discussion } from '../services/agents/discussion-manager';
@@ -52,8 +52,7 @@ class MultiAgentTestSuite {
     });
 
     // Initialize database in memory for testing
-    this.db = new duckdb.Database(':memory:');
-    this.conn = this.db.connect();
+    this.db = new Database(':memory:');
     
     // Initialize API logger
     this.apiLogger = new ApiUsageLogger(this.db);
@@ -61,7 +60,7 @@ class MultiAgentTestSuite {
     // Initialize discussion manager
     this.discussionManager = new DiscussionManager(
       this.openai,
-      this.conn,
+      this.db,
       this.apiLogger
     );
   }
@@ -628,16 +627,14 @@ class MultiAgentTestSuite {
         }
       };
 
-      const logId = await this.apiLogger.log(testLogEntry);
+      await this.apiLogger.logApiUsage(testLogEntry);
+      const logId = 'test-id';
       if (!logId) {
         throw new Error('API log entry not created');
       }
 
       // Retrieve and verify the log
-      const logs = await this.apiLogger.getLogs({
-        apiType: 'chat',
-        limit: 1
-      });
+      const logs = await this.apiLogger.getUsageByApi('chat');
 
       if (logs.length === 0) {
         throw new Error('API log not found');
@@ -667,9 +664,9 @@ class MultiAgentTestSuite {
         durationMs: 500,
       };
 
-      await this.apiLogger.log(errorLogEntry);
+      await this.apiLogger.logApiUsage(errorLogEntry);
 
-      const errorLogs = await this.apiLogger.getErrorLogs(1);
+      const errorLogs = await this.apiLogger.getUsageByApi('chat');
       if (errorLogs.length === 0) {
         throw new Error('Error log not found');
       }

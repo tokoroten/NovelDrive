@@ -12,7 +12,7 @@ import { PlotManager } from '../services/plot-management';
 import { MultiAgentOrchestrator } from '../services/multi-agent-system';
 import { QualityFilterService } from '../services/quality-filter-service';
 import { AutonomousModeService } from '../services/autonomous-mode-service';
-import * as duckdb from 'duckdb';
+import Database from 'better-sqlite3';
 import {
   IDatabaseService,
   IEmbeddingService,
@@ -28,60 +28,46 @@ import {
  * データベースサービスアダプタ
  */
 class DatabaseServiceAdapter implements IDatabaseService {
-  private db: duckdb.Database | null = null;
-  private conn: duckdb.Connection | null = null;
+  private db: Database.Database | null = null;
 
   async initialize(): Promise<void> {
     await initializeDatabase();
     this.db = getDatabase();
-    if (this.db) {
-      this.conn = this.db.connect();
-    }
   }
 
-  getConnection(): duckdb.Connection {
-    if (!this.conn) {
+  getConnection(): Database.Database {
+    if (!this.db) {
       throw new Error('Database not initialized');
     }
-    return this.conn;
+    return this.db;
   }
 
   async query<T = any>(sql: string, params?: any[]): Promise<T[]> {
-    return new Promise((resolve, reject) => {
-      this.getConnection().all(sql, params || [], (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows as T[]);
-      });
-    });
+    const db = this.getConnection();
+    const stmt = db.prepare(sql);
+    return stmt.all(...(params || [])) as T[];
   }
 
   async execute(sql: string, params?: any[]): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.getConnection().run(sql, params || [], (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+    const db = this.getConnection();
+    const stmt = db.prepare(sql);
+    stmt.run(...(params || []));
   }
 
-  async transaction<T>(callback: (conn: duckdb.Connection) => Promise<T>): Promise<T> {
-    const conn = this.getConnection();
+  async transaction<T>(callback: (conn: Database.Database) => Promise<T>): Promise<T> {
+    const db = this.getConnection();
     try {
-      await this.execute('BEGIN TRANSACTION');
-      const result = await callback(conn);
-      await this.execute('COMMIT');
+      db.exec('BEGIN TRANSACTION');
+      const result = await callback(db);
+      db.exec('COMMIT');
       return result;
     } catch (error) {
-      await this.execute('ROLLBACK');
+      db.exec('ROLLBACK');
       throw error;
     }
   }
 
   async cleanup(): Promise<void> {
-    if (this.conn) {
-      // DuckDB doesn't have a close method for connections
-      this.conn = null;
-    }
     if (this.db) {
       this.db.close();
       this.db = null;

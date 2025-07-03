@@ -4,10 +4,10 @@
  * ベクトル検索（VSS）のテストスクリプト
  */
 
-import * as duckdb from 'duckdb';
+import Database from "better-sqlite3";
 import * as path from 'path';
 import * as fs from 'fs';
-import { DuckDBVSSSetup } from '../services/duckdb-vss-setup';
+import Database from "better-sqlite3";
 import { generateEmbedding } from '../services/openai-service';
 import dotenv from 'dotenv';
 

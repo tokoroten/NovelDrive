@@ -89,48 +89,30 @@ describe('ConnectionManager', () => {
     });
   });
 
-  describe('getConnection', () => {
-    it('初期化後にコネクションを返す', async () => {
+  describe('query', () => {
+    it('初期化後にクエリを実行できる', async () => {
       await manager.initialize();
       
-      const conn = manager.getConnection();
-      expect(conn).toBeDefined();
-      expect(conn.all).toBeDefined();
-      expect(conn.run).toBeDefined();
-    });
-
-    it('同じコネクションを返す（メインコネクション）', async () => {
-      await manager.initialize();
-      
-      const conn1 = manager.getConnection();
-      const conn2 = manager.getConnection();
-      
-      expect(conn1).toBe(conn2);
+      const result = manager.query('SELECT 1 as value');
+      expect(result).toEqual([{ value: 1 }]);
     });
 
     it('初期化前はエラーをスロー', () => {
-      expect(() => manager.getConnection()).toThrow(DatabaseError);
-      expect(() => manager.getConnection()).toThrow('データベースが初期化されていません');
+      expect(() => manager.query('SELECT 1')).toThrow(DatabaseError);
+      expect(() => manager.query('SELECT 1')).toThrow('データベースが初期化されていません');
     });
   });
 
-  describe('getConnectionAsync', () => {
-    it('非同期でコネクションを取得', async () => {
+  describe('run', () => {
+    it('INSERT文を実行できる', async () => {
       await manager.initialize();
       
-      const conn = await manager.getConnectionAsync();
-      expect(conn).toBeDefined();
-      expect(conn.all).toBeDefined();
-    });
-
-    it('最大接続数に達した場合のエラー', async () => {
-      await manager.initialize({ maxConnections: 1 });
+      const info = manager.run('CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)');
+      expect(info.changes).toBe(0);
       
-      // 最初のコネクションを取得して保持
-      const conn1 = await manager.getConnectionAsync();
-      
-      // 2つ目のコネクションを取得しようとするとエラー
-      await expect(manager.getConnectionAsync()).rejects.toThrow(DatabaseError);
+      const insertInfo = manager.run('INSERT INTO test (name) VALUES (?)', ['Test']);
+      expect(insertInfo.changes).toBe(1);
+      expect(insertInfo.lastInsertRowid).toBeDefined();
     });
   });
 

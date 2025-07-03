@@ -3,7 +3,7 @@
  * 各サービスが実装すべき共通インターフェースを定義
  */
 
-import * as duckdb from 'duckdb';
+import Database from 'better-sqlite3';
 import OpenAI from 'openai';
 import { Knowledge, Plot, Project, Character, WorldSetting } from '../../../shared/types';
 
@@ -19,10 +19,10 @@ export interface IService {
  * データベースサービス
  */
 export interface IDatabaseService extends IService {
-  getConnection(): duckdb.Connection;
+  getConnection(): Database.Database;
   query<T = any>(sql: string, params?: any[]): Promise<T[]>;
   execute(sql: string, params?: any[]): Promise<void>;
-  transaction<T>(callback: (conn: duckdb.Connection) => Promise<T>): Promise<T>;
+  transaction<T>(callback: (conn: Database.Database) => Promise<T>): Promise<T>;
 }
 
 /**

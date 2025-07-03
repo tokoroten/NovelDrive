@@ -4,7 +4,7 @@
  * 全文検索（日本語トークナイザー）のテストスクリプト
  */
 
-import * as duckdb from 'duckdb';
+import Database from "better-sqlite3";
 import * as path from 'path';
 import * as fs from 'fs';
 import { getSearchTokens } from '../services/japanese-tokenizer';

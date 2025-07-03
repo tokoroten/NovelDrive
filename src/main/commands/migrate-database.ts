@@ -7,7 +7,7 @@
  * npm run db:migrate
  */
 
-import * as duckdb from 'duckdb';
+import Database from 'better-sqlite3';
 import * as path from 'path';
 import * as fs from 'fs';
 import { DatabaseMigration } from '../services/database-migration';
@@ -42,7 +42,7 @@ async function main() {
   
   try {
     // データベース接続
-    const db = new duckdb.Database(dbPath);
+    const db = new Database(dbPath);
     
     // マイグレーション実行
     const migration = new DatabaseMigration(db);
@@ -51,9 +51,8 @@ async function main() {
     console.log('\n✅ Migration completed successfully!');
     
     // 接続を閉じる
-    db.close(() => {
-      console.log('Database connection closed');
-    });
+    db.close();
+    console.log('Database connection closed');
     
   } catch (error) {
     console.error('\n❌ Migration failed:', error);

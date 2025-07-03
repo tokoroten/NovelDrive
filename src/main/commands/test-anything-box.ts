@@ -1,7 +1,7 @@
 import { LocalEmbeddingService } from '../services/local-embedding-service';
 import { processAnythingBoxInput } from '../services/anything-box';
 import { DatabaseMigration } from '../services/database-migration';
-import * as duckdb from 'duckdb';
+import Database from "better-sqlite3";
 
 /**
  * AnythingBoxのローカル実装をテスト
