@@ -226,6 +226,9 @@ function handleNavigation(e) {
         case 'anything-box':
             window.location.href = './anything-box.html';
             break;
+        case 'serendipity':
+            window.location.href = './serendipity.html';
+            break;
         default:
             showInfo(`${e.currentTarget.querySelector('span:last-child').textContent}は開発中です`);
     }

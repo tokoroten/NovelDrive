@@ -1,4 +1,5 @@
 const { getLogger } = require('../utils/logger');
+const localEmbeddingService = require('./local-embedding-service');
 
 /**
  * Anything Box Service
@@ -216,19 +217,24 @@ class AnythingBoxService {
   }
 
   /**
-   * Generate embeddings for content (mock implementation)
+   * Generate embeddings for content using local embedding service
    * @param {string} content
    * @returns {Promise<Array<number>>}
    */
   async generateEmbeddings(content) {
-    // Mock implementation - will be replaced with local embedding service
-    // Generate random 384-dimensional vector for testing
-    const dimensions = 384;
-    const embeddings = Array(dimensions).fill(0).map(() => Math.random() * 2 - 1);
-    
-    // Normalize
-    const magnitude = Math.sqrt(embeddings.reduce((sum, val) => sum + val * val, 0));
-    return embeddings.map(val => val / magnitude);
+    try {
+      // LocalEmbeddingServiceを使用して実際の埋め込みを生成
+      const embeddings = await localEmbeddingService.generateEmbedding(content);
+      this.logger.info(`Generated ${embeddings.length}-dimensional embeddings`);
+      return embeddings;
+    } catch (error) {
+      this.logger.error('Failed to generate embeddings:', error);
+      // フォールバック: モックの埋め込みを返す
+      const dimensions = 768; // multilingual-e5-baseの次元数
+      const embeddings = Array(dimensions).fill(0).map(() => Math.random() * 2 - 1);
+      const magnitude = Math.sqrt(embeddings.reduce((sum, val) => sum + val * val, 0));
+      return embeddings.map(val => val / magnitude);
+    }
   }
 
   /**

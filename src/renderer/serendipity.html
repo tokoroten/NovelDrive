@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+    <title>セレンディピティ検索 - NovelDrive</title>
+    <link rel="stylesheet" href="./styles/common.css">
+    <link rel="stylesheet" href="./styles/serendipity.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- サイドバー -->
+        <nav class="sidebar">
+            <div class="app-title">
+                <h1>NovelDrive</h1>
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a href="./projects.html" data-page="projects">
+                        <span class="icon">📁</span>
+                        <span>プロジェクト</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./anything-box.html" data-page="anything-box">
+                        <span class="icon">📥</span>
+                        <span>なんでもボックス</span>
+                    </a>
+                </li>
+                <li class="nav-item active">
+                    <a href="#" data-page="serendipity">
+                        <span class="icon">✨</span>
+                        <span>セレンディピティ</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" data-page="knowledge-graph">
+                        <span class="icon">🕸️</span>
+                        <span>ナレッジグラフ</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" data-page="settings">
+                        <span class="icon">⚙️</span>
+                        <span>設定</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- メインコンテンツ -->
+        <main class="main-content">
+            <header class="page-header">
+                <div>
+                    <h2>セレンディピティ検索</h2>
+                    <p class="page-description">創造的な発見と予期しない関連性を探索します</p>
+                </div>
+                <select id="project-selector" class="project-selector">
+                    <option value="">プロジェクトを選択...</option>
+                </select>
+            </header>
+
+            <!-- 検索モード選択 -->
+            <div class="search-modes">
+                <button class="mode-btn active" data-mode="search">
+                    <span class="icon">🔍</span>
+                    <span>セレンディピティ検索</span>
+                </button>
+                <button class="mode-btn" data-mode="discover">
+                    <span class="icon">💡</span>
+                    <span>インスピレーション発見</span>
+                </button>
+                <button class="mode-btn" data-mode="related">
+                    <span class="icon">🔗</span>
+                    <span>関連検索</span>
+                </button>
+            </div>
+
+            <!-- 検索エリア -->
+            <div class="search-section" id="search-mode" data-mode="search">
+                <div class="search-box">
+                    <input type="text" id="search-input" placeholder="探索したいキーワードを入力..." class="search-input">
+                    <button id="search-btn" class="primary-btn">
+                        <span class="icon">✨</span>
+                        探索開始
+                    </button>
+                </div>
+
+                <!-- ノイズレベル調整 -->
+                <div class="controls">
+                    <div class="control-group">
+                        <label for="noise-level">ノイズレベル</label>
+                        <input type="range" id="noise-level" min="0" max="100" value="20" class="slider">
+                        <span id="noise-level-value">20%</span>
+                    </div>
+                    <div class="control-group">
+                        <label for="diversity-weight">多様性の重み</label>
+                        <input type="range" id="diversity-weight" min="0" max="100" value="30" class="slider">
+                        <span id="diversity-weight-value">30%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- インスピレーション発見モード -->
+            <div class="discover-section" id="discover-mode" data-mode="discover" style="display: none;">
+                <div class="discover-info">
+                    <p>ランダムなナレッジから開始して、予期しない関連性を発見します。</p>
+                    <button id="discover-btn" class="primary-btn">
+                        <span class="icon">🎲</span>
+                        インスピレーションを発見
+                    </button>
+                </div>
+            </div>
+
+            <!-- 関連検索モード -->
+            <div class="related-section" id="related-mode" data-mode="related" style="display: none;">
+                <div class="related-info">
+                    <p>既存のナレッジから関連するアイテムを検索します。</p>
+                    <div class="item-selector">
+                        <select id="base-item-selector" class="item-selector-dropdown">
+                            <option value="">ナレッジを選択...</option>
+                        </select>
+                        <button id="related-btn" class="primary-btn" disabled>
+                            <span class="icon">🔗</span>
+                            関連を探索
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 結果表示エリア -->
+            <div class="results-container" id="results-container">
+                <!-- 結果がここに表示されます -->
+            </div>
+
+            <!-- 空の状態 -->
+            <div id="empty-state" class="empty-state">
+                <div class="empty-icon">🌟</div>
+                <h3>探索を開始しましょう</h3>
+                <p>セレンディピティ検索で新たな発見を</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- 詳細モーダル -->
+    <div id="detail-modal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="detail-title">ナレッジ詳細</h3>
+                <button class="close-btn" onclick="hideDetailModal()">✕</button>
+            </div>
+            <div id="detail-content" class="detail-content">
+                <!-- 詳細がここに表示されます -->
+            </div>
+            <div class="modal-actions">
+                <button class="secondary-btn" onclick="hideDetailModal()">
+                    閉じる
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="./js/serendipity.js"></script>
+</body>
+</html>
