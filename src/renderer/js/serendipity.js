@@ -416,6 +416,9 @@ function handleNavigation(e) {
         case 'serendipity':
             // Already on this page
             break;
+        case 'knowledge-graph':
+            window.location.href = './knowledge-graph.html';
+            break;
         default:
             showInfo(`${e.currentTarget.querySelector('span:last-child').textContent}は開発中です`);
     }

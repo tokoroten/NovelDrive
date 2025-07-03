@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const Database = require('./database');
+const sqliteDatabase = require('./database/sqlite-database');
 const { createLogger } = require('./utils/logger');
 const { getErrorHandler, ValidationError } = require('./utils/error-handler');
 const setupIPCHandlers = require('./ipc-handlers');
@@ -66,12 +67,16 @@ ipcMain.handle('db:getItems', errorHandler.wrapIPCHandler(async () => {
   return db.getItems();
 }, 'db:getItems'));
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   logger.info('Application ready, initializing...');
   
   try {
-    // Initialize database
-    db = new Database();
+    // Initialize SQLite database
+    await sqliteDatabase.initialize();
+    logger.info('SQLite database initialized successfully');
+    
+    // Initialize repositories with SQLite database
+    db = sqliteDatabase;
     logger.info('Database initialized successfully');
     
     // Setup all IPC handlers
