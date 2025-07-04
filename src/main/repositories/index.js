@@ -4,6 +4,7 @@ const ProjectRepository = require('./project-repository');
 const KnowledgeRepository = require('./knowledge-repository');
 const CharacterRepository = require('./character-repository');
 const PlotRepository = require('./plot-repository');
+const ProjectKnowledgeRepository = require('./project-knowledge-repository');
 
 // Repository factory
 class RepositoryFactory {
@@ -40,6 +41,13 @@ class RepositoryFactory {
     return this._repositories.plots;
   }
 
+  get projectKnowledge() {
+    if (!this._repositories.projectKnowledge) {
+      this._repositories.projectKnowledge = new ProjectKnowledgeRepository(this.db);
+    }
+    return this._repositories.projectKnowledge;
+  }
+
   // Add more repositories as needed
   // get chapters() { ... }
   // get discussions() { ... }
@@ -51,5 +59,6 @@ module.exports = {
   KnowledgeRepository,
   CharacterRepository,
   PlotRepository,
+  ProjectKnowledgeRepository,
   RepositoryFactory
 };

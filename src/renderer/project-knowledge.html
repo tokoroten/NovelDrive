@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+    <title>プロジェクト知識 - NovelDrive</title>
+    <link rel="stylesheet" href="./styles/common.css">
+    <link rel="stylesheet" href="./styles/project-knowledge.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- サイドバー -->
+        <nav class="sidebar">
+            <div class="app-title">
+                <h1>NovelDrive</h1>
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a href="./projects.html" data-page="projects">
+                        <span class="icon">📁</span>
+                        <span>プロジェクト</span>
+                    </a>
+                </li>
+                <li class="nav-item active">
+                    <a href="#" data-page="project-knowledge">
+                        <span class="icon">📚</span>
+                        <span>プロジェクト知識</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./writing-editor.html" data-page="writing-editor">
+                        <span class="icon">✍️</span>
+                        <span>執筆エディタ</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./agent-meeting.html" data-page="agent-meeting">
+                        <span class="icon">🤝</span>
+                        <span>エージェント会議室</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" data-page="settings">
+                        <span class="icon">⚙️</span>
+                        <span>設定</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- メインコンテンツ -->
+        <main class="main-content">
+            <header class="page-header">
+                <div>
+                    <h2>プロジェクト知識</h2>
+                    <p class="page-description">物語世界の設定と知識を管理</p>
+                </div>
+                <div class="header-actions">
+                    <select id="project-selector" class="project-selector">
+                        <option value="">プロジェクトを選択...</option>
+                    </select>
+                    <button id="add-knowledge" class="primary-btn" disabled>
+                        <span class="icon">➕</span>
+                        知識を追加
+                    </button>
+                </div>
+            </header>
+
+            <!-- カテゴリータブ -->
+            <div class="category-tabs">
+                <button class="category-tab active" data-category="all">
+                    <span class="icon">📋</span>
+                    すべて
+                    <span class="count" id="count-all">0</span>
+                </button>
+                <button class="category-tab" data-category="world">
+                    <span class="icon">🌍</span>
+                    世界設定
+                    <span class="count" id="count-world">0</span>
+                </button>
+                <button class="category-tab" data-category="character">
+                    <span class="icon">👥</span>
+                    キャラクター
+                    <span class="count" id="count-character">0</span>
+                </button>
+                <button class="category-tab" data-category="location">
+                    <span class="icon">📍</span>
+                    場所
+                    <span class="count" id="count-location">0</span>
+                </button>
+                <button class="category-tab" data-category="item">
+                    <span class="icon">🎁</span>
+                    アイテム
+                    <span class="count" id="count-item">0</span>
+                </button>
+                <button class="category-tab" data-category="event">
+                    <span class="icon">📅</span>
+                    出来事
+                    <span class="count" id="count-event">0</span>
+                </button>
+                <button class="category-tab" data-category="other">
+                    <span class="icon">📂</span>
+                    その他
+                    <span class="count" id="count-other">0</span>
+                </button>
+            </div>
+
+            <!-- 検索バー -->
+            <div class="search-container">
+                <input type="text" id="knowledge-search" placeholder="知識を検索..." class="search-input">
+                <div class="search-filters">
+                    <button class="filter-btn" id="toggle-filters">
+                        <span class="icon">🔽</span>
+                        フィルター
+                    </button>
+                    <button class="filter-btn" id="sort-options">
+                        <span class="icon">↕️</span>
+                        並び替え
+                    </button>
+                </div>
+            </div>
+
+            <!-- フィルターパネル -->
+            <div id="filter-panel" class="filter-panel" style="display: none;">
+                <div class="filter-group">
+                    <label>タグ</label>
+                    <div id="tag-filters" class="tag-filters">
+                        <!-- タグがここに表示される -->
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label>重要度</label>
+                    <div class="importance-filters">
+                        <label><input type="checkbox" value="high"> 高</label>
+                        <label><input type="checkbox" value="medium"> 中</label>
+                        <label><input type="checkbox" value="low"> 低</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 知識リスト -->
+            <div class="knowledge-grid" id="knowledge-grid">
+                <!-- 知識カードがここに表示される -->
+                <div class="empty-state">
+                    <p>プロジェクトを選択して知識を追加してください</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 知識追加/編集モーダル -->
+    <div id="knowledge-modal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="modal-title">知識を追加</h3>
+                <button class="close-btn" onclick="closeKnowledgeModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="knowledge-title">タイトル <span class="required">*</span></label>
+                        <input type="text" id="knowledge-title" placeholder="例: 記憶のアーカイブ">
+                    </div>
+                    <div class="form-group">
+                        <label for="knowledge-category">カテゴリー <span class="required">*</span></label>
+                        <select id="knowledge-category">
+                            <option value="">選択してください</option>
+                            <option value="world">世界設定</option>
+                            <option value="character">キャラクター</option>
+                            <option value="location">場所</option>
+                            <option value="item">アイテム</option>
+                            <option value="event">出来事</option>
+                            <option value="other">その他</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="knowledge-content">内容 <span class="required">*</span></label>
+                    <textarea id="knowledge-content" rows="10" placeholder="詳細な説明を記入..."></textarea>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="knowledge-tags">タグ（カンマ区切り）</label>
+                        <input type="text" id="knowledge-tags" placeholder="例: 主要設定, 第1章, 重要">
+                    </div>
+                    <div class="form-group">
+                        <label for="knowledge-importance">重要度</label>
+                        <select id="knowledge-importance">
+                            <option value="medium">中</option>
+                            <option value="high">高</option>
+                            <option value="low">低</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- キャラクター専用フィールド -->
+                <div id="character-fields" class="category-fields" style="display: none;">
+                    <h4>キャラクター詳細</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="character-age">年齢</label>
+                            <input type="text" id="character-age" placeholder="例: 25">
+                        </div>
+                        <div class="form-group">
+                            <label for="character-gender">性別</label>
+                            <input type="text" id="character-gender" placeholder="例: 女性">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="character-appearance">外見</label>
+                        <textarea id="character-appearance" rows="3" placeholder="髪の色、目の色、身長など..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="character-personality">性格</label>
+                        <textarea id="character-personality" rows="3" placeholder="性格の特徴、癖など..."></textarea>
+                    </div>
+                </div>
+                
+                <!-- 場所専用フィールド -->
+                <div id="location-fields" class="category-fields" style="display: none;">
+                    <h4>場所詳細</h4>
+                    <div class="form-group">
+                        <label for="location-type">場所の種類</label>
+                        <input type="text" id="location-type" placeholder="例: 建物、都市、自然">
+                    </div>
+                    <div class="form-group">
+                        <label for="location-features">特徴</label>
+                        <textarea id="location-features" rows="3" placeholder="この場所の特徴的な要素..."></textarea>
+                    </div>
+                </div>
+                
+                <!-- 関連付け -->
+                <div class="form-group">
+                    <label>関連する知識</label>
+                    <div id="related-knowledge" class="related-knowledge">
+                        <button class="add-relation-btn" onclick="showRelationPicker()">+ 関連付けを追加</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="primary-btn" onclick="saveKnowledge()">保存</button>
+                <button class="secondary-btn" onclick="closeKnowledgeModal()">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 知識詳細表示モーダル -->
+    <div id="knowledge-detail-modal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="detail-title"></h3>
+                <div class="modal-header-actions">
+                    <button class="icon-btn" onclick="editKnowledge()" title="編集">✏️</button>
+                    <button class="icon-btn" onclick="deleteKnowledge()" title="削除">🗑️</button>
+                    <button class="close-btn" onclick="closeDetailModal()">✕</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="detail-meta">
+                    <span class="detail-category"></span>
+                    <span class="detail-importance"></span>
+                    <span class="detail-date"></span>
+                </div>
+                
+                <div class="detail-content" id="detail-content"></div>
+                
+                <div class="detail-extra" id="detail-extra"></div>
+                
+                <div class="detail-tags" id="detail-tags"></div>
+                
+                <div class="detail-relations">
+                    <h4>関連する知識</h4>
+                    <div id="detail-relations" class="relation-list"></div>
+                </div>
+                
+                <div class="detail-references">
+                    <h4>参照されている場所</h4>
+                    <div id="detail-references" class="reference-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 関連付け選択モーダル -->
+    <div id="relation-picker-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>関連する知識を選択</h3>
+                <button class="close-btn" onclick="closeRelationPicker()">✕</button>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="relation-search" placeholder="検索..." class="search-input">
+                <div id="relation-options" class="relation-options">
+                    <!-- 選択可能な知識がここに表示される -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="./js/project-knowledge.js"></script>
+</body>
+</html>

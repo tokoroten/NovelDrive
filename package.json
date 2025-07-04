@@ -8,8 +8,8 @@
   },
   "scripts": {
     "start": "electron .",
-    "dev": "npm run build && npm start",
-    "build": "tsc",
+    "dev": "npm start",
+    "build": "echo \"Build not configured yet\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
