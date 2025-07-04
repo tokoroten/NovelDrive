@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+    <title>設定 - NovelDrive</title>
+    <link rel="stylesheet" href="./styles/common.css">
+    <link rel="stylesheet" href="./styles/settings.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- サイドバー -->
+        <nav class="sidebar">
+            <div class="app-title">
+                <h1>NovelDrive</h1>
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a href="./projects.html" data-page="projects">
+                        <span class="icon">📁</span>
+                        <span>プロジェクト</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./project-knowledge.html" data-page="project-knowledge">
+                        <span class="icon">📚</span>
+                        <span>プロジェクト知識</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./writing-editor.html" data-page="writing-editor">
+                        <span class="icon">✍️</span>
+                        <span>執筆エディタ</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./agent-meeting.html" data-page="agent-meeting">
+                        <span class="icon">🤝</span>
+                        <span>エージェント会議室</span>
+                    </a>
+                </li>
+                <li class="nav-item active">
+                    <a href="#" data-page="settings">
+                        <span class="icon">⚙️</span>
+                        <span>設定</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- メインコンテンツ -->
+        <main class="main-content">
+            <header class="page-header">
+                <div>
+                    <h2>設定</h2>
+                    <p class="page-description">アプリケーションの設定を管理</p>
+                </div>
+            </header>
+
+            <div class="settings-container">
+                <!-- 設定ナビゲーション -->
+                <nav class="settings-nav">
+                    <button class="settings-nav-item active" data-section="api">
+                        <span class="icon">🔑</span>
+                        API設定
+                    </button>
+                    <button class="settings-nav-item" data-section="ai">
+                        <span class="icon">🤖</span>
+                        AI設定
+                    </button>
+                    <button class="settings-nav-item" data-section="editor">
+                        <span class="icon">✏️</span>
+                        エディタ設定
+                    </button>
+                    <button class="settings-nav-item" data-section="export">
+                        <span class="icon">📤</span>
+                        エクスポート設定
+                    </button>
+                    <button class="settings-nav-item" data-section="advanced">
+                        <span class="icon">🔧</span>
+                        詳細設定
+                    </button>
+                    <button class="settings-nav-item" data-section="about">
+                        <span class="icon">ℹ️</span>
+                        アプリケーション情報
+                    </button>
+                </nav>
+
+                <!-- 設定コンテンツ -->
+                <div class="settings-content">
+                    <!-- API設定 -->
+                    <section id="api-settings" class="settings-section active">
+                        <h3>API設定</h3>
+                        
+                        <div class="setting-group">
+                            <h4>OpenAI API</h4>
+                            <div class="form-group">
+                                <label for="openai-api-key">APIキー</label>
+                                <div class="input-with-action">
+                                    <input type="password" id="openai-api-key" placeholder="sk-...">
+                                    <button class="secondary-btn" onclick="toggleApiKeyVisibility('openai-api-key')">
+                                        <span class="icon">👁️</span>
+                                    </button>
+                                </div>
+                                <small class="help-text">OpenAI APIキーを入力してください</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="openai-model">使用モデル</label>
+                                <select id="openai-model">
+                                    <option value="gpt-4">GPT-4</option>
+                                    <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="openai-temperature">Temperature</label>
+                                <div class="slider-container">
+                                    <input type="range" id="openai-temperature" min="0" max="2" step="0.1" value="0.7">
+                                    <span class="slider-value">0.7</span>
+                                </div>
+                                <small class="help-text">創造性の度合い（0: 確定的、2: 最大創造性）</small>
+                            </div>
+                        </div>
+
+                        <div class="setting-group">
+                            <h4>その他のAPI（将来の拡張用）</h4>
+                            <p class="placeholder-text">他のAPIサービスの設定は今後追加予定です</p>
+                        </div>
+                    </section>
+
+                    <!-- AI設定 -->
+                    <section id="ai-settings" class="settings-section">
+                        <h3>AI設定</h3>
+                        
+                        <div class="setting-group">
+                            <h4>エージェントの振る舞い</h4>
+                            
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="writer-moderate-ignorance" checked>
+                                    作家AIの「適度な無視」機能を有効化
+                                </label>
+                                <small class="help-text">フィードバックの30%を無視して創造性を保持</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="ai-response-length">AIレスポンスの長さ</label>
+                                <select id="ai-response-length">
+                                    <option value="short">短い（~500文字）</option>
+                                    <option value="medium" selected>標準（~1000文字）</option>
+                                    <option value="long">長い（~2000文字）</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="ai-language">対話言語</label>
+                                <select id="ai-language">
+                                    <option value="ja" selected>日本語</option>
+                                    <option value="en">英語</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="setting-group">
+                            <h4>セレンディピティ設定</h4>
+                            
+                            <div class="form-group">
+                                <label for="serendipity-distance">検索距離</label>
+                                <div class="slider-container">
+                                    <input type="range" id="serendipity-distance" min="0.1" max="1.0" step="0.1" value="0.5">
+                                    <span class="slider-value">0.5</span>
+                                </div>
+                                <small class="help-text">意外性の度合い（0.1: 近い関連、1.0: 遠い関連）</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="serendipity-noise">ノイズレベル</label>
+                                <div class="slider-container">
+                                    <input type="range" id="serendipity-noise" min="0" max="0.5" step="0.05" value="0.2">
+                                    <span class="slider-value">0.2</span>
+                                </div>
+                                <small class="help-text">検索結果のランダム性</small>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- エディタ設定 -->
+                    <section id="editor-settings" class="settings-section">
+                        <h3>エディタ設定</h3>
+                        
+                        <div class="setting-group">
+                            <h4>表示設定</h4>
+                            
+                            <div class="form-group">
+                                <label for="editor-font-size">フォントサイズ</label>
+                                <select id="editor-font-size">
+                                    <option value="12">12px</option>
+                                    <option value="14">14px</option>
+                                    <option value="16" selected>16px</option>
+                                    <option value="18">18px</option>
+                                    <option value="20">20px</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="editor-line-height">行間</label>
+                                <select id="editor-line-height">
+                                    <option value="1.4">狭い</option>
+                                    <option value="1.6" selected>標準</option>
+                                    <option value="1.8">広い</option>
+                                    <option value="2.0">とても広い</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="editor-line-numbers">
+                                    行番号を表示
+                                </label>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="editor-word-wrap" checked>
+                                    自動折り返し
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="setting-group">
+                            <h4>自動保存</h4>
+                            
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="auto-save-enabled" checked>
+                                    自動保存を有効化
+                                </label>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="auto-save-interval">自動保存間隔</label>
+                                <select id="auto-save-interval">
+                                    <option value="10">10秒</option>
+                                    <option value="30" selected>30秒</option>
+                                    <option value="60">1分</option>
+                                    <option value="300">5分</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="backup-count">バックアップ保持数</label>
+                                <input type="number" id="backup-count" min="1" max="50" value="10">
+                                <small class="help-text">各章ごとに保持するバックアップファイル数</small>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- エクスポート設定 -->
+                    <section id="export-settings" class="settings-section">
+                        <h3>エクスポート設定</h3>
+                        
+                        <div class="setting-group">
+                            <h4>デフォルトフォーマット</h4>
+                            
+                            <div class="form-group">
+                                <label for="export-format">エクスポート形式</label>
+                                <select id="export-format">
+                                    <option value="txt" selected>プレーンテキスト (.txt)</option>
+                                    <option value="md">Markdown (.md)</option>
+                                    <option value="docx">Microsoft Word (.docx)</option>
+                                    <option value="pdf">PDF</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="export-include-metadata" checked>
+                                    メタデータを含める
+                                </label>
+                                <small class="help-text">作成日時、文字数などの情報を含める</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="export-include-notes">
+                                    執筆メモを含める
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="setting-group">
+                            <h4>ファイル名設定</h4>
+                            
+                            <div class="form-group">
+                                <label for="export-filename-pattern">ファイル名パターン</label>
+                                <input type="text" id="export-filename-pattern" value="{project}_{date}_{time}">
+                                <small class="help-text">使用可能: {project}, {date}, {time}, {chapter}</small>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- 詳細設定 -->
+                    <section id="advanced-settings" class="settings-section">
+                        <h3>詳細設定</h3>
+                        
+                        <div class="setting-group">
+                            <h4>データ管理</h4>
+                            
+                            <div class="form-group">
+                                <label for="data-location">データ保存場所</label>
+                                <div class="input-with-action">
+                                    <input type="text" id="data-location" readonly>
+                                    <button class="secondary-btn" onclick="changeDataLocation()">変更</button>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <button class="danger-btn" onclick="clearCache()">
+                                    <span class="icon">🗑️</span>
+                                    キャッシュをクリア
+                                </button>
+                                <small class="help-text">一時ファイルと埋め込みキャッシュを削除</small>
+                            </div>
+                        </div>
+
+                        <div class="setting-group">
+                            <h4>実験的機能</h4>
+                            
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="enable-24h-mode">
+                                    24時間自律創作モード（実験的）
+                                </label>
+                                <small class="help-text warning">バックグラウンドで自動的に創作を行います</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="enable-debug-mode">
+                                    デバッグモード
+                                </label>
+                                <small class="help-text">開発者向けの詳細ログを有効化</small>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- アプリケーション情報 -->
+                    <section id="about-settings" class="settings-section">
+                        <h3>アプリケーション情報</h3>
+                        
+                        <div class="about-content">
+                            <div class="app-logo">
+                                <h1>NovelDrive</h1>
+                            </div>
+                            
+                            <div class="app-info">
+                                <p><strong>バージョン:</strong> 1.0.0</p>
+                                <p><strong>ビルド:</strong> 2025.07.04</p>
+                                <p><strong>Electron:</strong> <span id="electron-version"></span></p>
+                                <p><strong>Node.js:</strong> <span id="node-version"></span></p>
+                            </div>
+                            
+                            <div class="app-description">
+                                <p>NovelDriveは、セレンディピティ知識管理システムとマルチエージェント小説創作エンジンを組み合わせた二層構造の創作支援プラットフォームです。</p>
+                            </div>
+                            
+                            <div class="app-links">
+                                <button class="secondary-btn" onclick="openExternal('https://github.com/yourusername/noveldrive')">
+                                    <span class="icon">🔗</span>
+                                    GitHubで見る
+                                </button>
+                                <button class="secondary-btn" onclick="checkForUpdates()">
+                                    <span class="icon">🔄</span>
+                                    アップデートを確認
+                                </button>
+                            </div>
+                            
+                            <div class="app-credits">
+                                <h4>謝辞</h4>
+                                <p>このアプリケーションは以下のオープンソースプロジェクトを使用しています：</p>
+                                <ul>
+                                    <li>Electron</li>
+                                    <li>SQLite</li>
+                                    <li>Transformers.js</li>
+                                    <li>その他多数のライブラリ</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- 保存ボタン -->
+            <div class="settings-actions">
+                <button class="primary-btn" onclick="saveSettings()">
+                    <span class="icon">💾</span>
+                    設定を保存
+                </button>
+                <button class="secondary-btn" onclick="resetSettings()">
+                    <span class="icon">↩️</span>
+                    デフォルトに戻す
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <script src="./js/settings.js"></script>
+</body>
+</html>

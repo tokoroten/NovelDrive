@@ -97,6 +97,10 @@ app.whenReady().then(async () => {
   // Register knowledge handlers
   const { registerKnowledgeHandlers } = require('./ipc-handlers/knowledge-handlers');
   registerKnowledgeHandlers(db);
+  
+  // Register settings handlers
+  const { registerSettingsHandlers } = require('./ipc-handlers/settings-handlers');
+  registerSettingsHandlers(db);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
