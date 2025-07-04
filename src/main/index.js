@@ -101,6 +101,10 @@ app.whenReady().then(async () => {
   // Register settings handlers
   const { registerSettingsHandlers } = require('./ipc-handlers/settings-handlers');
   registerSettingsHandlers(db);
+  
+  // Register analytics handlers
+  const { registerAnalyticsHandlers } = require('./ipc-handlers/analytics-handlers');
+  registerAnalyticsHandlers(db);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

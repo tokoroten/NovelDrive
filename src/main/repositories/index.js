@@ -6,6 +6,7 @@ const CharacterRepository = require('./character-repository');
 const PlotRepository = require('./plot-repository');
 const ProjectKnowledgeRepository = require('./project-knowledge-repository');
 const SettingsRepository = require('./settings-repository');
+const AnalyticsRepository = require('./analytics-repository');
 
 // Repository factory
 class RepositoryFactory {
@@ -56,6 +57,13 @@ class RepositoryFactory {
     return this._repositories.settings;
   }
 
+  get analytics() {
+    if (!this._repositories.analytics) {
+      this._repositories.analytics = new AnalyticsRepository(this.db);
+    }
+    return this._repositories.analytics;
+  }
+
   // Add more repositories as needed
   // get chapters() { ... }
   // get discussions() { ... }
@@ -69,5 +77,6 @@ module.exports = {
   PlotRepository,
   ProjectKnowledgeRepository,
   SettingsRepository,
+  AnalyticsRepository,
   RepositoryFactory
 };
