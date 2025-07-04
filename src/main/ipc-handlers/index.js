@@ -2,6 +2,7 @@ const setupProjectHandlers = require('./project-handlers');
 const setupAnythingBoxHandlers = require('./anything-box-handlers');
 const setupSerendipityHandlers = require('./serendipity-handlers');
 const setupKnowledgeHandlers = require('./knowledge-handlers');
+const setupPlotHandlers = require('./plot-handlers');
 
 /**
  * Setup all IPC handlers
@@ -13,10 +14,10 @@ function setupIPCHandlers(db) {
   setupAnythingBoxHandlers(db);
   setupSerendipityHandlers(db);
   setupKnowledgeHandlers(db);
+  setupPlotHandlers(db);
   
   // More handlers will be added here:
   // setupCharacterHandlers(db);
-  // setupPlotHandlers(db);
   // setupAgentHandlers(db);
 }
 

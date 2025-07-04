@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+    <title>プロット管理 - NovelDrive</title>
+    <link rel="stylesheet" href="./styles/common.css">
+    <link rel="stylesheet" href="./styles/plot-management.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- サイドバー -->
+        <nav class="sidebar">
+            <div class="app-title">
+                <h1>NovelDrive</h1>
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a href="./projects.html" data-page="projects">
+                        <span class="icon">📁</span>
+                        <span>プロジェクト</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./anything-box.html" data-page="anything-box">
+                        <span class="icon">📥</span>
+                        <span>なんでもボックス</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./serendipity.html" data-page="serendipity">
+                        <span class="icon">✨</span>
+                        <span>セレンディピティ</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./knowledge-graph.html" data-page="knowledge-graph">
+                        <span class="icon">🕸️</span>
+                        <span>ナレッジグラフ</span>
+                    </a>
+                </li>
+                <li class="nav-item active">
+                    <a href="#" data-page="plot-management">
+                        <span class="icon">📊</span>
+                        <span>プロット管理</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./agent-meeting.html" data-page="agent-meeting">
+                        <span class="icon">🤝</span>
+                        <span>エージェント会議室</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" data-page="settings">
+                        <span class="icon">⚙️</span>
+                        <span>設定</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- メインコンテンツ -->
+        <main class="main-content">
+            <header class="page-header">
+                <div>
+                    <h2>プロット管理</h2>
+                    <p class="page-description">物語の構造を視覚的に管理</p>
+                </div>
+                <div class="header-actions">
+                    <select id="project-selector" class="project-selector">
+                        <option value="">プロジェクトを選択...</option>
+                    </select>
+                    <button id="new-plot" class="primary-btn" disabled>
+                        <span class="icon">➕</span>
+                        新規プロット
+                    </button>
+                </div>
+            </header>
+
+            <!-- プロット一覧/選択 -->
+            <div class="plot-selector-container">
+                <select id="plot-selector" class="plot-selector" disabled>
+                    <option value="">プロットを選択...</option>
+                </select>
+                <div class="plot-actions">
+                    <button id="save-version" class="secondary-btn" disabled>
+                        <span class="icon">💾</span>
+                        バージョン保存
+                    </button>
+                    <button id="view-versions" class="secondary-btn" disabled>
+                        <span class="icon">📚</span>
+                        バージョン履歴
+                    </button>
+                    <button id="analyze-plot" class="secondary-btn" disabled>
+                        <span class="icon">📊</span>
+                        分析
+                    </button>
+                </div>
+            </div>
+
+            <!-- プロット詳細 -->
+            <div id="plot-content" class="plot-content" style="display: none;">
+                <!-- 基本情報 -->
+                <section class="plot-section">
+                    <h3>基本情報</h3>
+                    <div class="plot-basics">
+                        <div class="form-group">
+                            <label for="plot-title">タイトル</label>
+                            <input type="text" id="plot-title" placeholder="物語のタイトル">
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="plot-premise">前提・プレミス</label>
+                            <textarea id="plot-premise" rows="3" placeholder="物語の基本的な前提や概要"></textarea>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 三幕構成 -->
+                <section class="plot-section">
+                    <h3>物語構造</h3>
+                    <div class="structure-tabs">
+                        <button class="tab-btn active" data-tab="three-act">三幕構成</button>
+                        <button class="tab-btn" data-tab="hero-journey">ヒーローズジャーニー</button>
+                        <button class="tab-btn" data-tab="kishotenketsu">起承転結</button>
+                    </div>
+                    
+                    <div class="structure-content">
+                        <div id="three-act" class="tab-content active">
+                            <div class="act-container">
+                                <div class="act">
+                                    <h4>第一幕：設定</h4>
+                                    <textarea class="act-content" data-act="1" placeholder="物語の設定、主人公の紹介、きっかけとなる出来事"></textarea>
+                                </div>
+                                <div class="act">
+                                    <h4>第二幕：対立</h4>
+                                    <textarea class="act-content" data-act="2" placeholder="主な葛藤、障害、キャラクターの成長"></textarea>
+                                </div>
+                                <div class="act">
+                                    <h4>第三幕：解決</h4>
+                                    <textarea class="act-content" data-act="3" placeholder="クライマックス、解決、新たな均衡"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="hero-journey" class="tab-content">
+                            <div class="journey-steps">
+                                <!-- ヒーローズジャーニーのステップ -->
+                            </div>
+                        </div>
+                        
+                        <div id="kishotenketsu" class="tab-content">
+                            <div class="kishoten-structure">
+                                <!-- 起承転結の構造 -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 章構成 -->
+                <section class="plot-section">
+                    <h3>章構成</h3>
+                    <div class="chapter-toolbar">
+                        <button id="add-chapter" class="secondary-btn">
+                            <span class="icon">➕</span>
+                            章を追加
+                        </button>
+                        <button id="reorder-chapters" class="secondary-btn">
+                            <span class="icon">🔀</span>
+                            並び替え
+                        </button>
+                    </div>
+                    
+                    <div id="chapters-list" class="chapters-list">
+                        <!-- 章のリストがここに表示される -->
+                        <div class="empty-state">
+                            <p>まだ章が作成されていません</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- キャラクターアーク -->
+                <section class="plot-section">
+                    <h3>キャラクターアーク</h3>
+                    <div class="character-arcs">
+                        <div class="arc-selector">
+                            <select id="character-selector">
+                                <option value="">キャラクターを選択...</option>
+                            </select>
+                            <button id="add-arc" class="secondary-btn">
+                                <span class="icon">➕</span>
+                                アークを追加
+                            </button>
+                        </div>
+                        
+                        <div id="character-arcs-container" class="arcs-container">
+                            <!-- キャラクターアークがここに表示される -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- タイムライン -->
+                <section class="plot-section">
+                    <h3>タイムライン</h3>
+                    <div class="timeline-toolbar">
+                        <button id="add-event" class="secondary-btn">
+                            <span class="icon">📅</span>
+                            イベントを追加
+                        </button>
+                        <button id="toggle-timeline-view" class="secondary-btn">
+                            <span class="icon">👁️</span>
+                            表示切替
+                        </button>
+                    </div>
+                    
+                    <div id="timeline-container" class="timeline-container">
+                        <!-- タイムラインがここに表示される -->
+                    </div>
+                </section>
+
+                <!-- テーマ -->
+                <section class="plot-section">
+                    <h3>テーマ</h3>
+                    <div class="themes-container">
+                        <div class="theme-input">
+                            <input type="text" id="theme-input" placeholder="テーマを入力">
+                            <button id="add-theme" class="secondary-btn">追加</button>
+                        </div>
+                        <div id="themes-list" class="themes-list">
+                            <!-- テーマのリストがここに表示される -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 葛藤・対立 -->
+                <section class="plot-section">
+                    <h3>葛藤・対立</h3>
+                    <div class="conflicts-container">
+                        <button id="add-conflict" class="secondary-btn">
+                            <span class="icon">⚔️</span>
+                            葛藤を追加
+                        </button>
+                        <div id="conflicts-list" class="conflicts-list">
+                            <!-- 葛藤のリストがここに表示される -->
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- プロット分析結果 -->
+            <div id="plot-analysis" class="plot-analysis modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>プロット分析</h3>
+                        <button class="close-btn" onclick="closePlotAnalysis()">✕</button>
+                    </div>
+                    <div id="analysis-content" class="analysis-content">
+                        <!-- 分析結果がここに表示される -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- バージョン履歴モーダル -->
+            <div id="version-history" class="version-history modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>バージョン履歴</h3>
+                        <button class="close-btn" onclick="closeVersionHistory()">✕</button>
+                    </div>
+                    <div id="version-list" class="version-list">
+                        <!-- バージョン履歴がここに表示される -->
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 章編集モーダル -->
+    <div id="chapter-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="chapter-modal-title">章を追加</h3>
+                <button class="close-btn" onclick="closeChapterModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="chapter-title">章タイトル</label>
+                    <input type="text" id="chapter-title" placeholder="第1章: 始まり">
+                </div>
+                <div class="form-group">
+                    <label for="chapter-summary">概要</label>
+                    <textarea id="chapter-summary" rows="4" placeholder="この章で起こる出来事の概要"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="chapter-type">章のタイプ</label>
+                    <select id="chapter-type">
+                        <option value="setup">設定・導入</option>
+                        <option value="rising_action">展開</option>
+                        <option value="climax">クライマックス</option>
+                        <option value="falling_action">収束</option>
+                        <option value="resolution">解決</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="primary-btn" onclick="saveChapter()">保存</button>
+                <button class="secondary-btn" onclick="closeChapterModal()">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="./js/plot-management.js"></script>
+</body>
+</html>
