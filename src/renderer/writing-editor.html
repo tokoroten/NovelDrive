@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+    <title>執筆エディタ - NovelDrive</title>
+    <link rel="stylesheet" href="./styles/common.css">
+    <link rel="stylesheet" href="./styles/writing-editor.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- サイドバー -->
+        <nav class="sidebar">
+            <div class="app-title">
+                <h1>NovelDrive</h1>
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a href="./projects.html" data-page="projects">
+                        <span class="icon">📁</span>
+                        <span>プロジェクト</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./plot-management.html" data-page="plot-management">
+                        <span class="icon">📊</span>
+                        <span>プロット管理</span>
+                    </a>
+                </li>
+                <li class="nav-item active">
+                    <a href="#" data-page="writing-editor">
+                        <span class="icon">✍️</span>
+                        <span>執筆エディタ</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./agent-meeting.html" data-page="agent-meeting">
+                        <span class="icon">🤝</span>
+                        <span>エージェント会議室</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" data-page="settings">
+                        <span class="icon">⚙️</span>
+                        <span>設定</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- メインコンテンツ -->
+        <main class="main-content writing-layout">
+            <!-- 左サイドパネル -->
+            <aside class="left-panel">
+                <div class="panel-header">
+                    <h3>章構成</h3>
+                    <select id="plot-selector" class="plot-selector">
+                        <option value="">プロットを選択...</option>
+                    </select>
+                </div>
+                
+                <div class="chapters-nav">
+                    <div id="chapters-list" class="chapters-list">
+                        <!-- 章リストがここに表示される -->
+                        <div class="empty-state">
+                            <p>プロットを選択してください</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="writing-stats">
+                    <h4>執筆統計</h4>
+                    <div class="stat-item">
+                        <span class="stat-label">総文字数</span>
+                        <span class="stat-value" id="total-chars">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">現在の章</span>
+                        <span class="stat-value" id="current-chapter-chars">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">今日の執筆</span>
+                        <span class="stat-value" id="today-chars">0</span>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- エディタエリア -->
+            <div class="editor-container">
+                <div class="editor-header">
+                    <div class="chapter-info">
+                        <h2 id="chapter-title">章を選択してください</h2>
+                        <div class="chapter-meta">
+                            <span id="chapter-number"></span>
+                            <span id="last-saved">未保存</span>
+                        </div>
+                    </div>
+                    
+                    <div class="editor-toolbar">
+                        <button id="save-content" class="toolbar-btn" title="保存 (Ctrl+S)">
+                            <span class="icon">💾</span>
+                        </button>
+                        <button id="undo" class="toolbar-btn" title="元に戻す (Ctrl+Z)">
+                            <span class="icon">↶</span>
+                        </button>
+                        <button id="redo" class="toolbar-btn" title="やり直す (Ctrl+Y)">
+                            <span class="icon">↷</span>
+                        </button>
+                        <div class="toolbar-separator"></div>
+                        <button id="toggle-preview" class="toolbar-btn" title="プレビュー">
+                            <span class="icon">👁️</span>
+                        </button>
+                        <button id="toggle-fullscreen" class="toolbar-btn" title="フルスクリーン">
+                            <span class="icon">⛶</span>
+                        </button>
+                        <div class="toolbar-separator"></div>
+                        <button id="ai-assist" class="toolbar-btn primary" title="AI支援">
+                            <span class="icon">✨</span>
+                            AI支援
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="editor-content">
+                    <div id="editor-wrapper" class="editor-wrapper">
+                        <textarea 
+                            id="editor" 
+                            class="editor" 
+                            placeholder="ここに執筆を始めてください..."
+                            spellcheck="false"
+                        ></textarea>
+                    </div>
+                    
+                    <div id="preview-wrapper" class="preview-wrapper" style="display: none;">
+                        <div id="preview" class="preview"></div>
+                    </div>
+                </div>
+                
+                <div class="editor-footer">
+                    <div class="cursor-position">
+                        <span id="line-number">1</span>:<span id="column-number">1</span>
+                    </div>
+                    <div class="word-count">
+                        <span id="char-count">0</span>文字 | <span id="word-count">0</span>語
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右サイドパネル -->
+            <aside class="right-panel">
+                <!-- タブ切り替え -->
+                <div class="panel-tabs">
+                    <button class="tab-btn active" data-tab="outline">アウトライン</button>
+                    <button class="tab-btn" data-tab="knowledge">知識</button>
+                    <button class="tab-btn" data-tab="notes">メモ</button>
+                </div>
+                
+                <!-- アウトラインタブ -->
+                <div id="outline-tab" class="tab-content active">
+                    <div class="outline-content">
+                        <h4>章の概要</h4>
+                        <div id="chapter-outline" class="chapter-outline">
+                            <p class="empty-state">章が選択されていません</p>
+                        </div>
+                        
+                        <h4>シーン</h4>
+                        <div id="scenes-list" class="scenes-list">
+                            <button class="add-scene-btn">+ シーンを追加</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 知識タブ -->
+                <div id="knowledge-tab" class="tab-content">
+                    <div class="knowledge-search">
+                        <input type="text" id="knowledge-search" placeholder="知識を検索...">
+                    </div>
+                    <div id="knowledge-results" class="knowledge-results">
+                        <!-- 検索結果がここに表示される -->
+                    </div>
+                </div>
+                
+                <!-- メモタブ -->
+                <div id="notes-tab" class="tab-content">
+                    <div class="notes-content">
+                        <textarea 
+                            id="chapter-notes" 
+                            class="chapter-notes" 
+                            placeholder="この章に関するメモを記入..."
+                        ></textarea>
+                    </div>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <!-- AI支援モーダル -->
+    <div id="ai-assist-modal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>AI執筆支援</h3>
+                <button class="close-btn" onclick="closeAIAssistModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="ai-assist-options">
+                    <button class="assist-option" data-action="continue">
+                        <span class="option-icon">➡️</span>
+                        <span class="option-title">続きを書く</span>
+                        <span class="option-desc">選択したテキストの続きをAIが執筆</span>
+                    </button>
+                    <button class="assist-option" data-action="improve">
+                        <span class="option-icon">✨</span>
+                        <span class="option-title">文章を改善</span>
+                        <span class="option-desc">選択部分をより良い表現に</span>
+                    </button>
+                    <button class="assist-option" data-action="expand">
+                        <span class="option-icon">📝</span>
+                        <span class="option-title">詳細を追加</span>
+                        <span class="option-desc">描写や説明を豊かに</span>
+                    </button>
+                    <button class="assist-option" data-action="dialogue">
+                        <span class="option-icon">💬</span>
+                        <span class="option-title">対話を生成</span>
+                        <span class="option-desc">キャラクター間の会話を作成</span>
+                    </button>
+                    <button class="assist-option" data-action="scene">
+                        <span class="option-icon">🎬</span>
+                        <span class="option-title">シーン描写</span>
+                        <span class="option-desc">情景や雰囲気を詳しく描写</span>
+                    </button>
+                    <button class="assist-option" data-action="brainstorm">
+                        <span class="option-icon">💡</span>
+                        <span class="option-title">アイデア出し</span>
+                        <span class="option-desc">展開のアイデアを提案</span>
+                    </button>
+                </div>
+                
+                <div class="ai-context">
+                    <h4>コンテキスト</h4>
+                    <div class="context-info">
+                        <p>選択されたテキスト: <span id="selected-text-preview"></span></p>
+                        <p>現在の章: <span id="context-chapter"></span></p>
+                    </div>
+                </div>
+                
+                <div id="ai-result" class="ai-result" style="display: none;">
+                    <h4>AI提案</h4>
+                    <div id="ai-suggestion" class="ai-suggestion"></div>
+                    <div class="ai-actions">
+                        <button class="primary-btn" onclick="acceptAISuggestion()">採用</button>
+                        <button class="secondary-btn" onclick="regenerateAI()">再生成</button>
+                        <button class="secondary-btn" onclick="rejectAISuggestion()">キャンセル</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- シーン編集モーダル -->
+    <div id="scene-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>シーンを追加</h3>
+                <button class="close-btn" onclick="closeSceneModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="scene-title">シーンタイトル</label>
+                    <input type="text" id="scene-title" placeholder="例: 主人公の登場">
+                </div>
+                <div class="form-group">
+                    <label for="scene-location">場所</label>
+                    <input type="text" id="scene-location" placeholder="例: 記憶のアーカイブ">
+                </div>
+                <div class="form-group">
+                    <label for="scene-characters">登場人物</label>
+                    <input type="text" id="scene-characters" placeholder="例: サラ、マーカス">
+                </div>
+                <div class="form-group">
+                    <label for="scene-summary">概要</label>
+                    <textarea id="scene-summary" rows="3" placeholder="このシーンで起こること"></textarea>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="primary-btn" onclick="saveScene()">保存</button>
+                <button class="secondary-btn" onclick="closeSceneModal()">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="./js/writing-editor.js"></script>
+</body>
+</html>
