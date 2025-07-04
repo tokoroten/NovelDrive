@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+    <title>エージェント会議室 - NovelDrive</title>
+    <link rel="stylesheet" href="./styles/common.css">
+    <link rel="stylesheet" href="./styles/agent-meeting.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- サイドバー -->
+        <nav class="sidebar">
+            <div class="app-title">
+                <h1>NovelDrive</h1>
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a href="./projects.html" data-page="projects">
+                        <span class="icon">📁</span>
+                        <span>プロジェクト</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./anything-box.html" data-page="anything-box">
+                        <span class="icon">📥</span>
+                        <span>なんでもボックス</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./serendipity.html" data-page="serendipity">
+                        <span class="icon">✨</span>
+                        <span>セレンディピティ</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./knowledge-graph.html" data-page="knowledge-graph">
+                        <span class="icon">🕸️</span>
+                        <span>ナレッジグラフ</span>
+                    </a>
+                </li>
+                <li class="nav-item active">
+                    <a href="#" data-page="agent-meeting">
+                        <span class="icon">🤝</span>
+                        <span>エージェント会議室</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" data-page="settings">
+                        <span class="icon">⚙️</span>
+                        <span>設定</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- メインコンテンツ -->
+        <main class="main-content">
+            <header class="page-header">
+                <div>
+                    <h2>エージェント会議室</h2>
+                    <p class="page-description">AIエージェントとのディスカッションと創作活動</p>
+                </div>
+                <select id="project-selector" class="project-selector">
+                    <option value="">プロジェクトを選択...</option>
+                </select>
+            </header>
+
+            <!-- エージェント状態パネル -->
+            <div class="agents-panel">
+                <h3>エージェント状態</h3>
+                <div class="agents-grid">
+                    <div class="agent-card" data-agent-type="deputy_editor">
+                        <div class="agent-avatar">👔</div>
+                        <div class="agent-info">
+                            <h4>副編集長AI</h4>
+                            <p class="agent-role">品質評価・構成分析</p>
+                            <div class="agent-status" data-status="idle">
+                                <span class="status-indicator"></span>
+                                <span class="status-text">待機中</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="agent-card" data-agent-type="writer">
+                        <div class="agent-avatar">✍️</div>
+                        <div class="agent-info">
+                            <h4>作家AI</h4>
+                            <p class="agent-role">創作・執筆</p>
+                            <div class="agent-status" data-status="idle">
+                                <span class="status-indicator"></span>
+                                <span class="status-text">待機中</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="agent-card" data-agent-type="editor">
+                        <div class="agent-avatar">📝</div>
+                        <div class="agent-info">
+                            <h4>編集者AI</h4>
+                            <p class="agent-role">協調的編集</p>
+                            <div class="agent-status" data-status="idle">
+                                <span class="status-indicator"></span>
+                                <span class="status-text">待機中</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="agent-card" data-agent-type="proofreader">
+                        <div class="agent-avatar">🔍</div>
+                        <div class="agent-info">
+                            <h4>校正AI</h4>
+                            <p class="agent-role">矛盾検出・整合性確認</p>
+                            <div class="agent-status" data-status="idle">
+                                <span class="status-indicator"></span>
+                                <span class="status-text">待機中</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- セッションコントロール -->
+            <div class="session-control">
+                <div class="session-type">
+                    <label>セッションタイプ</label>
+                    <select id="session-type">
+                        <option value="plot_development">プロット開発</option>
+                        <option value="chapter_writing">章執筆</option>
+                        <option value="character_development">キャラクター開発</option>
+                        <option value="review_discussion">レビューディスカッション</option>
+                        <option value="brainstorming">ブレインストーミング</option>
+                    </select>
+                </div>
+                <div class="session-participants">
+                    <label>参加エージェント</label>
+                    <div class="participant-checkboxes">
+                        <label><input type="checkbox" value="deputy_editor" checked> 副編集長AI</label>
+                        <label><input type="checkbox" value="writer" checked> 作家AI</label>
+                        <label><input type="checkbox" value="editor" checked> 編集者AI</label>
+                        <label><input type="checkbox" value="proofreader"> 校正AI</label>
+                    </div>
+                </div>
+                <button id="start-session" class="primary-btn">
+                    <span class="icon">🚀</span>
+                    セッション開始
+                </button>
+            </div>
+
+            <!-- 会議室チャット -->
+            <div class="meeting-room">
+                <div class="chat-container">
+                    <div class="chat-header">
+                        <h3>ディスカッション</h3>
+                        <div class="session-info">
+                            <span id="session-status">セッション未開始</span>
+                            <span id="session-timer" style="display: none;">00:00</span>
+                        </div>
+                    </div>
+                    
+                    <div class="chat-messages" id="chat-messages">
+                        <!-- メッセージがここに表示されます -->
+                        <div class="welcome-message">
+                            <p>セッションを開始して、AIエージェントとのディスカッションを始めましょう。</p>
+                        </div>
+                    </div>
+                    
+                    <div class="chat-input-container">
+                        <div class="chat-input-wrapper">
+                            <textarea 
+                                id="user-input" 
+                                placeholder="メッセージを入力..." 
+                                rows="3"
+                                disabled
+                            ></textarea>
+                            <button id="send-message" class="send-btn" disabled>
+                                <span class="icon">📤</span>
+                            </button>
+                        </div>
+                        <div class="input-actions">
+                            <button class="action-btn" data-action="request-ideas" disabled>
+                                💡 アイデア要求
+                            </button>
+                            <button class="action-btn" data-action="request-review" disabled>
+                                📋 レビュー要求
+                            </button>
+                            <button class="action-btn" data-action="request-revision" disabled>
+                                ✏️ 修正要求
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- サイドパネル -->
+                <div class="side-panel">
+                    <!-- セッション履歴 -->
+                    <div class="panel-section">
+                        <h4>セッション履歴</h4>
+                        <div class="session-history" id="session-history">
+                            <p class="empty-state">まだセッション履歴がありません</p>
+                        </div>
+                    </div>
+                    
+                    <!-- アウトプット -->
+                    <div class="panel-section">
+                        <h4>生成されたコンテンツ</h4>
+                        <div class="output-list" id="output-list">
+                            <p class="empty-state">まだコンテンツがありません</p>
+                        </div>
+                    </div>
+                    
+                    <!-- セッション統計 -->
+                    <div class="panel-section">
+                        <h4>セッション統計</h4>
+                        <div class="session-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">メッセージ数</span>
+                                <span class="stat-value" id="message-count">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">生成アイデア</span>
+                                <span class="stat-value" id="idea-count">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">解決課題</span>
+                                <span class="stat-value" id="issue-count">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- アウトプット詳細モーダル -->
+    <div id="output-modal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="output-title">生成コンテンツ</h3>
+                <button class="close-btn" onclick="hideOutputModal()">✕</button>
+            </div>
+            <div id="output-content" class="output-content">
+                <!-- コンテンツがここに表示されます -->
+            </div>
+            <div class="modal-actions">
+                <button class="primary-btn" onclick="saveOutput()">保存</button>
+                <button class="secondary-btn" onclick="copyOutput()">コピー</button>
+                <button class="secondary-btn" onclick="hideOutputModal()">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="./js/agent-meeting.js"></script>
+</body>
+</html>

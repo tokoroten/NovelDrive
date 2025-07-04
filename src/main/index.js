@@ -89,6 +89,10 @@ app.whenReady().then(async () => {
   }
   
   createWindow();
+  
+  // Setup IPC handlers that need mainWindow after window creation
+  const { registerAgentHandlers } = require('./ipc-handlers/agent-handlers');
+  registerAgentHandlers(mainWindow);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
