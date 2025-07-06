@@ -140,6 +140,28 @@ class PersonalityService extends EventEmitter {
                     editor: 'literary-editor',
                     deputy_editor: 'lightnovel-deputy'
                 }
+            },
+            {
+                id: 'twitter-novel-set',
+                name: 'Twitter小説セット',
+                description: '140文字で心を掴む。バズる小説を生み出す。',
+                assignment: {
+                    writer: 'twitter-writer',
+                    editor: 'twitter-editor',
+                    deputy_editor: 'innovative-deputy',
+                    proofreader: 'creative-proofreader'
+                }
+            },
+            {
+                id: 'narou-set',
+                name: 'なろう系セット',
+                description: '日刊3000文字連載。読者を虜にする王道展開。',
+                assignment: {
+                    writer: 'narou-writer',
+                    editor: 'narou-editor',
+                    deputy_editor: 'market-deputy',
+                    proofreader: 'meticulous-proofreader'
+                }
             }
         ];
         
