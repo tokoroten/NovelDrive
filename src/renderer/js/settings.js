@@ -72,8 +72,22 @@ function markAsChanged() {
 // Load settings
 async function loadSettings() {
     try {
+        // OpenAI設定を個別に取得
+        const openAIConfig = await window.api.invoke('openai:getConfig');
+        
+        // その他の設定を取得
         const settings = await window.api.invoke('settings:get');
         currentSettings = settings;
+        
+        // OpenAI設定を統合
+        if (!settings.api) settings.api = {};
+        settings.api.openai = {
+            hasApiKey: openAIConfig.hasApiKey,
+            model: openAIConfig.model,
+            temperature: openAIConfig.temperature,
+            isConfigured: openAIConfig.isConfigured
+        };
+        
         applySettings(settings);
     } catch (error) {
         console.error('Failed to load settings:', error);
@@ -86,7 +100,16 @@ function applySettings(settings) {
     // API Settings
     if (settings.api) {
         if (settings.api.openai) {
-            setInputValue('openai-api-key', settings.api.openai.apiKey || '');
+            // APIキーの表示処理
+            const apiKeyInput = document.getElementById('openai-api-key');
+            if (settings.api.openai.hasApiKey) {
+                apiKeyInput.value = '••••••••••••••••';
+                apiKeyInput.dataset.hasKey = 'true';
+            } else {
+                apiKeyInput.value = '';
+                apiKeyInput.dataset.hasKey = 'false';
+            }
+            
             setInputValue('openai-model', settings.api.openai.model || 'gpt-4');
             setInputValue('openai-temperature', settings.api.openai.temperature || 0.7);
         }
@@ -164,10 +187,35 @@ function getInputValue(id) {
 
 // Save settings
 window.saveSettings = async function() {
+    // OpenAI API設定を個別に保存
+    const apiKeyInput = document.getElementById('openai-api-key');
+    if (apiKeyInput.value && apiKeyInput.value !== '••••••••••••••••') {
+        try {
+            await window.api.invoke('openai:setApiKey', { apiKey: apiKeyInput.value });
+            // 保存後にマスク表示
+            apiKeyInput.value = '••••••••••••••••';
+            apiKeyInput.dataset.hasKey = 'true';
+        } catch (error) {
+            console.error('Failed to save API key:', error);
+            window.api.showMessage('APIキーの保存に失敗しました', 'error');
+            return;
+        }
+    }
+    
+    // OpenAIのモデルと温度設定
+    try {
+        await window.api.invoke('openai:updateSettings', {
+            model: getInputValue('openai-model'),
+            temperature: getInputValue('openai-temperature')
+        });
+    } catch (error) {
+        console.error('Failed to update OpenAI settings:', error);
+    }
+    
     const settings = {
         api: {
             openai: {
-                apiKey: getInputValue('openai-api-key'),
+                // APIキーは個別に保存済み
                 model: getInputValue('openai-model'),
                 temperature: getInputValue('openai-temperature')
             }

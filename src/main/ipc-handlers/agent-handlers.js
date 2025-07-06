@@ -1,6 +1,6 @@
 const { ipcMain } = require('electron');
 const { getLogger } = require('../utils/logger');
-const AgentCoordinator = require('../agents/agent-coordinator');
+const agentCoordinator = require('../agents/agent-coordinator');
 const DeputyEditorAgent = require('../agents/deputy-editor-agent');
 const WriterAgent = require('../agents/writer-agent');
 const EditorAgent = require('../agents/editor-agent');
@@ -10,16 +10,14 @@ const { v4: uuidv4 } = require('uuid');
 
 const logger = getLogger('agent-handlers');
 
-// Global agent coordinator instance
-let agentCoordinator = null;
+// Global session tracking
 const activeSessions = new Map();
 
 /**
  * Initialize agent system
  */
 function initializeAgentSystem() {
-    if (!agentCoordinator) {
-        agentCoordinator = new AgentCoordinator();
+    if (!agentCoordinator.agents.size) {
         
         // Create and register agents
         const agents = [
@@ -232,12 +230,27 @@ function registerAgentHandlers(mainWindow) {
 function setupSessionEventForwarding(sessionId, mainWindow) {
     const coordinator = agentCoordinator;
     
+    // Remove existing listeners to prevent duplicates
+    coordinator.removeAllListeners('agent:status');
+    coordinator.removeAllListeners('agent:message');
+    coordinator.removeAllListeners('session:output');
+    
     // Forward agent status updates
     coordinator.on('agent:status', (data) => {
+        mainWindow.webContents.send('agents:statusUpdate', {
+            agentType: getAgentTypeFromId(data.agentId),
+            status: data.status
+        });
+    });
+    
+    // Forward agent messages
+    coordinator.on('agent:message', (data) => {
         if (data.sessionId === sessionId) {
-            mainWindow.webContents.send('agents:statusUpdate', {
+            mainWindow.webContents.send('agents:message', {
+                sessionId: data.sessionId,
                 agentType: getAgentTypeFromId(data.agentId),
-                status: data.status
+                message: data.message,
+                timestamp: new Date()
             });
         }
     });

@@ -6,9 +6,12 @@ const { getLogger } = require('../utils/logger');
  * Setup serendipity search related IPC handlers
  * @param {Object} repositories
  */
-function setupSerendipityHandlers(repositories) {
+async function setupSerendipityHandlers(repositories) {
   const logger = getLogger();
   const serendipityService = new SerendipitySearchService(repositories);
+  
+  // Initialize the service
+  await serendipityService.initialize();
 
   // セレンディピティ検索
   ipcMain.handle('serendipity:search', async (event, projectId, query, options) => {

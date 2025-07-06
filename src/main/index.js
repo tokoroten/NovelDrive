@@ -9,6 +9,9 @@ const setupIPCHandlers = require('./ipc-handlers');
 let mainWindow = null;
 let db = null;
 
+// Make mainWindow globally accessible for event forwarding
+global.mainWindow = null;
+
 // Initialize logger and error handler
 const logger = createLogger({
   logLevel: process.env.NODE_ENV === 'development' ? 'debug' : 'info'
@@ -42,7 +45,11 @@ function createWindow() {
   mainWindow.on('closed', () => {
     logger.info('Main window closed');
     mainWindow = null;
+    global.mainWindow = null;
   });
+  
+  // Set global reference
+  global.mainWindow = mainWindow;
 
   logger.info('Main window created successfully');
 }
@@ -80,7 +87,7 @@ app.whenReady().then(async () => {
     logger.info('Database initialized successfully');
     
     // Setup all IPC handlers
-    setupIPCHandlers(db);
+    await setupIPCHandlers(db);
     logger.info('IPC handlers initialized successfully');
   } catch (error) {
     logger.error('Failed to initialize database:', error);
@@ -105,6 +112,33 @@ app.whenReady().then(async () => {
   // Register analytics handlers
   const { registerAnalyticsHandlers } = require('./ipc-handlers/analytics-handlers');
   registerAnalyticsHandlers(db);
+  
+  // Register OpenAI handlers
+  const { registerOpenAIHandlers } = require('./ipc-handlers/openai-handlers');
+  registerOpenAIHandlers(mainWindow);
+  
+  // Register personality handlers
+  const { initializePersonalityHandlers } = require('./ipc-handlers/personality-handlers');
+  initializePersonalityHandlers();
+  
+  // Register autonomous handlers
+  const { registerAutonomousHandlers } = require('./ipc-handlers/autonomous-handlers');
+  registerAutonomousHandlers();
+  
+  // Register vector search handlers
+  const VectorSearchHandlers = require('./ipc-handlers/vector-search-handlers');
+  const vectorSearchHandlers = new VectorSearchHandlers(db.repositories);
+  await vectorSearchHandlers.initialize();
+  
+  // Make vector indexing service globally available
+  global.vectorIndexingService = vectorSearchHandlers.getIndexingService();
+  
+  // Register dialog handlers
+  ipcMain.handle('dialog:save', async (event, options) => {
+    const { dialog } = require('electron');
+    const result = await dialog.showSaveDialog(mainWindow, options);
+    return result.filePath;
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

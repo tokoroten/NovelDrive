@@ -1,0 +1,58 @@
+{
+  "name": "creative-exploration",
+  "description": "Focus on brainstorming, worldbuilding, and character development",
+  "activities": [
+    {
+      "type": "brainstorming",
+      "duration": 2700000,
+      "description": "45 minutes deep brainstorming"
+    },
+    {
+      "type": "worldbuilding",
+      "duration": 3600000,
+      "description": "60 minutes world creation"
+    },
+    {
+      "type": "rest",
+      "duration": 900000,
+      "description": "15 minute break"
+    },
+    {
+      "type": "character",
+      "duration": 2700000,
+      "description": "45 minutes character exploration"
+    },
+    {
+      "type": "plotting",
+      "duration": 2700000,
+      "description": "45 minutes plot development"
+    },
+    {
+      "type": "rest",
+      "duration": 900000,
+      "description": "15 minute break"
+    },
+    {
+      "type": "brainstorming",
+      "duration": 1800000,
+      "description": "30 minutes idea synthesis"
+    },
+    {
+      "type": "writing",
+      "duration": 1800000,
+      "description": "30 minutes exploratory writing"
+    },
+    {
+      "type": "worldbuilding",
+      "duration": 1800000,
+      "description": "30 minutes world refinement"
+    },
+    {
+      "type": "rest",
+      "duration": 1200000,
+      "description": "20 minute reflection break"
+    }
+  ],
+  "totalCycleDuration": 20100000,
+  "restPercentage": 14.9
+}

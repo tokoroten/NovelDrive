@@ -1,5 +1,6 @@
 const BaseAgent = require('./base-agent');
 const { getLogger } = require('../utils/logger');
+const openAIService = require('../services/openai-service');
 
 /**
  * Writer AI Agent
@@ -379,7 +380,31 @@ class WriterAgent extends BaseAgent {
     }
 
     async generateChapterContent(data, inspiration) {
-        // Mock chapter content generation
+        // Use OpenAI to generate chapter content if available
+        if (openAIService.isConfigured()) {
+            try {
+                const prompt = `小説の章を書いてください。以下の条件に従ってください：
+章番号: ${data.chapterNumber}
+タイトル: ${data.title || ''}
+前の章の概要: ${data.previousSummary || 'なし'}
+この章の概要: ${data.outline || 'なし'}
+インスピレーション: ${inspiration.insights.join(', ')}
+ムード: ${inspiration.mood}
+文体: 豊かで詩的な表現を使い、感覚的な描写を含めてください。
+
+2000文字程度で書いてください。`;
+
+                const content = await openAIService.generateForAgent('writer', prompt, {
+                    previousMessages: data.context?.messages || []
+                });
+                
+                return content;
+            } catch (error) {
+                this.logger.error('Failed to generate with OpenAI, using fallback:', error);
+            }
+        }
+        
+        // Fallback to mock content
         return `The morning light filtered through the crystalline windows of the memory archive, 
 casting rainbow fragments across the floor where forgotten dreams lay catalogued in neat rows. 
 Sarah approached the central index, her fingers trembling as she reached for the brass handle 
@@ -481,6 +506,36 @@ of drawer 742—her mother's final memories.
     }
 
     async generateCreativeInput(topic, content) {
+        // Use OpenAI with personality if available
+        if (openAIService.isConfigured() && this.personality) {
+            try {
+                const systemPrompt = this.getSystemPrompt();
+                const personalityParams = this.getPersonalityParameters();
+                
+                const prompt = `議論のトピック: ${topic}
+内容: ${JSON.stringify(content)}
+
+このトピックについて、あなたの視点から創造的な意見や提案を述べてください。`;
+                
+                const response = await openAIService.generateChatCompletion([
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: prompt }
+                ], {
+                    temperature: personalityParams.temperature,
+                    maxTokens: 500
+                });
+                
+                return {
+                    perspective: response,
+                    personality: this.personality.name,
+                    traits: this.personalityTraits
+                };
+            } catch (error) {
+                this.logger.error('Failed to generate with personality:', error);
+            }
+        }
+        
+        // Fallback response
         return {
             perspective: 'What if we explore this through dream logic?',
             suggestion: 'Consider non-linear narrative structure',

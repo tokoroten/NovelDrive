@@ -11,13 +11,20 @@ class KnowledgeRepository extends BaseRepository {
    * @param {Array<number>} embeddings
    * @returns {Object}
    */
-  createWithEmbeddings(data, embeddings) {
+  async createWithEmbeddings(data, embeddings) {
     try {
       const knowledgeData = {
         ...data,
         embeddings: JSON.stringify(embeddings)
       };
-      return this.create(knowledgeData);
+      const knowledge = this.create(knowledgeData);
+      
+      // Also store in vector index if vector search is available
+      if (global.vectorIndexingService) {
+        await global.vectorIndexingService.indexKnowledge(knowledge);
+      }
+      
+      return knowledge;
     } catch (error) {
       console.error('Error creating knowledge with embeddings:', error);
       throw error;

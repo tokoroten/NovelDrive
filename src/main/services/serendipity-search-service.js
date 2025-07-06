@@ -1,5 +1,6 @@
 const { getLogger } = require('../utils/logger');
 const localEmbeddingService = require('./local-embedding-service');
+const VectorSearchService = require('./vector-search-service');
 
 /**
  * Serendipity Search Service
@@ -9,6 +10,7 @@ class SerendipitySearchService {
     constructor(repositories) {
         this.repositories = repositories;
         this.logger = getLogger();
+        this.vectorSearchService = new VectorSearchService(repositories);
         
         // セレンディピティ検索のパラメータ
         this.config = {
@@ -24,6 +26,13 @@ class SerendipitySearchService {
     }
 
     /**
+     * Initialize the serendipity search service
+     */
+    async initialize() {
+        await this.vectorSearchService.initialize();
+    }
+
+    /**
      * セレンディピティ検索を実行
      * @param {number} projectId - プロジェクトID
      * @param {string} query - 検索クエリ
@@ -35,29 +44,27 @@ class SerendipitySearchService {
 
         try {
             // クエリの埋め込みを生成
-            const queryEmbedding = await localEmbeddingService.generateEmbedding(query);
+            const queryEmbedding = options.queryEmbedding || 
+                await localEmbeddingService.generateEmbedding(query);
             
-            // ノイズを注入
-            const noisyEmbedding = this.injectNoise(
-                queryEmbedding, 
-                options.noiseLevel || this.config.noiseLevel
+            // Use vector search service with serendipity mode
+            const searchResults = await this.vectorSearchService.search(
+                queryEmbedding,
+                projectId,
+                {
+                    mode: 'serendipity',
+                    limit: options.limit || this.config.searchLimit,
+                    entityTypes: ['knowledge'],
+                    perturbationType: options.perturbationType || 'gaussian'
+                }
             );
 
-            // プロジェクト内のナレッジを取得
-            const knowledgeItems = await this.repositories.knowledge.findByProject(projectId, {
-                limit: 1000 // 全件取得
-            });
-
-            // 類似度を計算してスコアリング
-            const scoredItems = await this.scoreItems(
-                noisyEmbedding, 
-                knowledgeItems,
-                options
-            );
+            // Enrich results with full entity data and apply time decay
+            const enrichedResults = await this.enrichResults(searchResults, options);
 
             // 中距離フィルタリング
             const filteredItems = this.filterMiddleDistance(
-                scoredItems,
+                enrichedResults,
                 options.middleDistanceRange || this.config.middleDistanceRange
             );
 
@@ -67,14 +74,53 @@ class SerendipitySearchService {
                 options.diversityWeight || this.config.diversityWeight
             );
 
-            // 結果を返す
-            const limit = options.limit || this.config.searchLimit;
-            return rankedItems.slice(0, limit);
+            return rankedItems;
 
         } catch (error) {
             this.logger.error('Serendipity search failed:', error);
             throw error;
         }
+    }
+
+    /**
+     * Enrich search results with full entity data
+     * @param {Array} searchResults - Results from vector search
+     * @param {Object} options - Options
+     * @returns {Promise<Array>} Enriched results
+     */
+    async enrichResults(searchResults, options = {}) {
+        const enriched = [];
+        
+        for (const result of searchResults) {
+            try {
+                let entity = null;
+                
+                if (result.entityType === 'knowledge') {
+                    entity = await this.repositories.knowledge.findById(result.entityId);
+                }
+                // Add more entity types as needed
+                
+                if (entity) {
+                    // Calculate time decay
+                    const timeDecay = this.calculateTimeDecay(
+                        entity.created_at,
+                        options.timeDecayFactor || this.config.timeDecayFactor
+                    );
+                    
+                    enriched.push({
+                        ...entity,
+                        similarity: result.similarity,
+                        distance: result.distance,
+                        timeDecay,
+                        score: result.similarity * timeDecay
+                    });
+                }
+            } catch (error) {
+                this.logger.warn(`Failed to enrich result ${result.entityId}:`, error);
+            }
+        }
+        
+        return enriched.sort((a, b) => b.score - a.score);
     }
 
     /**
@@ -275,19 +321,24 @@ class SerendipitySearchService {
     async findRelated(itemId, options = {}) {
         try {
             const item = await this.repositories.knowledge.findById(itemId);
-            if (!item || !item.embeddings) {
+            if (!item) {
                 return [];
             }
 
-            const embedding = JSON.parse(item.embeddings);
-            const projectId = item.project_id;
+            // Get vector from vector index
+            const vectorResults = await this.vectorSearchService.search(
+                JSON.parse(item.embeddings || '[]'),
+                item.project_id,
+                {
+                    mode: 'similar',
+                    limit: options.limit || 20,
+                    entityTypes: ['knowledge'],
+                    excludeIds: [itemId] // Exclude the item itself
+                }
+            );
 
-            // セレンディピティ検索を実行（ノイズレベルを調整）
-            return this.search(projectId, '', {
-                ...options,
-                queryEmbedding: embedding,
-                noiseLevel: options.noiseLevel || 0.1 // 関連検索では低めのノイズ
-            });
+            // Enrich results
+            return this.enrichResults(vectorResults, options);
 
         } catch (error) {
             this.logger.error('Failed to find related items:', error);
@@ -304,7 +355,7 @@ class SerendipitySearchService {
      */
     async discoverInspirations(projectId, options = {}) {
         try {
-            // ランダムなシードアイテムを選択
+            // Get random seed items
             const items = await this.repositories.knowledge.findByProject(projectId, {
                 limit: 100,
                 offset: Math.floor(Math.random() * 100)
@@ -315,16 +366,27 @@ class SerendipitySearchService {
             const seedItem = items[Math.floor(Math.random() * items.length)];
             if (!seedItem.embeddings) return [];
 
-            // 高ノイズでセレンディピティ検索
-            return this.search(projectId, '', {
-                ...options,
-                queryEmbedding: JSON.parse(seedItem.embeddings),
-                noiseLevel: 0.5, // 高いノイズレベル
-                middleDistanceRange: {
-                    min: 0.4,
-                    max: 0.8
+            // Use vector search with high perturbation
+            const vectorResults = await this.vectorSearchService.search(
+                JSON.parse(seedItem.embeddings),
+                projectId,
+                {
+                    mode: 'serendipity',
+                    limit: options.limit || 30,
+                    entityTypes: ['knowledge'],
+                    perturbationType: options.perturbationType || 'directional',
+                    excludeIds: [seedItem.id]
                 }
-            });
+            );
+
+            // Enrich and apply special filtering for inspirations
+            const enrichedResults = await this.enrichResults(vectorResults, options);
+            
+            // Filter for middle distance range (unexpected but not too distant)
+            return this.filterMiddleDistance(
+                enrichedResults,
+                options.middleDistanceRange || { min: 0.4, max: 0.8 }
+            );
 
         } catch (error) {
             this.logger.error('Failed to discover inspirations:', error);

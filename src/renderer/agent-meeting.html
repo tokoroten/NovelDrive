@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'">
     <title>エージェント会議室 - NovelDrive</title>
     <link rel="stylesheet" href="./styles/common.css">
     <link rel="stylesheet" href="./styles/agent-meeting.css">
@@ -69,13 +69,24 @@
 
             <!-- エージェント状態パネル -->
             <div class="agents-panel">
-                <h3>エージェント状態</h3>
+                <div class="panel-header">
+                    <h3>エージェント状態</h3>
+                    <div class="panel-actions">
+                        <button id="personality-settings-btn" class="icon-btn" title="人格設定">
+                            <span class="icon">🎭</span>
+                        </button>
+                        <button id="apply-preset-btn" class="icon-btn" title="プリセット適用">
+                            <span class="icon">📋</span>
+                        </button>
+                    </div>
+                </div>
                 <div class="agents-grid">
                     <div class="agent-card" data-agent-type="deputy_editor">
                         <div class="agent-avatar">👔</div>
                         <div class="agent-info">
                             <h4>副編集長AI</h4>
                             <p class="agent-role">品質評価・構成分析</p>
+                            <p class="agent-personality">-</p>
                             <div class="agent-status" data-status="idle">
                                 <span class="status-indicator"></span>
                                 <span class="status-text">待機中</span>
@@ -88,6 +99,7 @@
                         <div class="agent-info">
                             <h4>作家AI</h4>
                             <p class="agent-role">創作・執筆</p>
+                            <p class="agent-personality">-</p>
                             <div class="agent-status" data-status="idle">
                                 <span class="status-indicator"></span>
                                 <span class="status-text">待機中</span>
@@ -100,6 +112,7 @@
                         <div class="agent-info">
                             <h4>編集者AI</h4>
                             <p class="agent-role">協調的編集</p>
+                            <p class="agent-personality">-</p>
                             <div class="agent-status" data-status="idle">
                                 <span class="status-indicator"></span>
                                 <span class="status-text">待機中</span>
@@ -112,6 +125,7 @@
                         <div class="agent-info">
                             <h4>校正AI</h4>
                             <p class="agent-role">矛盾検出・整合性確認</p>
+                            <p class="agent-personality">-</p>
                             <div class="agent-status" data-status="idle">
                                 <span class="status-indicator"></span>
                                 <span class="status-text">待機中</span>
@@ -231,6 +245,44 @@
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- 人格設定モーダル -->
+    <div id="personality-modal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>エージェント人格設定</h3>
+                <button class="modal-close close-btn">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-description">各エージェントの人格を選択してください。</p>
+                <div id="personality-options" class="personality-options">
+                    <!-- 人格オプションがここに表示されます -->
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="secondary-btn modal-close">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- プリセットモーダル -->
+    <div id="preset-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>人格プリセット</h3>
+                <button class="modal-close close-btn">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-description">プリセットを選択すると、全エージェントの人格が一括で変更されます。</p>
+                <div id="preset-list" class="preset-list">
+                    <!-- プリセットがここに表示されます -->
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="secondary-btn modal-close">キャンセル</button>
+            </div>
+        </div>
     </div>
 
     <!-- アウトプット詳細モーダル -->

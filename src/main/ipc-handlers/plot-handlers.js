@@ -1,6 +1,5 @@
 const { ipcMain } = require('electron');
 const { getLogger } = require('../utils/logger');
-const { getDatabase } = require('../database/sqlite-database');
 
 const logger = getLogger('plot-handlers');
 
@@ -8,8 +7,8 @@ const logger = getLogger('plot-handlers');
  * Setup plot-related IPC handlers
  */
 function setupPlotHandlers(db) {
-    const repositories = db.getRepositories();
-    const plotRepo = repositories.plots;
+    const PlotRepository = require('../repositories/plot-repository');
+    const plotRepo = new PlotRepository(db);
 
     // List plots by project
     ipcMain.handle('plot:list', async (event, { projectId }) => {

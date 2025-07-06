@@ -1,5 +1,6 @@
 const BaseAgent = require('./base-agent');
 const { getLogger } = require('../utils/logger');
+const openAIService = require('../services/openai-service');
 
 /**
  * Proofreader AI Agent
@@ -558,6 +559,35 @@ class ProofreaderAgent extends BaseAgent {
     }
 
     async generateProofreadingPerspective(topic, content) {
+        // Use OpenAI to generate proofreading perspective if available
+        if (openAIService.isConfigured()) {
+            try {
+                const prompt = `校正者の視点から以下の内容について詳細な分析を提供してください：
+トピック: ${topic}
+内容: ${content}
+
+以下の観点から分析してください：
+1. 事実関係の矛盾や誤り
+2. キャラクターの一貫性の問題
+3. タイムラインの矛盾
+4. 世界観設定の不整合
+5. 文体やトーンの不一致
+
+具体的な問題点と改善提案を含めてください。`;
+
+                const response = await openAIService.generateForAgent('proofreader', prompt);
+                
+                return {
+                    analysis: response,
+                    approach: 'detailed_checking',
+                    severity: 'thorough'
+                };
+            } catch (error) {
+                this.logger.error('Failed to generate proofreading perspective with OpenAI:', error);
+            }
+        }
+        
+        // Fallback
         return {
             factualConcerns: this.checkFactualAccuracy(content),
             consistencyConcerns: this.quickConsistencyCheck(content),

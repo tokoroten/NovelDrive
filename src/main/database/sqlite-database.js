@@ -243,4 +243,25 @@ class SQLiteDatabase {
 // Export singleton instance
 const database = new SQLiteDatabase();
 
-module.exports = database;
+// Proxy the database methods to the internal db instance
+const handler = {
+    get(target, prop) {
+        // If property exists on SQLiteDatabase instance, return it
+        if (prop in target) {
+            return target[prop];
+        }
+        
+        // If db is initialized and property exists on db, return it
+        if (target.db && prop in target.db) {
+            const value = target.db[prop];
+            if (typeof value === 'function') {
+                return value.bind(target.db);
+            }
+            return value;
+        }
+        
+        return undefined;
+    }
+};
+
+module.exports = new Proxy(database, handler);

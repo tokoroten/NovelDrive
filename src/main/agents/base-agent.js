@@ -1,6 +1,7 @@
 const { EventEmitter } = require('events');
 const { getLogger } = require('../utils/logger');
 const { v4: uuidv4 } = require('uuid');
+const personalityService = require('../services/personality-service');
 
 /**
  * Base class for all AI agents in the multi-agent system
@@ -23,6 +24,10 @@ class BaseAgent extends EventEmitter {
         // Agent capabilities
         this.capabilities = config.capabilities || [];
         
+        // Personality
+        this.personality = null;
+        this.personalityTraits = null;
+        
         // Initialize agent
         this.initialize();
     }
@@ -32,6 +37,97 @@ class BaseAgent extends EventEmitter {
      */
     initialize() {
         this.logger.info(`Initializing agent: ${this.name} (${this.type})`);
+        
+        // Load default personality for this agent type
+        this.loadDefaultPersonality();
+    }
+    
+    /**
+     * Load default personality for agent type
+     */
+    loadDefaultPersonality() {
+        const personality = personalityService.getPersonalityForAgent(this.type);
+        if (personality) {
+            this.setPersonality(personality);
+            this.logger.info(`Loaded personality: ${personality.name} for ${this.name}`);
+        } else {
+            this.logger.warn(`No default personality found for agent type: ${this.type}`);
+        }
+    }
+    
+    /**
+     * Set personality for this agent
+     * @param {Object} personality
+     */
+    setPersonality(personality) {
+        if (!personality) {
+            throw new Error('Personality is required');
+        }
+        
+        if (personality.role !== this.type) {
+            throw new Error(`Personality role ${personality.role} does not match agent type ${this.type}`);
+        }
+        
+        this.personality = personality;
+        this.personalityTraits = personality.traits;
+        this.name = personality.name || this.name;
+        
+        // Update capabilities based on personality
+        if (personality.traits && personality.traits.expertise) {
+            this.updateCapabilitiesFromPersonality(personality.traits.expertise);
+        }
+        
+        this.emit('personality:changed', {
+            agentId: this.id,
+            personality: personality
+        });
+    }
+    
+    /**
+     * Update capabilities based on personality expertise
+     * @param {Object} expertise
+     */
+    updateCapabilitiesFromPersonality(expertise) {
+        // Add genre-specific capabilities
+        if (expertise.genre) {
+            expertise.genre.forEach(genre => {
+                const capability = `${genre.toLowerCase()}_expertise`;
+                if (!this.capabilities.includes(capability)) {
+                    this.capabilities.push(capability);
+                }
+            });
+        }
+    }
+    
+    /**
+     * Get personality-adjusted parameters
+     * @returns {Object}
+     */
+    getPersonalityParameters() {
+        if (!this.personalityTraits) {
+            return {
+                temperature: 0.7,
+                creativity: 0.5,
+                formality: 0.5
+            };
+        }
+        
+        const traits = this.personalityTraits;
+        return {
+            temperature: 0.5 + (traits.creativity.riskTaking * 0.5),
+            creativity: traits.creativity.abstractness,
+            formality: traits.communication.formality,
+            assertiveness: traits.communication.assertiveness,
+            empathy: traits.communication.empathy
+        };
+    }
+    
+    /**
+     * Get personality system prompt
+     * @returns {string}
+     */
+    getSystemPrompt() {
+        return this.personality ? this.personality.systemPrompt : '';
     }
 
     /**
@@ -281,7 +377,12 @@ class BaseAgent extends EventEmitter {
             name: this.name,
             status: this.status,
             capabilities: this.capabilities,
-            historySize: this.messageHistory.length
+            historySize: this.messageHistory.length,
+            personality: this.personality ? {
+                id: this.personality.id,
+                name: this.personality.name,
+                description: this.personality.description
+            } : null
         };
     }
 

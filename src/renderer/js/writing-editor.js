@@ -376,31 +376,57 @@ async function handleAIAssistOption(event) {
     const editor = document.getElementById('editor');
     const selectedText = editor.value.substring(editor.selectionStart, editor.selectionEnd);
     
+    // Mark selected option as active
+    document.querySelectorAll('.assist-option').forEach(opt => opt.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+    
     try {
         // Show loading state
         document.getElementById('ai-result').style.display = 'block';
         document.getElementById('ai-suggestion').innerHTML = '<p>AIが考えています...</p>';
         
-        // Call AI service
-        const result = await window.api.invoke('ai:assist', {
+        // Prepare context
+        const context = {
+            chapterOutline: currentChapter?.summary || '',
+            chapterTitle: currentChapter?.title || '',
+            beforeText: editor.value.substring(Math.max(0, editor.selectionStart - 500), editor.selectionStart),
+            afterText: editor.value.substring(editor.selectionEnd, Math.min(editor.value.length, editor.selectionEnd + 500))
+        };
+        
+        // Call OpenAI through IPC
+        const result = await window.api.invoke('openai:assistWriting', {
             action: action,
-            text: selectedText,
-            context: {
-                chapter: currentChapter,
-                plot: currentPlot,
-                beforeText: editor.value.substring(Math.max(0, editor.selectionStart - 500), editor.selectionStart),
-                afterText: editor.value.substring(editor.selectionEnd, Math.min(editor.value.length, editor.selectionEnd + 500))
-            }
+            text: selectedText || context.beforeText.slice(-200), // 選択テキストがない場合は前の200文字
+            context: context
         });
         
         // Display result
-        document.getElementById('ai-suggestion').innerHTML = `<p>${escapeHtml(result.suggestion)}</p>`;
-        window.aiSuggestion = result.suggestion;
-        window.aiInsertPosition = editor.selectionEnd;
+        if (result.text) {
+            document.getElementById('ai-suggestion').innerHTML = `<div class="ai-suggestion-content">${escapeHtml(result.text).replace(/\n/g, '<br>')}</div>`;
+            window.aiSuggestion = result.text;
+            
+            // Set insert position based on action
+            if (action === 'continue') {
+                window.aiInsertPosition = editor.selectionEnd || editor.value.length;
+            } else {
+                window.aiInsertPosition = editor.selectionStart;
+                window.aiReplaceLength = editor.selectionEnd - editor.selectionStart;
+            }
+        } else {
+            throw new Error('No result from AI');
+        }
         
     } catch (error) {
         console.error('AI assist failed:', error);
-        document.getElementById('ai-suggestion').innerHTML = '<p>エラーが発生しました</p>';
+        let errorMessage = 'エラーが発生しました';
+        
+        if (error.message?.includes('not configured')) {
+            errorMessage = 'OpenAI APIキーが設定されていません。設定画面でAPIキーを入力してください。';
+        } else if (error.message?.includes('rate limit')) {
+            errorMessage = 'APIのレート制限に達しました。しばらくお待ちください。';
+        }
+        
+        document.getElementById('ai-suggestion').innerHTML = `<p class="error-message">${errorMessage}</p>`;
     }
 }
 
@@ -408,11 +434,21 @@ async function handleAIAssistOption(event) {
 window.acceptAISuggestion = function() {
     if (window.aiSuggestion) {
         const editor = document.getElementById('editor');
-        const before = editor.value.substring(0, window.aiInsertPosition);
-        const after = editor.value.substring(window.aiInsertPosition);
+        let before, after;
+        
+        if (window.aiReplaceLength > 0) {
+            // Replace selected text
+            before = editor.value.substring(0, window.aiInsertPosition);
+            after = editor.value.substring(window.aiInsertPosition + window.aiReplaceLength);
+        } else {
+            // Insert at position
+            before = editor.value.substring(0, window.aiInsertPosition);
+            after = editor.value.substring(window.aiInsertPosition);
+        }
         
         editor.value = before + window.aiSuggestion + after;
         editor.setSelectionRange(window.aiInsertPosition, window.aiInsertPosition + window.aiSuggestion.length);
+        editor.focus();
         
         handleEditorInput({ target: editor });
         closeAIAssistModal();

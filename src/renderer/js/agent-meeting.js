@@ -10,7 +10,9 @@ let outputItems = [];
 document.addEventListener('DOMContentLoaded', () => {
     initializeEventListeners();
     loadProjectList();
+    loadPersonalities();
     subscribeToAgentUpdates();
+    subscribeToPersonalityUpdates();
 });
 
 // Initialize event listeners
@@ -32,6 +34,17 @@ function initializeEventListeners() {
     
     // Project selector
     document.getElementById('project-selector').addEventListener('change', handleProjectChange);
+    
+    // Personality management
+    document.getElementById('personality-settings-btn')?.addEventListener('click', showPersonalityModal);
+    document.getElementById('apply-preset-btn')?.addEventListener('click', showPresetModal);
+    
+    // Modal close buttons
+    document.querySelectorAll('.modal-close').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.target.closest('.modal').style.display = 'none';
+        });
+    });
 }
 
 // Load project list
@@ -128,6 +141,11 @@ async function sendMessage() {
     addUserMessage(message);
     input.value = '';
     
+    // Show agents are thinking
+    currentSession.participants.forEach(agentType => {
+        updateAgentStatus(agentType, 'thinking');
+    });
+    
     try {
         // Send message through IPC
         await window.api.invoke('agents:sendMessage', {
@@ -141,6 +159,11 @@ async function sendMessage() {
     } catch (error) {
         console.error('Failed to send message:', error);
         addSystemMessage('メッセージの送信に失敗しました', 'error');
+        
+        // Reset agent status on error
+        currentSession.participants.forEach(agentType => {
+            updateAgentStatus(agentType, 'idle');
+        });
     }
 }
 
@@ -169,6 +192,170 @@ async function handleActionButton(event) {
         document.getElementById('user-input').value = actionData.message;
         await sendMessage();
     }
+}
+
+// Load personalities
+async function loadPersonalities() {
+    try {
+        const result = await window.api.invoke('personality:get-assignments');
+        if (result.success) {
+            updatePersonalityDisplay(result.data);
+        }
+    } catch (error) {
+        console.error('Failed to load personalities:', error);
+    }
+}
+
+// Update personality display
+function updatePersonalityDisplay(assignments) {
+    Object.entries(assignments).forEach(([role, personality]) => {
+        const agentCard = document.querySelector(`[data-agent-type="${role}"]`);
+        if (agentCard && personality) {
+            const personalityElement = agentCard.querySelector('.agent-personality');
+            if (personalityElement) {
+                personalityElement.textContent = personality.name;
+                personalityElement.title = personality.description || '';
+            }
+        }
+    });
+}
+
+// Show personality modal
+async function showPersonalityModal() {
+    const modal = document.getElementById('personality-modal');
+    if (!modal) return;
+    
+    // Load current personalities and options
+    try {
+        const [assignmentsResult, personalitiesResult] = await Promise.all([
+            window.api.invoke('personality:get-assignments'),
+            window.api.invoke('personality:get-all')
+        ]);
+        
+        if (assignmentsResult.success && personalitiesResult.success) {
+            renderPersonalityOptions(assignmentsResult.data, personalitiesResult.data);
+            modal.style.display = 'flex';
+        }
+    } catch (error) {
+        console.error('Failed to load personality data:', error);
+        window.api.showMessage('人格データの読み込みに失敗しました', 'error');
+    }
+}
+
+// Render personality options
+function renderPersonalityOptions(assignments, allPersonalities) {
+    const container = document.getElementById('personality-options');
+    if (!container) return;
+    
+    const roles = ['writer', 'editor', 'deputy_editor', 'proofreader'];
+    const roleNames = {
+        writer: '作家AI',
+        editor: '編集者AI',
+        deputy_editor: '副編集長AI',
+        proofreader: '校正AI'
+    };
+    
+    container.innerHTML = roles.map(role => {
+        const currentPersonality = assignments[role];
+        const rolePersonalities = allPersonalities.filter(p => p.role === role);
+        
+        return `
+            <div class="personality-role">
+                <h4>${roleNames[role]}</h4>
+                <select class="personality-select" data-role="${role}">
+                    ${rolePersonalities.map(p => `
+                        <option value="${p.id}" ${currentPersonality?.id === p.id ? 'selected' : ''}>
+                            ${p.name} ${p.isBuiltIn ? '' : '(カスタム)'}
+                        </option>
+                    `).join('')}
+                </select>
+                <button class="btn-secondary" onclick="switchPersonality('${role}')">
+                    適用
+                </button>
+            </div>
+        `;
+    }).join('');
+}
+
+// Switch personality
+window.switchPersonality = async function(role) {
+    const select = document.querySelector(`.personality-select[data-role="${role}"]`);
+    if (!select) return;
+    
+    const personalityId = select.value;
+    
+    try {
+        const result = await window.api.invoke('personality:switch', { role, personalityId });
+        if (result.success) {
+            window.api.showMessage(`${result.data.personality.name}に切り替えました`, 'success');
+            updatePersonalityDisplay({ [role]: result.data.personality });
+        } else {
+            window.api.showMessage(result.error || '切り替えに失敗しました', 'error');
+        }
+    } catch (error) {
+        console.error('Failed to switch personality:', error);
+        window.api.showMessage('人格の切り替えに失敗しました', 'error');
+    }
+};
+
+// Show preset modal
+async function showPresetModal() {
+    const modal = document.getElementById('preset-modal');
+    if (!modal) return;
+    
+    try {
+        const result = await window.api.invoke('personality:get-presets');
+        if (result.success) {
+            renderPresetOptions(result.data);
+            modal.style.display = 'flex';
+        }
+    } catch (error) {
+        console.error('Failed to load presets:', error);
+        window.api.showMessage('プリセットの読み込みに失敗しました', 'error');
+    }
+}
+
+// Render preset options
+function renderPresetOptions(presets) {
+    const container = document.getElementById('preset-list');
+    if (!container) return;
+    
+    container.innerHTML = presets.map(preset => `
+        <div class="preset-item" onclick="applyPreset('${preset.id}')">
+            <h4>${preset.name}</h4>
+            <p>${preset.description}</p>
+        </div>
+    `).join('');
+}
+
+// Apply preset
+window.applyPreset = async function(presetId) {
+    try {
+        const result = await window.api.invoke('personality:apply-preset', presetId);
+        if (result.success) {
+            window.api.showMessage('プリセットを適用しました', 'success');
+            document.getElementById('preset-modal').style.display = 'none';
+            loadPersonalities(); // Reload to show new assignments
+        } else {
+            window.api.showMessage('プリセットの適用に失敗しました', 'error');
+        }
+    } catch (error) {
+        console.error('Failed to apply preset:', error);
+        window.api.showMessage('プリセットの適用に失敗しました', 'error');
+    }
+};
+
+// Subscribe to personality updates
+function subscribeToPersonalityUpdates() {
+    // Listen for personality switches
+    window.api.on('personality:switched', (data) => {
+        updatePersonalityDisplay({ [data.role]: data.newPersonality });
+    });
+    
+    // Listen for preset applications
+    window.api.on('preset:applied', () => {
+        loadPersonalities();
+    });
 }
 
 // Subscribe to agent updates
@@ -317,13 +504,24 @@ function addAgentMessage(agentType, text) {
 }
 
 function getAgentInfo(agentType) {
-    const agents = {
+    const agentCard = document.querySelector(`[data-agent-type="${agentType}"]`);
+    const personalityName = agentCard?.querySelector('.agent-personality')?.textContent;
+    
+    const defaultAgents = {
         deputy_editor: { name: '副編集長AI', emoji: '👔' },
         writer: { name: '作家AI', emoji: '✍️' },
         editor: { name: '編集者AI', emoji: '📝' },
         proofreader: { name: '校正AI', emoji: '🔍' }
     };
-    return agents[agentType] || { name: 'Unknown Agent', emoji: '🤖' };
+    
+    const agent = defaultAgents[agentType] || { name: 'Unknown Agent', emoji: '🤖' };
+    
+    // Use personality name if available
+    if (personalityName) {
+        agent.name = personalityName;
+    }
+    
+    return agent;
 }
 
 function scrollToBottom() {

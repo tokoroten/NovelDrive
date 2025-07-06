@@ -1,5 +1,6 @@
 const BaseAgent = require('./base-agent');
 const { getLogger } = require('../utils/logger');
+const openAIService = require('../services/openai-service');
 
 /**
  * Editor AI Agent
@@ -331,6 +332,34 @@ class EditorAgent extends BaseAgent {
     }
 
     async generateEditorialPerspective(topic, content) {
+        // Use OpenAI to generate editorial perspective if available
+        if (openAIService.isConfigured()) {
+            try {
+                const prompt = `編集者の視点から以下のトピックについて建設的なフィードバックを提供してください：
+トピック: ${topic}
+内容: ${content}
+
+以下の観点を含めてください：
+- 読者の関心を維持する方法
+- 物語の明確性と流れ
+- キャラクターの一貫性
+- 作家の創造性を尊重しながらの改善提案
+
+協調的で建設的なトーンで回答してください。`;
+
+                const response = await openAIService.generateForAgent('editor', prompt);
+                
+                return {
+                    viewpoint: response,
+                    approach: 'collaborative',
+                    flexibility: 'Open to creative alternatives'
+                };
+            } catch (error) {
+                this.logger.error('Failed to generate editorial perspective with OpenAI:', error);
+            }
+        }
+        
+        // Fallback
         return {
             viewpoint: 'From an editorial standpoint...',
             considerations: [

@@ -1,5 +1,7 @@
 const { EventEmitter } = require('events');
 const { getLogger } = require('../utils/logger');
+const openAIService = require('../services/openai-service');
+const personalityService = require('../services/personality-service');
 
 /**
  * Agent Coordinator - Manages communication between agents
@@ -407,6 +409,296 @@ class AgentCoordinator extends EventEmitter {
             activeSessions: this.getActiveSessions().length,
             totalSessions: this.sessions.size
         };
+    }
+    
+    /**
+     * Generate autonomous topic based on project state
+     * @param {Object} projectContext
+     * @param {string} activityType
+     * @returns {Object} Topic configuration
+     */
+    async generateAutonomousTopic(projectContext, activityType) {
+        const { projectId, recentOutputs, currentChapter, plotPoints } = projectContext;
+        
+        switch (activityType) {
+            case 'writing':
+                return this.generateWritingTopic(projectContext);
+            case 'brainstorming':
+                return this.generateBrainstormingTopic(projectContext);
+            case 'reviewing':
+                return this.generateReviewingTopic(projectContext);
+            case 'plotting':
+                return this.generatePlottingTopic(projectContext);
+            case 'character':
+                return this.generateCharacterTopic(projectContext);
+            case 'worldbuilding':
+                return this.generateWorldbuildingTopic(projectContext);
+            default:
+                throw new Error(`Unknown activity type: ${activityType}`);
+        }
+    }
+    
+    /**
+     * Generate writing topic
+     */
+    generateWritingTopic(context) {
+        const topics = [
+            {
+                type: 'scene-continuation',
+                prompt: 'Continue the current scene with focus on character development',
+                priority: context.currentChapter ? 'high' : 'medium'
+            },
+            {
+                type: 'dialogue-enrichment',
+                prompt: 'Add meaningful dialogue that reveals character and advances plot',
+                priority: 'medium'
+            },
+            {
+                type: 'description-enhancement',
+                prompt: 'Enhance descriptions to create atmosphere and mood',
+                priority: 'low'
+            },
+            {
+                type: 'action-sequence',
+                prompt: 'Write dynamic action or tension-building sequences',
+                priority: 'medium'
+            }
+        ];
+        
+        // Prioritize based on recent outputs
+        if (!context.recentOutputs || context.recentOutputs.length === 0) {
+            return topics[0]; // Start with scene continuation
+        }
+        
+        // Analyze recent outputs to determine what's needed
+        const recentTypes = context.recentOutputs.map(o => o.metadata?.type).filter(Boolean);
+        
+        // Balance output types
+        if (!recentTypes.includes('dialogue-enrichment')) {
+            return topics[1];
+        } else if (!recentTypes.includes('description-enhancement')) {
+            return topics[2];
+        } else {
+            return topics[Math.floor(Math.random() * topics.length)];
+        }
+    }
+    
+    /**
+     * Generate brainstorming topic
+     */
+    generateBrainstormingTopic(context) {
+        const areas = [
+            'plot-twist',
+            'character-conflict',
+            'thematic-element',
+            'subplot-development',
+            'world-expansion'
+        ];
+        
+        const area = areas[Math.floor(Math.random() * areas.length)];
+        
+        return {
+            type: 'brainstorming',
+            area: area,
+            prompt: `Generate creative ideas for ${area.replace('-', ' ')}`,
+            context: {
+                projectId: context.projectId,
+                existingElements: context.plotPoints || []
+            }
+        };
+    }
+    
+    /**
+     * Generate reviewing topic
+     */
+    generateReviewingTopic(context) {
+        if (!context.recentOutputs || context.recentOutputs.length === 0) {
+            return {
+                type: 'general-review',
+                prompt: 'Review project structure and suggest improvements',
+                priority: 'low'
+            };
+        }
+        
+        // Focus on recent writing outputs
+        const writingOutputs = context.recentOutputs.filter(o => o.type === 'writing');
+        
+        if (writingOutputs.length > 0) {
+            return {
+                type: 'content-review',
+                prompt: 'Review recent writing for consistency, pacing, and quality',
+                content: writingOutputs[0],
+                priority: 'high'
+            };
+        }
+        
+        return {
+            type: 'structural-review',
+            prompt: 'Analyze story structure and suggest improvements',
+            priority: 'medium'
+        };
+    }
+    
+    /**
+     * Generate plotting topic
+     */
+    generatePlottingTopic(context) {
+        const aspects = [
+            'rising-action',
+            'climax-development',
+            'resolution-planning',
+            'subplot-integration',
+            'pacing-adjustment'
+        ];
+        
+        return {
+            type: 'plot-development',
+            aspect: aspects[Math.floor(Math.random() * aspects.length)],
+            prompt: 'Develop plot structure and key story moments',
+            existingPlot: context.plotPoints || []
+        };
+    }
+    
+    /**
+     * Generate character topic
+     */
+    generateCharacterTopic(context) {
+        const focuses = [
+            'backstory-development',
+            'motivation-clarification',
+            'relationship-dynamics',
+            'character-arc',
+            'personality-traits'
+        ];
+        
+        return {
+            type: 'character-development',
+            focus: focuses[Math.floor(Math.random() * focuses.length)],
+            prompt: 'Develop deep, compelling characters',
+            existingCharacters: context.characters || []
+        };
+    }
+    
+    /**
+     * Generate worldbuilding topic
+     */
+    generateWorldbuildingTopic(context) {
+        const elements = [
+            'geography-mapping',
+            'culture-creation',
+            'history-building',
+            'magic-system',
+            'technology-level',
+            'social-structure'
+        ];
+        
+        return {
+            type: 'world-development',
+            element: elements[Math.floor(Math.random() * elements.length)],
+            prompt: 'Create rich, detailed world elements',
+            existingWorld: context.worldElements || []
+        };
+    }
+
+    /**
+     * Start a discussion session
+     * @param {string} sessionId
+     * @param {Object} config
+     */
+    async startSession(sessionId, config) {
+        const { type, participants } = config;
+        
+        // Create session
+        const session = this.createSession(sessionId, participants, {
+            type: type,
+            startTime: new Date()
+        });
+        
+        this.logger.info(`Starting session ${sessionId} with participants: ${participants.join(', ')}`);
+        
+        return session;
+    }
+    
+    /**
+     * Handle discussion topic
+     * @param {Object} data
+     */
+    async discussTopic(data) {
+        const { sessionId, topic, content, context } = data;
+        const session = this.getSession(sessionId);
+        
+        if (!session || session.status !== 'active') {
+            throw new Error('Invalid or inactive session');
+        }
+        
+        const results = [];
+        
+        // Get each agent's perspective using OpenAI if available
+        for (const agentId of session.participants) {
+            const agent = this.agents.get(agentId);
+            if (!agent) continue;
+            
+            try {
+                // Create discussion message
+                const message = {
+                    id: `disc-${Date.now()}-${Math.random()}`,
+                    sender: 'user',
+                    recipient: agentId,
+                    type: 'discussion',
+                    content: {
+                        topic: topic,
+                        content: content,
+                        context: context,
+                        sessionId: sessionId
+                    },
+                    timestamp: new Date().toISOString()
+                };
+                
+                // Send to agent and get response
+                const response = await agent.processMessage(message);
+                
+                if (response) {
+                    results.push({
+                        agentId: agentId,
+                        agentType: agent.type,
+                        contribution: response.content
+                    });
+                    
+                    // Emit agent message event
+                    this.emit('agent:message', {
+                        sessionId: sessionId,
+                        agentId: agentId,
+                        message: response.content.suggestion || response.content.viewpoint || response.content
+                    });
+                }
+                
+            } catch (error) {
+                this.logger.error(`Error getting response from ${agent.name}:`, error);
+            }
+        }
+        
+        // Store in session history
+        session.messages.push({
+            topic: topic,
+            content: content,
+            responses: results,
+            timestamp: new Date()
+        });
+        
+        return results;
+    }
+    
+    /**
+     * Get registered agents info
+     */
+    getRegisteredAgents() {
+        return Array.from(this.agents.values()).map(agent => ({
+            id: agent.id,
+            name: agent.name,
+            type: agent.type,
+            status: agent.getStatus(),
+            config: agent.config
+        }));
     }
 
     /**

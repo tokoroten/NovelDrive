@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>自律創作モード - NovelDrive</title>
+  <link rel="stylesheet" href="./styles/common.css">
+  <link rel="stylesheet" href="./styles/autonomous.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- サイドバー -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1 class="app-title">NovelDrive</h1>
+      </div>
+      
+      <nav class="sidebar-nav">
+        <a href="index.html" class="nav-item">
+          <span class="nav-icon">📚</span>
+          <span class="nav-text">プロジェクト</span>
+        </a>
+        <a href="plot.html" class="nav-item">
+          <span class="nav-icon">📋</span>
+          <span class="nav-text">プロット管理</span>
+        </a>
+        <a href="editor.html" class="nav-item">
+          <span class="nav-icon">✍️</span>
+          <span class="nav-text">執筆エディタ</span>
+        </a>
+        <a href="knowledge.html" class="nav-item">
+          <span class="nav-icon">🧠</span>
+          <span class="nav-text">知識管理</span>
+        </a>
+        <a href="analytics.html" class="nav-item">
+          <span class="nav-icon">📊</span>
+          <span class="nav-text">アナリティクス</span>
+        </a>
+        <a href="autonomous.html" class="nav-item active">
+          <span class="nav-icon">🤖</span>
+          <span class="nav-text">自律創作モード</span>
+        </a>
+        <a href="settings.html" class="nav-item">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-text">設定</span>
+        </a>
+      </nav>
+    </aside>
+
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+      <header class="content-header">
+        <h2 class="page-title">24時間自律創作モード</h2>
+        <div class="header-actions">
+          <button id="export-session-btn" class="btn btn-secondary" style="display: none;">
+            セッションをエクスポート
+          </button>
+        </div>
+      </header>
+
+      <div class="autonomous-container">
+        <!-- コントロールパネル -->
+        <section class="control-panel">
+          <h3>セッション制御</h3>
+          
+          <div class="session-controls">
+            <div class="schedule-selector">
+              <label for="schedule-select">スケジュール選択:</label>
+              <select id="schedule-select" class="form-select">
+                <!-- スケジュールオプションは動的に読み込み -->
+              </select>
+            </div>
+            
+            <div class="control-buttons">
+              <button id="start-btn" class="btn btn-primary btn-large">
+                <span class="btn-icon">▶️</span>
+                セッション開始
+              </button>
+              <button id="pause-btn" class="btn btn-secondary btn-large" disabled>
+                <span class="btn-icon">⏸️</span>
+                一時停止
+              </button>
+              <button id="stop-btn" class="btn btn-danger btn-large" disabled>
+                <span class="btn-icon">⏹️</span>
+                セッション終了
+              </button>
+            </div>
+          </div>
+
+          <!-- セッション状態 -->
+          <div class="session-status">
+            <h4>セッション状態</h4>
+            <div class="status-info">
+              <div class="status-item">
+                <span class="status-label">状態:</span>
+                <span id="session-state" class="status-value">未開始</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">経過時間:</span>
+                <span id="elapsed-time" class="status-value">00:00:00</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">残り時間:</span>
+                <span id="remaining-time" class="status-value">24:00:00</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- API使用状況 -->
+          <div class="api-usage">
+            <h4>API使用状況</h4>
+            <div class="usage-meters">
+              <div class="usage-meter">
+                <label>リクエスト数 (1時間)</label>
+                <div class="meter-bar">
+                  <div id="requests-bar" class="meter-fill" style="width: 0%"></div>
+                </div>
+                <span class="meter-text"><span id="requests-count">0</span> / 100</span>
+              </div>
+              <div class="usage-meter">
+                <label>トークン使用量 (1時間)</label>
+                <div class="meter-bar">
+                  <div id="tokens-bar" class="meter-fill" style="width: 0%"></div>
+                </div>
+                <span class="meter-text"><span id="tokens-count">0</span> / 100k</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- アクティビティモニター -->
+        <section class="activity-monitor">
+          <h3>現在のアクティビティ</h3>
+          
+          <div class="current-activity">
+            <div id="activity-indicator" class="activity-indicator">
+              <div class="activity-icon">🤖</div>
+              <div class="activity-details">
+                <h4 id="activity-type">待機中</h4>
+                <p id="activity-description">セッションを開始してください</p>
+                <div class="activity-timer" style="display: none;">
+                  <span id="activity-elapsed">00:00</span> / <span id="activity-duration">00:00</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 進捗メトリクス -->
+          <div class="progress-metrics">
+            <h4>進捗状況</h4>
+            <div class="metrics-grid">
+              <div class="metric-card">
+                <div class="metric-value" id="words-written">0</div>
+                <div class="metric-label">執筆文字数</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-value" id="ideas-generated">0</div>
+                <div class="metric-label">生成アイデア</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-value" id="chapters-completed">0</div>
+                <div class="metric-label">完了チャプター</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-value" id="revisions-completed">0</div>
+                <div class="metric-label">レビュー回数</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- アクティビティ履歴 -->
+          <div class="activity-history">
+            <h4>アクティビティ履歴</h4>
+            <div id="activity-timeline" class="activity-timeline">
+              <!-- アクティビティアイテムが動的に追加される -->
+            </div>
+          </div>
+        </section>
+
+        <!-- アウトプットプレビュー -->
+        <section class="output-preview">
+          <h3>最新のアウトプット</h3>
+          
+          <div class="output-tabs">
+            <button class="tab-btn active" data-tab="writing">執筆</button>
+            <button class="tab-btn" data-tab="brainstorming">ブレインストーミング</button>
+            <button class="tab-btn" data-tab="plotting">プロット</button>
+            <button class="tab-btn" data-tab="review">レビュー</button>
+          </div>
+
+          <div class="output-content">
+            <div id="output-list" class="output-list">
+              <!-- アウトプットアイテムが動的に追加される -->
+              <div class="empty-state">
+                <p>セッションを開始すると、ここに生成されたコンテンツが表示されます。</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- エージェントメッセージログ -->
+        <section class="agent-messages">
+          <h3>エージェント会話ログ</h3>
+          
+          <div id="message-log" class="message-log">
+            <!-- メッセージが動的に追加される -->
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- モーダル -->
+  <div id="confirm-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <h3 id="modal-title">確認</h3>
+      <p id="modal-message"></p>
+      <div class="modal-actions">
+        <button id="modal-cancel" class="btn btn-secondary">キャンセル</button>
+        <button id="modal-confirm" class="btn btn-primary">確認</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./js/autonomous.js" type="module"></script>
+</body>
+</html>
