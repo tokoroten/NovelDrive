@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { openai } from './openai-client';
 import { agents } from './agents';
 import { ConversationTurn, AgentResponse } from './types';
+import { ConversationQueue, QueueEvent } from './ConversationQueue';
 
 function App() {
   const [conversation, setConversation] = useState<ConversationTurn[]>([]);
-  const [currentResponseId, setCurrentResponseId] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [userInput, setUserInput] = useState('');
   const [targetAgent, setTargetAgent] = useState<string>('random');
@@ -13,8 +13,20 @@ function App() {
   const [userTimeoutSeconds, setUserTimeoutSeconds] = useState(30); // カウントダウン用
   const [observerMode, setObserverMode] = useState(false); // 観察モード
   const [agentDelay, setAgentDelay] = useState(0); // エージェント間の遅延（ミリ秒）
+  const [documentContent, setDocumentContent] = useState<string>('# 小説のタイトル\n\n第1章\n\nここに物語を書き始めてください...'); // ドキュメント内容
+  const [thinkingAgentId, setThinkingAgentId] = useState<string | null>(null); // 考え中のエージェントID
+  const [queueLength, setQueueLength] = useState(0); // キューの長さ
   const conversationEndRef = useRef<HTMLDivElement>(null);
   const userTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isRunningRef = useRef(false); // isRunningの最新値を保持
+  
+  // 会話キューの作成
+  const conversationQueue = useMemo(() => new ConversationQueue(), []);
+
+  // isRunningの値をRefに同期
+  useEffect(() => {
+    isRunningRef.current = isRunning;
+  }, [isRunning]);
 
   // 自動スクロール
   useEffect(() => {
@@ -55,73 +67,328 @@ function App() {
     }
   }, [waitingForUser, isRunning, observerMode, userInput]);
 
-  // エージェントのターン処理
-  const processAgentTurn = async (agentId: string, previousInput?: string) => {
+  // conversationのRefを作成
+  const conversationRef = useRef<ConversationTurn[]>([]);
+  
+  // conversationの値をRefに同期
+  useEffect(() => {
+    conversationRef.current = conversation;
+  }, [conversation]);
+
+  // エージェントのターン処理（実際の処理）
+  const processAgentTurnInternal = async (agentId: string) => {
+    console.log(`🎯 Processing turn for agent: ${agentId}, isRunning:`, isRunningRef.current);
+    
     const agent = agents.find(a => a.id === agentId);
-    if (!agent) return;
+    if (!agent) {
+      console.error(`Agent not found: ${agentId}`);
+      return;
+    }
+
+    // 最新のconversation stateをRefから取得
+    const currentConversation = conversationRef.current;
+    
+    console.log(`🎯 Agent details: ${agent.name} (${agentId})`);
+    console.log(`📄 Current document content: "${documentContent.substring(0, 100)}..."`);
+    console.log(`💬 Current conversation length: ${currentConversation.length} turns`);
+    console.log(`💬 Real conversation (non-thinking) length: ${currentConversation.filter(t => !t.isThinking).length} turns`);
+    
+    // 考え中の状態を表示
+    setThinkingAgentId(agentId);
+    const thinkingTurn: ConversationTurn = {
+      id: crypto.randomUUID(),
+      speaker: agentId,
+      message: '発言中...',
+      timestamp: new Date(),
+      isThinking: true
+    };
+    setConversation(prev => [...prev, thinkingTurn]);
 
     try {
-      const input = previousInput || 
-        (conversation.length > 0 
-          ? `[前の発言者: ${conversation[conversation.length - 1].speaker}]\n${conversation[conversation.length - 1].message}\n\n必ずJSON形式で応答してください。`
-          : '創作について自由に議論を始めてください。必ずJSON形式で応答してください。');
+      // thinking状態でない全ての発言を取得
+      const realMessages = currentConversation.filter(turn => !turn.isThinking);
+      
+      console.log(`📊 Building messages for ${agent.name}:`);
+      console.log(`   Total turns in conversation: ${currentConversation.length}`);
+      console.log(`   Real messages (non-thinking): ${realMessages.length}`);
+      
+      // メッセージ配列を構築
+      const messages: any[] = [
+        { role: 'system', content: agent.systemPrompt },
+        { 
+          role: 'user', 
+          content: `以下のドキュメントを確認して、議論や編集を行ってください。\n\n【現在のドキュメント】\n${documentContent}`
+        }
+      ];
 
-      const response = await openai.responses.create({
-        model: 'gpt-4.1-mini',
-        instructions: agent.systemPrompt,
-        input,
-        previous_response_id: currentResponseId || undefined,
-        text: {
-          format: {
-            type: 'json_object'
+      // 会話履歴を追加
+      if (realMessages.length > 0) {
+        // 過去の会話を全て追加
+        realMessages.forEach(turn => {
+          if (turn.speaker === 'user') {
+            messages.push({
+              role: 'user',
+              content: turn.targetAgent 
+                ? `[${agents.find(a => a.id === turn.targetAgent)?.name}への発言] ${turn.message}`
+                : turn.message
+            });
+          } else if (turn.speaker === 'system') {
+            messages.push({
+              role: 'user',
+              content: `[システム] ${turn.message}`
+            });
+          } else {
+            // エージェントの発言はassistantロールで追加
+            const agentName = agents.find(a => a.id === turn.speaker)?.name || turn.speaker;
+            messages.push({
+              role: 'assistant',
+              content: `[${agentName}] ${turn.message}`
+            });
           }
+        });
+        
+        // 最後に現在の状況を説明
+        messages.push({
+          role: 'user',
+          content: 'この会話の続きから、あなたの番です。'
+        });
+      } else {
+        // 会話履歴がない場合
+        messages.push({
+          role: 'user',
+          content: '創作について自由に議論を始めてください。必要に応じてドキュメントを編集できます。'
+        });
+      }
+
+      console.log(`📝 Input for ${agent.name}:`);
+      console.log(`  Document length: ${documentContent.length} chars`);
+      console.log(`  Messages count: ${messages.length}`);
+      console.log(`  Conversation history: ${realMessages.length} messages`);
+      
+      // デバッグ用：実際のメッセージ内容を出力
+      console.log('📋 Full messages being sent:');
+      messages.forEach((msg, index) => {
+        console.log(`  [${index}] Role: ${msg.role}`);
+        if (typeof msg.content === 'string') {
+          console.log(`       Content: ${msg.content.substring(0, 200)}...`);
+        } else if (Array.isArray(msg.content)) {
+          msg.content.forEach((part: any) => {
+            console.log(`       ${part.type}: ${part.text.substring(0, 200)}...`);
+          });
         }
       });
 
-      const agentResponse: AgentResponse = JSON.parse(response.output_text || '{}');
+      // APIリクエストペイロードを構築
+      const requestPayload = {
+        model: 'gpt-4.1-mini',
+        messages: messages,
+        response_format: {
+          type: 'json_object'
+        }
+      };
       
-      // 会話に追加
-      const turn: ConversationTurn = {
+      // リクエストペイロードをコンソールに出力
+      console.log('🚀 API Request Payload:');
+      console.log(JSON.stringify(requestPayload, null, 2));
+      
+      const response = await openai.beta.chat.completions.parse(requestPayload);
+
+      console.log(`🔄 Response from OpenAI:`, response);
+      
+      // トークン使用量を表示
+      if (response.usage) {
+        console.log(`📊 Token usage:`);
+        console.log(`  Prompt tokens: ${response.usage.prompt_tokens}`);
+        console.log(`  Completion tokens: ${response.usage.completion_tokens}`);
+        console.log(`  Total tokens: ${response.usage.total_tokens}`);
+        
+        // トークン数が多い場合の警告（GPT-4の場合は128k、GPT-4.1-miniの場合は適切な上限値）
+        if (response.usage.total_tokens > 100000) {
+          console.warn(`⚠️ Token usage is high! Consider clearing old conversation history.`);
+        }
+      }
+      
+      let agentResponse: AgentResponse;
+      
+      // parsed_outputを使用
+      if (response.parsed) {
+        agentResponse = response.parsed as AgentResponse;
+        console.log(`📦 Parsed agent response:`, agentResponse);
+      } else {
+        // フォールバック: content から JSON をパース
+        const content = response.choices[0]?.message?.content;
+        console.log(`📄 Raw content:`, content);
+        
+        try {
+          agentResponse = JSON.parse(content || '{}');
+          console.log(`📦 Manually parsed agent response:`, agentResponse);
+        } catch (parseError) {
+          console.error(`❌ JSON Parse Error:`, parseError);
+          console.error(`Raw text that failed to parse:`, content);
+          
+          // フォールバック応答を作成
+          agentResponse = {
+            speaker: agentId,
+            message: content || 'エラーが発生しました',
+            next_speaker: {
+              type: 'random'
+            }
+          };
+          console.log(`🔧 Using fallback response:`, agentResponse);
+        }
+      }
+      
+      // ドキュメントアクションの処理
+      if (agentResponse.document_action) {
+        const action = agentResponse.document_action;
+        const agent = agents.find(a => a.id === agentId);
+        console.log(`📄 Document action detected:`, action);
+        
+        if (action.type === 'edit' && agent?.canEdit && action.content) {
+          // 編集権限がある場合、ドキュメントを更新
+          console.log(`✏️ ${agent.name} is editing the document`);
+          setDocumentContent(action.content);
+        } else if (action.type === 'append' && agent?.canEdit && action.content) {
+          // 追記権限がある場合、ドキュメントに追記
+          console.log(`➕ ${agent.name} is appending to the document`);
+          setDocumentContent(prev => prev + '\n\n' + action.content);
+        } else if (action.type === 'request_edit' && action.target_agent) {
+          // 編集リクエストの場合、メッセージに含める
+          console.log(`📨 ${agent?.name} is requesting edit from ${action.target_agent}`);
+          agentResponse.message += `\n\n【編集リクエスト → ${action.target_agent}】\n${action.content}`;
+        }
+      }
+      
+      // 考え中の状態を削除して、実際の発言に置き換える
+      setThinkingAgentId(null);
+      
+      // 新しいターンを作成
+      const newTurn: ConversationTurn = {
         id: crypto.randomUUID(),
         speaker: agentId,
         message: agentResponse.message,
-        responseId: response.id,
-        timestamp: new Date()
+        timestamp: new Date(),
+        documentAction: agentResponse.document_action
       };
-
-      setConversation(prev => [...prev, turn]);
-      setCurrentResponseId(response.id);
+      
+      // conversationを更新し、refも即座に更新
+      setConversation(prev => {
+        // 最後のthinkingメッセージを削除
+        const filtered = prev.filter(turn => !(turn.speaker === agentId && turn.isThinking));
+        const newConversation = [...filtered, newTurn];
+        // refも即座に更新
+        conversationRef.current = newConversation;
+        return newConversation;
+      });
 
       // 次の発言者を決定
-      if (isRunning) {
+      console.log('🔍 Checking if conversation should continue. isRunningRef:', isRunningRef.current);
+      if (isRunningRef.current) {
+        // next_speakerが存在しない場合のフォールバック
+        if (!agentResponse.next_speaker) {
+          console.warn('⚠️ next_speaker is undefined, selecting random agent');
+          const randomAgent = agents[Math.floor(Math.random() * agents.length)];
+          conversationQueue.enqueue({
+            type: 'agent_turn',
+            agentId: randomAgent.id
+          });
+          return;
+        }
+
         if (agentResponse.next_speaker.type === 'user') {
           // ユーザーの番
+          console.log(`👤 Next speaker: User`);
           setWaitingForUser(true);
         } else {
-          const nextAgentId = agentResponse.next_speaker.type === 'specific' 
-            ? agentResponse.next_speaker.agent 
-            : agents[Math.floor(Math.random() * agents.length)].id;
+          let nextAgentId: string | undefined;
           
-          // 設定された遅延後に次のエージェントのターンを処理
+          if (agentResponse.next_speaker.type === 'specific' && agentResponse.next_speaker.agent) {
+            nextAgentId = agentResponse.next_speaker.agent;
+          } else {
+            // randomまたはagentが未定義の場合
+            nextAgentId = agents[Math.floor(Math.random() * agents.length)].id;
+          }
+          
+          // 次のエージェントが存在するか確認
+          const nextAgent = agents.find(a => a.id === nextAgentId);
+          if (!nextAgent) {
+            console.error(`❌ Next agent not found: ${nextAgentId}`);
+            nextAgentId = agents[Math.floor(Math.random() * agents.length)].id;
+          }
+          
+          console.log(`🎯 Next speaker: ${agents.find(a => a.id === nextAgentId)?.name} (${nextAgentId})`);
+          
+          // 次のエージェントのターンをキューに追加
           if (agentDelay > 0) {
+            // 遅延がある場合
             setTimeout(() => {
-              if (isRunning) {
-                processAgentTurn(nextAgentId);
-              }
+              conversationQueue.enqueue({
+                type: 'agent_turn',
+                agentId: nextAgentId!
+              });
             }, agentDelay);
           } else {
-            // 遅延なしの場合は即座に処理
-            if (isRunning) {
-              processAgentTurn(nextAgentId);
-            }
+            // 遅延なしの場合は即座にキューに追加
+            conversationQueue.enqueue({
+              type: 'agent_turn',
+              agentId: nextAgentId!
+            });
           }
         }
+      } else {
+        console.log('🛑 Conversation stopped (isRunningRef.current is false)');
       }
     } catch (error) {
-      console.error('Error in agent turn:', error);
+      console.error('❌ Error in agent turn:', error);
+      console.error('Error details:', {
+        agentId,
+        agentName: agent?.name,
+        error: error instanceof Error ? error.message : error
+      });
+      
+      // エラー時も考え中の状態を削除
+      setThinkingAgentId(null);
+      setConversation(prev => {
+        // 最後のthinkingメッセージを削除
+        const filtered = prev.filter(turn => !(turn.speaker === agentId && turn.isThinking));
+        // エラーメッセージを追加
+        const errorTurn: ConversationTurn = {
+          id: crypto.randomUUID(),
+          speaker: 'system',
+          message: `エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`,
+          timestamp: new Date()
+        };
+        const newConversation = [...filtered, errorTurn];
+        // refも即座に更新
+        conversationRef.current = newConversation;
+        return newConversation;
+      });
+      
       setIsRunning(false);
     }
   };
+
+  // エージェントのターン処理（キューに追加）
+  const processAgentTurn = (agentId: string) => {
+    conversationQueue.enqueue({
+      type: 'agent_turn',
+      agentId
+    });
+  };
+
+  // キューイベントハンドラーの設定
+  useEffect(() => {
+    conversationQueue.setEventHandler(async (event: QueueEvent) => {
+      if (event.type === 'agent_turn') {
+        await processAgentTurnInternal(event.agentId);
+      }
+    });
+    
+    // キュー変更通知の設定
+    conversationQueue.setOnQueueChange((length) => {
+      setQueueLength(length);
+    });
+  }, [conversationQueue]);
 
   // ユーザータイムアウト処理
   const handleUserTimeout = () => {
@@ -135,28 +402,46 @@ function App() {
         message: '（ユーザーからの応答がなかったため、会話を続けます）',
         timestamp: new Date()
       };
-      setConversation(prev => [...prev, timeoutMessage]);
+      setConversation(prev => {
+        const newConversation = [...prev, timeoutMessage];
+        // refも即座に更新
+        conversationRef.current = newConversation;
+        return newConversation;
+      });
     }
     
-    // ランダムなエージェントが発言
-    const randomAgent = agents[Math.floor(Math.random() * agents.length)];
-    const prompt = observerMode 
-      ? '続けて話しましょう。' 
-      : '少し沈黙がありましたが、話を続けましょう。';
-    processAgentTurn(randomAgent.id, prompt);
+    // ランダムなエージェントが発言（isRunningがtrueの場合のみ）
+    if (isRunningRef.current) {
+      const randomAgent = agents[Math.floor(Math.random() * agents.length)];
+      processAgentTurn(randomAgent.id);
+    }
   };
 
   // 会話の開始/停止
   const toggleConversation = () => {
     if (!isRunning) {
+      console.log('🚀 Starting conversation');
       setIsRunning(true);
+      isRunningRef.current = true; // Refも即座に更新
       setWaitingForUser(false);
+      
+      // キューをクリア
+      conversationQueue.clear();
+      
       // ランダムなエージェントから開始
       const startAgent = agents[Math.floor(Math.random() * agents.length)];
+      console.log(`🎯 Starting with agent: ${startAgent.name}`);
+      
+      // 最初のエージェントをキューに追加
       processAgentTurn(startAgent.id);
     } else {
+      console.log('🛑 Stopping conversation');
       setIsRunning(false);
+      isRunningRef.current = false; // Refも即座に更新
       setWaitingForUser(false);
+      
+      // キューをクリア
+      conversationQueue.clear();
     }
   };
 
@@ -176,7 +461,12 @@ function App() {
       timestamp: new Date()
     };
 
-    setConversation(prev => [...prev, userTurn]);
+    setConversation(prev => {
+      const newConversation = [...prev, userTurn];
+      // refも即座に更新
+      conversationRef.current = newConversation;
+      return newConversation;
+    });
     setUserInput('');
 
     // 対象エージェントを決定
@@ -184,62 +474,24 @@ function App() {
       ? agents[Math.floor(Math.random() * agents.length)].id
       : targetAgent;
 
-    const targetAgentName = agents.find(a => a.id === respondingAgentId)?.name;
-    const formattedInput = targetAgent === 'random'
-      ? `[ユーザーからの発言]\n${userInput}`
-      : `[ユーザーから${targetAgentName}への発言]\n${userInput}`;
-
-    // エージェントの応答を生成
-    processAgentTurn(respondingAgentId, formattedInput);
+    // エージェントの応答を生成（previousInputは渡さず、processAgentTurn内でコンテキストを構築）
+    processAgentTurn(respondingAgentId);
   };
 
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* メインコンテンツ */}
+      {/* 左側: チャット */}
       <div className="flex-1 flex flex-col">
         {/* ヘッダー */}
         <header className="bg-white shadow-sm px-6 py-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">マルチエージェント会話デモ</h1>
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-gray-700">
-                  AI応答速度:
-                </label>
-                <select
-                  value={agentDelay}
-                  onChange={(e) => setAgentDelay(Number(e.target.value))}
-                  className="px-2 py-1 border rounded text-sm"
-                >
-                  <option value={0}>即座</option>
-                  <option value={500}>0.5秒</option>
-                  <option value={1000}>1秒</option>
-                  <option value={1500}>1.5秒</option>
-                  <option value={2000}>2秒</option>
-                  <option value={3000}>3秒</option>
-                </select>
-              </div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={observerMode}
-                  onChange={(e) => setObserverMode(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                />
-                <span className="text-sm font-medium text-gray-700">
-                  観察モード（発言しない）
+              <h1 className="text-2xl font-bold">マルチエージェント会話デモ</h1>
+              {queueLength > 0 && (
+                <span className="text-sm bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full">
+                  キュー: {queueLength}件待機中
                 </span>
-              </label>
-              <button
-                onClick={toggleConversation}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  isRunning 
-                    ? 'bg-red-500 hover:bg-red-600 text-white' 
-                    : 'bg-green-500 hover:bg-green-600 text-white'
-                }`}
-              >
-                {isRunning ? '会話を停止' : '会話を開始'}
-              </button>
+              )}
             </div>
           </div>
         </header>
@@ -262,6 +514,11 @@ function App() {
                       <span className="font-semibold">
                         {isUser ? 'あなた' : isSystem ? 'システム' : agent?.name}
                       </span>
+                      {agent?.canEdit && (
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                          編集可
+                        </span>
+                      )}
                       {turn.targetAgent && isUser && (
                         <span className="text-sm text-gray-500">
                           → {agents.find(a => a.id === turn.targetAgent)?.name}
@@ -272,10 +529,43 @@ function App() {
                       </span>
                     </div>
                     <div className={`rounded-lg p-3 shadow-sm ${
-                      isSystem ? 'bg-gray-100 text-gray-600 italic' : 'bg-white'
+                      isSystem ? 'bg-gray-100 text-gray-600 italic' : 
+                      turn.isThinking ? 'bg-blue-50 border border-blue-200' : 
+                      'bg-white'
                     }`}>
-                      {turn.message}
+                      {turn.isThinking ? (
+                        <div className="flex items-center gap-2">
+                          <div className="flex gap-1">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                          </div>
+                          <span className="text-blue-700">{turn.message}</span>
+                        </div>
+                      ) : (
+                        turn.message
+                      )}
                     </div>
+                    {/* ドキュメントアクションの表示 */}
+                    {turn.documentAction && (
+                      <div className="mt-2">
+                        {turn.documentAction.type === 'edit' && (
+                          <div className="flex items-center gap-2 text-sm bg-blue-50 text-blue-700 p-2 rounded">
+                            <span>✏️ ドキュメントを編集しました</span>
+                          </div>
+                        )}
+                        {turn.documentAction.type === 'append' && (
+                          <div className="flex items-center gap-2 text-sm bg-green-50 text-green-700 p-2 rounded">
+                            <span>➕ ドキュメントに追記しました</span>
+                          </div>
+                        )}
+                        {turn.documentAction.type === 'request_edit' && (
+                          <div className="flex items-center gap-2 text-sm bg-yellow-50 text-yellow-700 p-2 rounded">
+                            <span>📨 {agents.find(a => a.id === turn.documentAction?.target_agent)?.name}に編集を依頼しました</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -287,6 +577,49 @@ function App() {
         {/* 入力エリア */}
         <div className="bg-white border-t p-4">
           <div className="max-w-4xl mx-auto">
+            {/* コントロールパネル */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    AI応答速度:
+                  </label>
+                  <select
+                    value={agentDelay}
+                    onChange={(e) => setAgentDelay(Number(e.target.value))}
+                    className="px-2 py-1 border rounded text-sm"
+                  >
+                    <option value={0}>即座</option>
+                    <option value={500}>0.5秒</option>
+                    <option value={1000}>1秒</option>
+                    <option value={1500}>1.5秒</option>
+                    <option value={2000}>2秒</option>
+                    <option value={3000}>3秒</option>
+                  </select>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={observerMode}
+                    onChange={(e) => setObserverMode(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    観察モード（発言しない）
+                  </span>
+                </label>
+              </div>
+              <button
+                onClick={toggleConversation}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  isRunning 
+                    ? 'bg-red-500 hover:bg-red-600 text-white' 
+                    : 'bg-green-500 hover:bg-green-600 text-white'
+                }`}
+              >
+                {isRunning ? '会話を停止' : '会話を開始'}
+              </button>
+            </div>
             {waitingForUser && (
               <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
                 <span className="text-blue-700 font-medium">
@@ -300,21 +633,19 @@ function App() {
                 )}
               </div>
             )}
-            <div className="flex gap-2 mb-2">
+            <div className="flex gap-2">
               <select
                 value={targetAgent}
                 onChange={(e) => setTargetAgent(e.target.value)}
-                className="px-3 py-1 border rounded-lg text-sm"
+                className="px-3 py-2 border rounded-lg text-sm"
               >
-                <option value="random">誰でも</option>
+                <option value="random">TO: 誰でも</option>
                 {agents.map(agent => (
                   <option key={agent.id} value={agent.id}>
-                    {agent.avatar} {agent.name}
+                    TO: {agent.avatar} {agent.name}
                   </option>
                 ))}
               </select>
-            </div>
-            <div className="flex gap-2">
               <input
                 type="text"
                 value={userInput}
@@ -331,6 +662,24 @@ function App() {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* 右側: エディタ */}
+      <div className="w-1/2 flex flex-col bg-white border-l">
+        {/* エディタヘッダー */}
+        <div className="px-6 py-4 border-b bg-gray-50">
+          <h2 className="text-lg font-semibold">📄 ドキュメントエディタ</h2>
+        </div>
+        
+        {/* エディタ本体 */}
+        <div className="flex-1 p-6">
+          <textarea
+            value={documentContent}
+            onChange={(e) => setDocumentContent(e.target.value)}
+            className="w-full h-full p-4 border rounded-lg font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="ここに小説を書いてください..."
+          />
         </div>
       </div>
     </div>

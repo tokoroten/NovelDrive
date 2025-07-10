@@ -3,6 +3,7 @@ export interface Agent {
   name: string;
   systemPrompt: string;
   avatar: string;
+  canEdit: boolean; // 編集権限の有無
 }
 
 export interface ConversationTurn {
@@ -10,8 +11,13 @@ export interface ConversationTurn {
   speaker: string; // "user" or agent id
   message: string;
   targetAgent?: string;
-  responseId?: string;
   timestamp: Date;
+  isThinking?: boolean; // 考え中の状態
+  documentAction?: {
+    type: 'edit' | 'append' | 'request_edit';
+    content?: string;
+    target_agent?: string;
+  };
 }
 
 export interface AgentResponse {
@@ -20,5 +26,10 @@ export interface AgentResponse {
   next_speaker: {
     type: "specific" | "random" | "user";
     agent?: string;
+  };
+  document_action?: {
+    type: 'edit' | 'append' | 'request_edit';
+    content?: string;
+    target_agent?: string; // request_editの場合、誰に編集を依頼するか
   };
 }
