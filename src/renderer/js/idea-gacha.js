@@ -396,7 +396,9 @@ window.shareIdea = async function() {
     
     // Load projects
     try {
-        const projects = await window.api.invoke('project:list');
+        const apiInstance = window.api || window.mockAPI;
+        const response = await apiInstance.invoke('project:getAll');
+        const projects = window.mockAPI && response.data ? response.data : response;
         const selector = document.getElementById('target-project');
         
         selector.innerHTML = '<option value="">プロジェクトを選択...</option>';

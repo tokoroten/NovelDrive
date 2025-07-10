@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NovelDrive - Vite Debug Mode</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .debug-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        .debug-nav {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .debug-nav a {
+            display: block;
+            padding: 1rem;
+            background: white;
+            border-radius: 8px;
+            text-decoration: none;
+            color: #333;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+        }
+        .debug-nav a:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .page-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        .page-desc {
+            font-size: 0.9rem;
+            color: #666;
+        }
+        .debug-info {
+            background: #e3f2fd;
+            border: 1px solid #2196f3;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+        .mock-status {
+            background: #e8f5e8;
+            border: 1px solid #4caf50;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="debug-header">
+        <h1>📚 NovelDrive - Vite Debug Mode</h1>
+        <p>UIのデバッグ用ページ（ブラウザ環境でMock APIを使用）</p>
+    </div>
+
+    <div class="mock-status">
+        <strong>🔧 Mock API Status:</strong> <span id="mock-status">Loading...</span>
+    </div>
+
+    <div class="debug-info">
+        <h3>💡 デバッグモードについて</h3>
+        <p>このモードでは、Electron環境を使わずにブラウザでUIをテストできます。</p>
+        <ul>
+            <li>Mock APIが提供するサンプルデータを使用</li>
+            <li>実際のファイル操作は行われません</li>
+            <li>OpenAI APIの呼び出しはシミュレートされます</li>
+            <li>すべてのUIコンポーネントを安全にテスト可能</li>
+        </ul>
+    </div>
+
+    <div class="debug-nav">
+        <a href="./src/renderer/index.html">
+            <div class="page-title">🏠 ランディングページ</div>
+            <div class="page-desc">アプリケーションのメインランディングページ</div>
+        </a>
+        
+        <a href="./src/renderer/projects.html">
+            <div class="page-title">📁 プロジェクト管理</div>
+            <div class="page-desc">プロジェクトの作成、編集、削除機能</div>
+        </a>
+        
+        <a href="./src/renderer/writing-editor.html">
+            <div class="page-title">✍️ 執筆エディタ</div>
+            <div class="page-desc">章の執筆、AI支援、検索機能</div>
+        </a>
+        
+        <a href="./src/renderer/agent-meeting.html">
+            <div class="page-title">🤝 エージェント会議室</div>
+            <div class="page-desc">AIエージェント間の協議システム</div>
+        </a>
+        
+        <a href="./src/renderer/settings.html">
+            <div class="page-title">⚙️ 設定</div>
+            <div class="page-desc">API設定、エディタ設定、詳細設定</div>
+        </a>
+        
+        <a href="./src/renderer/analytics.html">
+            <div class="page-title">📊 アナリティクス</div>
+            <div class="page-desc">執筆統計、進捗分析（CSS charts）</div>
+        </a>
+        
+        <a href="./src/renderer/knowledge-graph.html">
+            <div class="page-title">🕸️ ナレッジグラフ</div>
+            <div class="page-desc">3Dナレッジグラフ（Three.js依存）</div>
+        </a>
+        
+        <a href="./src/renderer/knowledge-graph-visual.html">
+            <div class="page-title">🔗 ビジュアルグラフ</div>
+            <div class="page-desc">2Dビジュアルグラフ（D3.js依存）</div>
+        </a>
+        
+        <a href="./src/renderer/anything-box.html">
+            <div class="page-title">📥 なんでもボックス</div>
+            <div class="page-desc">アイデア収集と整理機能</div>
+        </a>
+        
+        <a href="./src/renderer/serendipity.html">
+            <div class="page-title">✨ セレンディピティ</div>
+            <div class="page-desc">意外な発見と創作支援</div>
+        </a>
+    </div>
+
+    <script src="./src/renderer/js/mock-api.js"></script>
+    <script>
+        // Check mock API status
+        document.addEventListener('DOMContentLoaded', () => {
+            const statusElement = document.getElementById('mock-status');
+            if (window.api && window.api.invoke) {
+                statusElement.textContent = 'Active ✅ (Mock APIが有効です)';
+                statusElement.style.color = 'green';
+                
+                // Test mock API
+                window.api.invoke('project:getAll').then(result => {
+                    console.log('Mock API Test successful:', result);
+                }).catch(error => {
+                    console.error('Mock API Test failed:', error);
+                });
+            } else {
+                statusElement.textContent = 'Error ❌ (Mock APIの読み込みに失敗)';
+                statusElement.style.color = 'red';
+            }
+        });
+    </script>
+</body>
+</html>

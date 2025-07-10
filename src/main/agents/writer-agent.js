@@ -163,6 +163,114 @@ class WriterAgent extends BaseAgent {
     }
 
     /**
+     * Handle plot creation messages
+     * @param {Object} message
+     * @returns {Promise<Object>}
+     */
+    async handlePlotCreation(message) {
+        const { message: userMessage, plotAspect, currentPlotElements, context } = message.content;
+        
+        this.logger.info(`Writer handling plot creation: ${plotAspect}`);
+        
+        // Generate creative plot suggestions
+        const suggestions = await this.generateCreativePlotSuggestions(userMessage, plotAspect, currentPlotElements, context);
+        
+        return {
+            status: 'plot_contribution',
+            perspective: 'creative_vision',
+            viewpoint: suggestions.viewpoint,
+            themes: suggestions.themes,
+            premise: suggestions.premise,
+            characters: suggestions.characters,
+            setting: suggestions.setting,
+            keyScenes: suggestions.keyScenes,
+            narrativeVoice: suggestions.narrativeVoice
+        };
+    }
+
+    /**
+     * Generate creative plot suggestions
+     * @param {string} userMessage
+     * @param {string} plotAspect
+     * @param {Object} currentPlotElements
+     * @param {Object} context
+     * @returns {Promise<Object>}
+     */
+    async generateCreativePlotSuggestions(userMessage, plotAspect, currentPlotElements, context) {
+        const systemPrompt = this.getSystemPrompt() || 
+            `You are a Creative Writer AI focused on imaginative storytelling and narrative flow. 
+            Generate creative and engaging plot elements that captivate readers.`;
+        
+        const prompt = `As a creative writer, respond to this plot creation request:
+User Message: ${userMessage}
+Plot Aspect: ${plotAspect}
+Current Plot Elements: ${JSON.stringify(currentPlotElements, null, 2)}
+
+Provide creative suggestions focusing on:
+1. Unique and imaginative story elements
+2. Compelling character dynamics
+3. Atmospheric settings and world-building
+4. Emotional resonance and narrative flow
+
+Format your response as JSON with the following structure:
+{
+    "viewpoint": "Your creative perspective on the plot development",
+    "themes": ["emotional theme", "philosophical theme"],
+    "premise": { "title": "evocative title", "description": "compelling premise" },
+    "characters": [{ "name": "...", "role": "...", "traits": [...], "arc": "..." }],
+    "setting": { "world": "...", "atmosphere": "...", "uniqueElements": [...] },
+    "keyScenes": [{ "title": "...", "description": "...", "emotionalImpact": "...", "order": 1 }],
+    "narrativeVoice": "Description of the narrative style and tone"
+}`;
+
+        try {
+            const response = await openAIService.createChatCompletion([
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: prompt }
+            ], {
+                temperature: this.getPersonalityParameters().temperature || 0.8,
+                response_format: { type: "json_object" }
+            });
+            
+            return JSON.parse(response.content);
+        } catch (error) {
+            this.logger.error('Error generating creative plot suggestions:', error);
+            
+            // Fallback creative response
+            return {
+                viewpoint: "物語の魂を探求し、読者の心に響く独創的なプロットを紡ぎ出します。",
+                themes: plotAspect === 'themes' ? ["人間の内なる葛藤", "希望と絶望の狭間"] : [],
+                premise: plotAspect === 'premise' ? {
+                    title: "魂の響き",
+                    description: "深い感情的な共鳴を呼び起こす物語の前提"
+                } : null,
+                characters: plotAspect === 'characters' ? [
+                    { 
+                        name: "主人公",
+                        role: "protagonist",
+                        traits: ["複雑な内面", "成長する意志"],
+                        arc: "内なる変化と外的な挑戦の融合"
+                    }
+                ] : [],
+                setting: plotAspect === 'setting' ? {
+                    world: "現実と幻想が交差する世界",
+                    atmosphere: "神秘的で詩的な雰囲気",
+                    uniqueElements: ["象徴的な景観", "感情を反映する環境"]
+                } : null,
+                keyScenes: plotAspect === 'structure' ? [
+                    {
+                        title: "魂の覚醒",
+                        description: "主人公が真の自己に目覚める瞬間",
+                        emotionalImpact: "深い感動と啓示",
+                        order: 1
+                    }
+                ] : [],
+                narrativeVoice: "詩的で内省的な語り口、読者の感情に直接訴えかける文体"
+            };
+        }
+    }
+
+    /**
      * Generate plot with serendipity
      * @param {Object} data
      * @param {Object} context

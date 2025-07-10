@@ -1,13 +1,15 @@
 const { ipcMain } = require('electron');
 const SerendipitySearchService = require('../services/serendipity-search-service');
 const { getLogger } = require('../utils/logger');
+const { RepositoryFactory } = require('../repositories');
 
 /**
  * Setup serendipity search related IPC handlers
- * @param {Object} repositories
+ * @param {Object} db - Database instance
  */
-async function setupSerendipityHandlers(repositories) {
+async function setupSerendipityHandlers(db) {
   const logger = getLogger();
+  const repositories = new RepositoryFactory(db);
   const serendipityService = new SerendipitySearchService(repositories);
   
   // Initialize the service

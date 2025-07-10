@@ -97,7 +97,7 @@ async function loadKnowledgeItems() {
     if (!currentProjectId) return;
 
     try {
-        const response = await window.api.invoke('anythingBox:getRecent', currentProjectId, 100);
+        const response = await window.api.invoke('anythingBox:getRecent', { projectId: currentProjectId, limit: 100 });
         
         if (response.success) {
             const selector = document.getElementById('base-item-selector');
@@ -407,8 +407,14 @@ function handleNavigation(e) {
     const page = e.currentTarget.dataset.page;
     
     switch (page) {
+        case 'agent-meeting':
+            window.location.href = './agent-meeting.html';
+            break;
         case 'projects':
             window.location.href = './projects.html';
+            break;
+        case 'writing-editor':
+            window.location.href = './writing-editor.html';
             break;
         case 'anything-box':
             window.location.href = './anything-box.html';
@@ -418,6 +424,12 @@ function handleNavigation(e) {
             break;
         case 'knowledge-graph':
             window.location.href = './knowledge-graph.html';
+            break;
+        case 'settings':
+            window.location.href = './settings.html';
+            break;
+        case 'project-workspace':
+            window.location.href = './project-workspace.html';
             break;
         default:
             showInfo(`${e.currentTarget.querySelector('span:last-child').textContent}は開発中です`);

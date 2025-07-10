@@ -163,6 +163,9 @@ class BaseAgent extends EventEmitter {
                 case 'discussion':
                     response = await this.handleDiscussion(message);
                     break;
+                case 'plot_creation':
+                    response = await this.handlePlotCreation(message);
+                    break;
                 default:
                     response = await this.handleGenericMessage(message);
             }
@@ -228,6 +231,15 @@ class BaseAgent extends EventEmitter {
      */
     async handleDiscussion(message) {
         throw new Error('handleDiscussion must be implemented by subclass');
+    }
+
+    /**
+     * Handle plot creation messages (to be overridden by subclasses)
+     * @param {Object} message
+     * @returns {Promise<Object>}
+     */
+    async handlePlotCreation(message) {
+        throw new Error('handlePlotCreation must be implemented by subclass');
     }
 
     /**

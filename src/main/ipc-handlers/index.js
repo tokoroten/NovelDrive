@@ -3,6 +3,7 @@ const setupAnythingBoxHandlers = require('./anything-box-handlers');
 const setupSerendipityHandlers = require('./serendipity-handlers');
 const setupPlotHandlers = require('./plot-handlers');
 const setupChapterHandlers = require('./chapter-handlers');
+const { setupThreadHandlers } = require('./thread-handlers');
 
 /**
  * Setup all IPC handlers
@@ -15,6 +16,7 @@ async function setupIPCHandlers(db) {
   await setupSerendipityHandlers(db);
   setupPlotHandlers(db);
   setupChapterHandlers(db);
+  setupThreadHandlers();
   
   // Note: Knowledge, Settings, Analytics, and Agent handlers are registered separately in main/index.js
   // because they have different export names or require additional parameters

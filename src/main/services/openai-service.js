@@ -9,7 +9,7 @@ class OpenAIService {
         this.logger = getLogger('openai-service');
         this.apiKey = null;
         this.baseURL = 'https://api.openai.com/v1';
-        this.defaultModel = 'gpt-4';
+        this.defaultModel = 'gpt-4o';
         this.defaultTemperature = 0.7;
     }
 
@@ -117,8 +117,9 @@ class OpenAIService {
      */
     async generateText(prompt, options = {}) {
         try {
-            const response = await this.makeRequest('chat/completions', {
-                model: options.model || this.defaultModel,
+            const model = options.model || this.defaultModel;
+            const requestData = {
+                model: model,
                 messages: [
                     {
                         role: 'user',
@@ -129,8 +130,20 @@ class OpenAIService {
                 max_tokens: options.maxTokens || 1000,
                 n: options.n || 1,
                 stream: false
-            });
+            };
 
+            // Handle o1 models (reasoning models) differently
+            if (model.startsWith('o1-')) {
+                // o1 models don't support temperature, system messages, or tools
+                delete requestData.temperature;
+                requestData.max_completion_tokens = requestData.max_tokens;
+                delete requestData.max_tokens;
+                
+                // o1 models work better with detailed user prompts
+                requestData.messages[0].content = `Please think through this step by step:\n\n${prompt}`;
+            }
+
+            const response = await this.makeRequest('chat/completions', requestData);
             return response.choices[0].message.content;
         } catch (error) {
             this.logger.error('Failed to generate text:', error);
@@ -146,15 +159,38 @@ class OpenAIService {
      */
     async generateChatCompletion(messages, options = {}) {
         try {
-            const response = await this.makeRequest('chat/completions', {
-                model: options.model || this.defaultModel,
+            const model = options.model || this.defaultModel;
+            const requestData = {
+                model: model,
                 messages: messages,
                 temperature: options.temperature || this.defaultTemperature,
                 max_tokens: options.maxTokens || 1000,
                 n: options.n || 1,
                 stream: false
-            });
+            };
 
+            // Handle o1 models differently
+            if (model.startsWith('o1-')) {
+                // o1 models don't support temperature or system messages
+                delete requestData.temperature;
+                requestData.max_completion_tokens = requestData.max_tokens;
+                delete requestData.max_tokens;
+                
+                // Filter out system messages for o1 models
+                requestData.messages = messages.filter(msg => msg.role !== 'system');
+                
+                // If there were system messages, prepend their content to the first user message
+                const systemMessages = messages.filter(msg => msg.role === 'system');
+                if (systemMessages.length > 0 && requestData.messages.length > 0) {
+                    const systemContent = systemMessages.map(msg => msg.content).join('\n\n');
+                    const firstUserMessage = requestData.messages.find(msg => msg.role === 'user');
+                    if (firstUserMessage) {
+                        firstUserMessage.content = `${systemContent}\n\n${firstUserMessage.content}`;
+                    }
+                }
+            }
+
+            const response = await this.makeRequest('chat/completions', requestData);
             return response.choices[0].message.content;
         } catch (error) {
             this.logger.error('Failed to generate chat completion:', error);

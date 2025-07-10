@@ -136,6 +136,25 @@ class SQLiteDatabase {
   }
 
   /**
+   * Begin a transaction
+   * @param {Function} callback
+   * @returns {Function}
+   */
+  transaction(callback) {
+    return () => {
+      try {
+        this.db.exec('BEGIN TRANSACTION');
+        const result = callback();
+        this.db.exec('COMMIT');
+        return result;
+      } catch (error) {
+        this.db.exec('ROLLBACK');
+        throw error;
+      }
+    };
+  }
+
+  /**
    * Execute a query
    * @param {string} sql
    * @param {Array} params
@@ -176,6 +195,20 @@ class SQLiteDatabase {
   transaction(callback) {
     const trx = this.db.transaction(callback);
     return trx();
+  }
+
+  /**
+   * Prepare a statement
+   * @param {string} sql
+   * @returns {Statement}
+   */
+  prepare(sql) {
+    try {
+      return this.db.prepare(sql);
+    } catch (error) {
+      this.logger.error('Prepare failed:', error);
+      throw error;
+    }
   }
 
   /**

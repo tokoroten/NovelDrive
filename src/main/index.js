@@ -30,12 +30,15 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.js'),
+      // DevTools関連の設定
+      webSecurity: true,
+      allowRunningInsecureContent: false
     }
   });
 
-  // Load the index.html file
-  mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+  // Load the index.html file (keeping original multi-page architecture)
+  mainWindow.loadFile(path.join(__dirname, '../renderer/projects.html'));
 
   // Open DevTools in development
   if (process.env.NODE_ENV !== 'production') {
@@ -99,7 +102,7 @@ app.whenReady().then(async () => {
   
   // Setup IPC handlers that need mainWindow after window creation
   const { registerAgentHandlers } = require('./ipc-handlers/agent-handlers');
-  registerAgentHandlers(mainWindow);
+  registerAgentHandlers(mainWindow, db);
   
   // Register knowledge handlers
   const { registerKnowledgeHandlers } = require('./ipc-handlers/knowledge-handlers');
@@ -115,7 +118,7 @@ app.whenReady().then(async () => {
   
   // Register OpenAI handlers
   const { registerOpenAIHandlers } = require('./ipc-handlers/openai-handlers');
-  registerOpenAIHandlers(mainWindow);
+  registerOpenAIHandlers(mainWindow, db);
   
   // Register personality handlers
   const { initializePersonalityHandlers } = require('./ipc-handlers/personality-handlers');
@@ -126,12 +129,18 @@ app.whenReady().then(async () => {
   registerAutonomousHandlers();
   
   // Register vector search handlers
+  const { RepositoryFactory } = require('./repositories');
+  const repositories = new RepositoryFactory(db);
   const VectorSearchHandlers = require('./ipc-handlers/vector-search-handlers');
-  const vectorSearchHandlers = new VectorSearchHandlers(db.repositories);
+  const vectorSearchHandlers = new VectorSearchHandlers(repositories);
   await vectorSearchHandlers.initialize();
   
   // Make vector indexing service globally available
   global.vectorIndexingService = vectorSearchHandlers.getIndexingService();
+  
+  // Register URL discussion handlers
+  const { registerURLDiscussionHandlers } = require('./ipc-handlers/url-discussion-handlers');
+  registerURLDiscussionHandlers(mainWindow, db, repositories);
   
   // Register dialog handlers
   ipcMain.handle('dialog:save', async (event, options) => {

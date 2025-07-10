@@ -7,6 +7,12 @@
     <title>執筆エディタ - NovelDrive</title>
     <link rel="stylesheet" href="./styles/common.css">
     <link rel="stylesheet" href="./styles/writing-editor.css">
+    <link rel="stylesheet" href="./styles/ai-assistant.css">
+    <link rel="stylesheet" href="./styles/ai-assistant-integrated.css">
+    <link rel="stylesheet" href="./styles/ai-personality-criteria-link.css">
+    <link rel="stylesheet" href="./styles/project-ai-settings.css">
+    <link rel="stylesheet" href="./styles/ai-evaluation-panel.css">
+    <link rel="stylesheet" href="./styles/writing-editor-fix.css">
 </head>
 <body>
     <div class="app-container">
@@ -17,31 +23,49 @@
             </div>
             <ul class="nav-menu">
                 <li class="nav-item">
-                    <a href="./projects.html" data-page="projects">
-                        <span class="icon">📁</span>
-                        <span>プロジェクト</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="./plot-management.html" data-page="plot-management">
-                        <span class="icon">📊</span>
-                        <span>プロット管理</span>
-                    </a>
-                </li>
-                <li class="nav-item active">
-                    <a href="#" data-page="writing-editor">
-                        <span class="icon">✍️</span>
-                        <span>執筆エディタ</span>
-                    </a>
-                </li>
-                <li class="nav-item">
                     <a href="./agent-meeting.html" data-page="agent-meeting">
                         <span class="icon">🤝</span>
                         <span>エージェント会議室</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="#" data-page="settings">
+                    <a href="./projects.html" data-page="projects">
+                        <span class="icon">📁</span>
+                        <span>プロジェクト</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./project-workspace.html" data-page="project-workspace">
+                        <span class="icon">💼</span>
+                        <span>ワークスペース</span>
+                    </a>
+                </li>
+                <li class="nav-item active">
+                    <a href="./writing-editor.html" data-page="writing-editor">
+                        <span class="icon">✍️</span>
+                        <span>執筆エディタ</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./anything-box.html" data-page="anything-box">
+                        <span class="icon">📥</span>
+                        <span>なんでもボックス</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./serendipity.html" data-page="serendipity">
+                        <span class="icon">✨</span>
+                        <span>セレンディピティ</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./knowledge-graph.html" data-page="knowledge-graph">
+                        <span class="icon">🕸️</span>
+                        <span>ナレッジグラフ</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./settings.html" data-page="settings">
                         <span class="icon">⚙️</span>
                         <span>設定</span>
                     </a>
@@ -90,10 +114,20 @@
             <div class="editor-container">
                 <div class="editor-header">
                     <div class="chapter-info">
-                        <h2 id="chapter-title">章を選択してください</h2>
-                        <div class="chapter-meta">
-                            <span id="chapter-number"></span>
-                            <span id="last-saved">未保存</span>
+                        <div class="chapter-navigation">
+                            <button id="prev-chapter" class="chapter-nav-btn" title="前の章 (Ctrl+Left)" disabled>
+                                <span class="icon">◀</span>
+                            </button>
+                            <div class="chapter-details">
+                                <h2 id="chapter-title">章を選択してください</h2>
+                                <div class="chapter-meta">
+                                    <span id="chapter-number"></span>
+                                    <span id="last-saved">未保存</span>
+                                </div>
+                            </div>
+                            <button id="next-chapter" class="chapter-nav-btn" title="次の章 (Ctrl+Right)" disabled>
+                                <span class="icon">▶</span>
+                            </button>
                         </div>
                     </div>
                     
@@ -108,6 +142,23 @@
                             <span class="icon">↷</span>
                         </button>
                         <div class="toolbar-separator"></div>
+                        <button id="search-btn" class="toolbar-btn" title="検索 (Ctrl+F)">
+                            <span class="icon">🔍</span>
+                        </button>
+                        <button id="chapter-jump" class="toolbar-btn" title="章移動 (Ctrl+G)">
+                            <span class="icon">📖</span>
+                        </button>
+                        <button id="goto-line" class="toolbar-btn" title="行移動 (Ctrl+Shift+G)">
+                            <span class="icon">🔢</span>
+                        </button>
+                        <div class="toolbar-separator"></div>
+                        <button id="version-history" class="toolbar-btn" title="バージョン履歴">
+                            <span class="icon">📚</span>
+                        </button>
+                        <button id="auto-suggest-toggle" class="toolbar-btn active" title="自動提案を無効にする">
+                            <span class="icon">🧠</span>
+                        </button>
+                        <div class="toolbar-separator"></div>
                         <button id="toggle-preview" class="toolbar-btn" title="プレビュー">
                             <span class="icon">👁️</span>
                         </button>
@@ -115,9 +166,15 @@
                             <span class="icon">⛶</span>
                         </button>
                         <div class="toolbar-separator"></div>
-                        <button id="ai-assist" class="toolbar-btn primary" title="AI支援">
-                            <span class="icon">✨</span>
-                            AI支援
+                        <button id="ai-evaluate" class="toolbar-btn" title="AI評価">
+                            <span class="icon">📊</span>
+                            評価
+                        </button>
+                        <button id="link-criteria" class="toolbar-btn" title="評価基準設定">
+                            <span class="icon">🔗</span>
+                        </button>
+                        <button id="project-ai-settings" class="toolbar-btn" title="プロジェクトAI設定">
+                            <span class="icon">⚙️</span>
                         </button>
                     </div>
                 </div>
@@ -154,6 +211,7 @@
                     <button class="tab-btn active" data-tab="outline">アウトライン</button>
                     <button class="tab-btn" data-tab="knowledge">知識</button>
                     <button class="tab-btn" data-tab="notes">メモ</button>
+                    <button class="tab-btn" data-tab="ai-assistant">AIアシスタント</button>
                 </div>
                 
                 <!-- アウトラインタブ -->
@@ -189,6 +247,13 @@
                             class="chapter-notes" 
                             placeholder="この章に関するメモを記入..."
                         ></textarea>
+                    </div>
+                </div>
+                
+                <!-- AIアシスタントタブ -->
+                <div id="ai-assistant-tab" class="tab-content">
+                    <div class="ai-assistant-content">
+                        <!-- AIアシスタントのコンテンツがここに動的に生成されます -->
                     </div>
                 </div>
             </aside>
@@ -289,6 +354,97 @@
         </div>
     </div>
 
+    <!-- 検索モーダル -->
+    <div id="search-modal" class="search-modal" style="display: none;">
+        <div class="search-modal-content">
+            <div class="search-header">
+                <div class="search-input-container">
+                    <input type="text" id="search-input" class="search-input" placeholder="検索..." autocomplete="off">
+                    <button id="search-prev" class="search-nav-btn" title="前を検索 (Shift+Enter)">↑</button>
+                    <button id="search-next" class="search-nav-btn" title="次を検索 (Enter)">↓</button>
+                    <button id="search-close" class="search-close-btn" title="閉じる (Esc)">✕</button>
+                </div>
+                <div class="search-options">
+                    <label class="search-option">
+                        <input type="checkbox" id="case-sensitive">
+                        大文字小文字を区別
+                    </label>
+                    <label class="search-option">
+                        <input type="checkbox" id="whole-word">
+                        単語全体
+                    </label>
+                    <label class="search-option">
+                        <input type="checkbox" id="regex-search">
+                        正規表現
+                    </label>
+                </div>
+            </div>
+            <div class="search-replace-container" style="display: none;">
+                <div class="replace-input-container">
+                    <input type="text" id="replace-input" class="replace-input" placeholder="置換..." autocomplete="off">
+                    <button id="replace-current" class="replace-btn">置換</button>
+                    <button id="replace-all" class="replace-btn">すべて置換</button>
+                </div>
+            </div>
+            <div class="search-info">
+                <span id="search-count">0件の結果</span>
+                <button id="toggle-replace" class="toggle-replace-btn">置換</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 章移動モーダル -->
+    <div id="chapter-jump-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>章移動</h3>
+                <button class="close-btn" onclick="closeChapterJumpModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="chapter-jump-list" id="chapter-jump-list">
+                    <!-- 章リストがここに表示される -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 行移動モーダル -->
+    <div id="goto-line-modal" class="modal" style="display: none;">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3>行移動</h3>
+                <button class="close-btn" onclick="closeGotoLineModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="goto-line-input">移動先の行番号</label>
+                    <input type="number" id="goto-line-input" min="1" placeholder="行番号を入力..." autocomplete="off">
+                    <small class="help-text">現在の行: <span id="current-line-display">1</span> / 総行数: <span id="total-lines-display">1</span></small>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="primary-btn" onclick="performGotoLine()">移動</button>
+                <button class="secondary-btn" onclick="closeGotoLineModal()">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="./js/mock-api.js"></script>
+    <script src="./js/project-selector.js"></script>
+    <script src="./js/keyboard-shortcuts.js"></script>
+    <script src="./js/undo-redo-manager.js"></script>
+    <script src="./js/version-manager.js"></script>
+    <script src="./js/version-compare-ui.js"></script>
+    <script src="./js/knowledge-suggest.js"></script>
+    <script src="./js/search-manager.js"></script>
+    <script src="./js/ai-thread-manager.js"></script>
+    <script src="./js/ai-writing-assistant.js"></script>
+    <script src="./js/ai-personality-canvas.js"></script>
+    <script src="./js/evaluation-criteria-canvas.js"></script>
+    <script src="./js/ai-personality-criteria-link.js"></script>
+    <script src="./js/project-ai-settings.js"></script>
+    <script src="./js/ai-evaluation-panel.js"></script>
     <script src="./js/writing-editor.js"></script>
 </body>
 </html>

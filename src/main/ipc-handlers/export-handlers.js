@@ -1,7 +1,6 @@
 const { ipcMain } = require('electron');
 const { getLogger } = require('../utils/logger');
 const exportService = require('../services/export-service');
-const { getProjectRepository, getPlotRepository, getChapterRepository } = require('../repositories');
 
 const logger = getLogger('export-handlers');
 
@@ -14,13 +13,14 @@ function registerExportHandlers() {
         try {
             const { chapterId, plotId, format, options } = data;
             
-            // Get chapter content
-            const chapterRepo = getChapterRepository();
-            const content = await chapterRepo.getContent(plotId, chapterId);
+            // TODO: Implement chapter and plot repository access
+            // const chapterRepo = repositories.chapters;
+            // const content = await chapterRepo.getContent(plotId, chapterId);
             
-            // Get chapter metadata
-            const plotRepo = getPlotRepository();
-            const plot = await plotRepo.findById(plotId);
+            // const plotRepo = repositories.plots;
+            // const plot = await plotRepo.findById(plotId);
+            const content = '';
+            const plot = { chapters: [] };
             const chapter = plot.chapters.find(ch => ch.id === chapterId);
             
             if (!chapter) {

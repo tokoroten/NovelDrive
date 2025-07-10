@@ -190,6 +190,26 @@
     color: var(--warning-color);
 }
 
+/* External Link */
+.external-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: var(--spacing-sm);
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.external-link:hover {
+    text-decoration: underline;
+    color: var(--primary-hover);
+}
+
+.external-link .icon {
+    font-size: 12px;
+}
+
 /* Placeholder Text */
 .placeholder-text {
     color: var(--text-secondary);
@@ -290,6 +310,63 @@
 .danger-btn:hover {
     background-color: #d32f2f;
     transform: translateY(-1px);
+}
+
+/* API Test Results */
+.api-test-result {
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-md);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-primary);
+}
+
+.api-test-result.success {
+    border-color: var(--success-color);
+    background-color: rgba(76, 175, 80, 0.1);
+}
+
+.api-test-result.error {
+    border-color: var(--error-color);
+    background-color: rgba(244, 67, 54, 0.1);
+}
+
+.api-test-result.loading {
+    border-color: var(--primary-color);
+    background-color: rgba(33, 150, 243, 0.1);
+}
+
+.test-status {
+    font-weight: 600;
+    margin-bottom: var(--spacing-xs);
+}
+
+.test-status.success {
+    color: var(--success-color);
+}
+
+.test-status.error {
+    color: var(--error-color);
+}
+
+.test-status.loading {
+    color: var(--primary-color);
+}
+
+.test-details {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.test-details pre {
+    background-color: var(--bg-secondary);
+    padding: var(--spacing-sm);
+    border-radius: 4px;
+    margin-top: var(--spacing-xs);
+    overflow-x: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
 }
 
 /* Responsive */

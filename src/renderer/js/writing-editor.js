@@ -12,14 +12,57 @@ let writingStats = {
     todayChars: 0,
     sessionStart: new Date()
 };
+let undoRedoManager = null;
+let versionManager = null;
+let knowledgeSuggestSystem = null;
+let searchManager = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize undo/redo manager
+    undoRedoManager = new UndoRedoManager(100);
+    
+    // Initialize version manager
+    versionManager = new VersionManager();
+    
+    // Initialize version compare UI
+    window.versionCompareUI = new VersionCompareUI(versionManager);
+    window.versionCompareUI.init();
+    
+    // Initialize knowledge suggest system
+    knowledgeSuggestSystem = new KnowledgeSuggestSystem();
+    window.knowledgeSuggestSystem = knowledgeSuggestSystem;
+    
     initializeEventListeners();
+    
+    // Initialize search manager (after event listeners to ensure editor is available)
+    const editor = document.getElementById('editor');
+    searchManager = new SearchManager(editor);
+    searchManager.init(); // Load search history
+    window.searchManager = searchManager;
     loadProjects();
     loadWritingStats();
     setupAutoSave();
     setupKeyboardShortcuts();
+    setupVersionEventListeners();
+    
+    // Set keyboard shortcuts context
+    if (window.keyboardShortcuts) {
+        window.keyboardShortcuts.setContext('editor');
+    }
+    
+    // Initialize AI assistant UI
+    if (window.aiAssistant) {
+        window.aiAssistant.initializeUI();
+        // グローバルなaiThreadManagerを使用
+        if (!window.aiThreadManager) {
+            window.aiThreadManager = new AIThreadManager();
+            window.aiThreadManager.loadThreads();
+        }
+    }
+    
+    // AI設定変更の監視
+    setupAISettingsListeners();
 });
 
 // Initialize event listeners
@@ -31,11 +74,20 @@ function initializeEventListeners() {
     
     // Toolbar
     document.getElementById('save-content').addEventListener('click', saveContent);
-    document.getElementById('undo').addEventListener('click', () => document.execCommand('undo'));
-    document.getElementById('redo').addEventListener('click', () => document.execCommand('redo'));
+    document.getElementById('undo').addEventListener('click', performUndo);
+    document.getElementById('redo').addEventListener('click', performRedo);
+    document.getElementById('version-history').addEventListener('click', openVersionHistory);
     document.getElementById('toggle-preview').addEventListener('click', togglePreview);
     document.getElementById('toggle-fullscreen').addEventListener('click', toggleFullscreen);
-    document.getElementById('ai-assist').addEventListener('click', openAIAssist);
+    document.getElementById('ai-evaluate').addEventListener('click', evaluateWithAI);
+    document.getElementById('link-criteria').addEventListener('click', openLinkCriteriaSettings);
+    document.getElementById('project-ai-settings').addEventListener('click', openProjectAISettings);
+    
+    // Chapter navigation
+    document.getElementById('prev-chapter').addEventListener('click', navigateToPreviousChapter);
+    document.getElementById('next-chapter').addEventListener('click', navigateToNextChapter);
+    document.getElementById('chapter-jump').addEventListener('click', openChapterJumpModal);
+    document.getElementById('goto-line').addEventListener('click', openGotoLineModal);
     
     // Plot selector
     document.getElementById('plot-selector').addEventListener('change', handlePlotChange);
@@ -60,18 +112,40 @@ function initializeEventListeners() {
     document.querySelectorAll('.assist-option').forEach(option => {
         option.addEventListener('click', handleAIAssistOption);
     });
+    
+    // Navigation
+    document.querySelectorAll('.nav-item a').forEach(link => {
+        link.addEventListener('click', handleNavigation);
+    });
 }
 
 // Load projects for plot selection
 async function loadProjects() {
     try {
-        const projects = await window.api.invoke('project:list');
+        const apiInstance = window.api || window.mockAPI;
+        const response = await apiInstance.invoke('project:getAll');
+        const projects = window.mockAPI && response.data ? response.data : response;
         // Get current project from localStorage or URL params
         const projectId = localStorage.getItem('currentProjectId');
         if (projectId) {
             currentProject = projects.find(p => p.id === parseInt(projectId));
             if (currentProject) {
                 await loadPlots(currentProject.id);
+                
+                // Initialize knowledge suggestions for this project
+                if (knowledgeSuggestSystem) {
+                    knowledgeSuggestSystem.init(currentProject.id);
+                }
+                
+                // Apply project AI settings
+                if (window.projectAISettings) {
+                    window.projectAISettings.applyProjectSettings(currentProject.id);
+                }
+                
+                // Fire project changed event
+                window.dispatchEvent(new CustomEvent('project-changed', {
+                    detail: { projectId: currentProject.id }
+                }));
             }
         }
     } catch (error) {
@@ -132,6 +206,8 @@ function displayChapters(chapters) {
     
     if (chapters.length === 0) {
         container.innerHTML = '<div class="empty-state"><p>章がありません</p></div>';
+        // Disable navigation buttons when no chapters
+        updateChapterNavigationButtons();
         return;
     }
     
@@ -144,6 +220,9 @@ function displayChapters(chapters) {
             <span class="chapter-nav-status">${chapter.wordCount || 0}字</span>
         </div>
     `).join('');
+    
+    // Update navigation buttons
+    updateChapterNavigationButtons();
 }
 
 // Load chapter content
@@ -169,9 +248,21 @@ async function loadChapter(chapterId) {
             chapterId: chapter.id 
         });
         
-        document.getElementById('editor').value = content || '';
+        const editor = document.getElementById('editor');
+        editor.value = content || '';
         editorContent = content || '';
         isDirty = false;
+        
+        // Reset undo/redo history for new chapter
+        undoRedoManager.clear();
+        undoRedoManager.addState({
+            content: content || '',
+            cursorStart: 0,
+            cursorEnd: 0
+        });
+        
+        // Update undo/redo button states
+        updateUndoRedoButtons();
         
         // Update active state
         document.querySelectorAll('.chapter-nav-item').forEach(item => {
@@ -185,15 +276,71 @@ async function loadChapter(chapterId) {
         // Update stats
         updateCharacterCount();
         
+        // Update chapter navigation buttons
+        updateChapterNavigationButtons();
+        
     } catch (error) {
         console.error('Failed to load chapter:', error);
         window.api.showMessage('章の読み込みに失敗しました', 'error');
     }
 }
 
+// Navigate to previous chapter
+async function navigateToPreviousChapter() {
+    if (!currentPlot || !currentChapter) return;
+    
+    const currentIndex = currentPlot.chapters.findIndex(ch => ch.id === currentChapter.id);
+    if (currentIndex > 0) {
+        await loadChapter(currentPlot.chapters[currentIndex - 1].id);
+    }
+}
+
+// Navigate to next chapter
+async function navigateToNextChapter() {
+    if (!currentPlot || !currentChapter) return;
+    
+    const currentIndex = currentPlot.chapters.findIndex(ch => ch.id === currentChapter.id);
+    if (currentIndex < currentPlot.chapters.length - 1) {
+        await loadChapter(currentPlot.chapters[currentIndex + 1].id);
+    }
+}
+
+// Update chapter navigation button states
+function updateChapterNavigationButtons() {
+    const prevBtn = document.getElementById('prev-chapter');
+    const nextBtn = document.getElementById('next-chapter');
+    
+    if (!currentPlot || !currentChapter) {
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+        return;
+    }
+    
+    const currentIndex = currentPlot.chapters.findIndex(ch => ch.id === currentChapter.id);
+    
+    prevBtn.disabled = currentIndex <= 0;
+    nextBtn.disabled = currentIndex >= currentPlot.chapters.length - 1;
+    
+    // Update tooltips with chapter titles
+    if (currentIndex > 0) {
+        const prevChapter = currentPlot.chapters[currentIndex - 1];
+        prevBtn.title = `前の章: ${prevChapter.title} (Ctrl+Left)`;
+    } else {
+        prevBtn.title = '前の章 (Ctrl+Left)';
+    }
+    
+    if (currentIndex < currentPlot.chapters.length - 1) {
+        const nextChapter = currentPlot.chapters[currentIndex + 1];
+        nextBtn.title = `次の章: ${nextChapter.title} (Ctrl+Right)`;
+    } else {
+        nextBtn.title = '次の章 (Ctrl+Right)';
+    }
+}
+
 // Handle editor input
 function handleEditorInput(event) {
-    editorContent = event.target.value;
+    const editor = event.target;
+    editorContent = editor.value;
     isDirty = true;
     
     // Update character count
@@ -204,6 +351,19 @@ function handleEditorInput(event) {
     
     // Update last saved status
     document.getElementById('last-saved').textContent = '未保存';
+    
+    // Handle undo/redo history
+    if (!undoRedoManager.isApplyingChange) {
+        const cursorPosition = editor.selectionEnd;
+        if (undoRedoManager.shouldCreateNewState(editorContent, cursorPosition)) {
+            undoRedoManager.addState({
+                content: editorContent,
+                cursorStart: editor.selectionStart,
+                cursorEnd: editor.selectionEnd
+            });
+            updateUndoRedoButtons();
+        }
+    }
 }
 
 // Update character count
@@ -261,7 +421,16 @@ async function saveContent() {
         });
         
         isDirty = false;
-        document.getElementById('last-saved').textContent = `保存済み ${new Date().toLocaleTimeString('ja-JP')}`;
+        const savedAt = new Date();
+        document.getElementById('last-saved').textContent = `保存済み ${savedAt.toLocaleTimeString('ja-JP')}`;
+        
+        // Save version
+        versionManager.saveVersion(currentChapter.id, {
+            content: content,
+            title: currentChapter.title,
+            wordCount: content.length,
+            savedAt: savedAt.toISOString()
+        });
         
         // Update chapter list
         displayChapters(currentPlot.chapters);
@@ -284,6 +453,38 @@ function setupAutoSave() {
     }, 30000); // Auto-save every 30 seconds
 }
 
+// Setup version event listeners
+function setupVersionEventListeners() {
+    // Listen for version restore events
+    window.addEventListener('version-restored', (event) => {
+        const restored = event.detail;
+        const editor = document.getElementById('editor');
+        
+        // Save current state as a new version before restoring
+        if (editorContent && currentChapter) {
+            versionManager.saveVersion(currentChapter.id, {
+                content: editorContent,
+                title: currentChapter.title,
+                wordCount: editorContent.length,
+                savedAt: new Date().toISOString()
+            });
+        }
+        
+        // Apply restored content
+        editor.value = restored.content;
+        editorContent = restored.content;
+        isDirty = true;
+        
+        // Update UI
+        updateCharacterCount();
+        updateCursorPosition();
+        document.getElementById('last-saved').textContent = `バージョン ${restored.restoredFrom.versionId} から復元`;
+        
+        // Save the restored content
+        saveContent();
+    });
+}
+
 // Setup keyboard shortcuts
 function setupKeyboardShortcuts() {
     document.addEventListener('keydown', (e) => {
@@ -291,6 +492,18 @@ function setupKeyboardShortcuts() {
         if ((e.ctrlKey || e.metaKey) && e.key === 's') {
             e.preventDefault();
             saveContent();
+        }
+        
+        // Ctrl/Cmd + Z: Undo
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+            e.preventDefault();
+            performUndo();
+        }
+        
+        // Ctrl/Cmd + Y or Ctrl/Cmd + Shift + Z: Redo
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+            e.preventDefault();
+            performRedo();
         }
         
         // Ctrl/Cmd + P: Preview
@@ -303,6 +516,30 @@ function setupKeyboardShortcuts() {
         if (e.key === 'F11') {
             e.preventDefault();
             toggleFullscreen();
+        }
+        
+        // Ctrl/Cmd + Left Arrow: Previous chapter
+        if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowLeft') {
+            e.preventDefault();
+            navigateToPreviousChapter();
+        }
+        
+        // Ctrl/Cmd + Right Arrow: Next chapter
+        if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowRight') {
+            e.preventDefault();
+            navigateToNextChapter();
+        }
+        
+        // Ctrl/Cmd + G: Chapter jump
+        if ((e.ctrlKey || e.metaKey) && e.key === 'g' && !e.shiftKey) {
+            e.preventDefault();
+            openChapterJumpModal();
+        }
+        
+        // Ctrl/Cmd + Shift + G: Go to line
+        if ((e.ctrlKey || e.metaKey) && e.key === 'G' && e.shiftKey) {
+            e.preventDefault();
+            openGotoLineModal();
         }
         
         // Ctrl/Cmd + Space: AI assist
@@ -358,7 +595,7 @@ function toggleFullscreen() {
 }
 
 // Open AI assist modal
-function openAIAssist() {
+async function openAIAssist() {
     const editor = document.getElementById('editor');
     const selectedText = editor.value.substring(editor.selectionStart, editor.selectionEnd);
     
@@ -366,11 +603,36 @@ function openAIAssist() {
         selectedText.substring(0, 50) + (selectedText.length > 50 ? '...' : '');
     document.getElementById('context-chapter').textContent = currentChapter?.title || '未選択';
     
+    // Check OpenAI configuration
+    try {
+        const config = await window.api.invoke('openai:getConfig');
+        if (!config.isConfigured) {
+            // Show configuration notice
+            document.getElementById('ai-suggestion').innerHTML = `
+                <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">⚙️</div>
+                    <h4 style="margin-bottom: 1rem;">OpenAI API未設定</h4>
+                    <p style="margin-bottom: 1.5rem;">AI支援機能を使用するには、OpenAI APIキーの設定が必要です。</p>
+                    <button class="primary-btn" onclick="window.location.href='./settings.html'">
+                        設定画面を開く
+                    </button>
+                </div>
+            `;
+            document.getElementById('ai-result').style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Failed to check OpenAI config:', error);
+    }
+    
     document.getElementById('ai-assist-modal').style.display = 'flex';
-    document.getElementById('ai-result').style.display = 'none';
 }
 
-// Handle AI assist option selection
+
+// グローバルインスタンス
+// Use the global aiThreadManager from ai-thread-manager.js
+let aiThreadManager = window.aiThreadManager;
+
+// Handle AI assist option selection - AIWritingAssistantを使用
 async function handleAIAssistOption(event) {
     const action = event.currentTarget.dataset.action;
     const editor = document.getElementById('editor');
@@ -385,35 +647,42 @@ async function handleAIAssistOption(event) {
         document.getElementById('ai-result').style.display = 'block';
         document.getElementById('ai-suggestion').innerHTML = '<p>AIが考えています...</p>';
         
-        // Prepare context
-        const context = {
-            chapterOutline: currentChapter?.summary || '',
-            chapterTitle: currentChapter?.title || '',
-            beforeText: editor.value.substring(Math.max(0, editor.selectionStart - 500), editor.selectionStart),
-            afterText: editor.value.substring(editor.selectionEnd, Math.min(editor.value.length, editor.selectionEnd + 500))
-        };
-        
-        // Call OpenAI through IPC
-        const result = await window.api.invoke('openai:assistWriting', {
-            action: action,
-            text: selectedText || context.beforeText.slice(-200), // 選択テキストがない場合は前の200文字
-            context: context
-        });
-        
-        // Display result
-        if (result.text) {
-            document.getElementById('ai-suggestion').innerHTML = `<div class="ai-suggestion-content">${escapeHtml(result.text).replace(/\n/g, '<br>')}</div>`;
-            window.aiSuggestion = result.text;
+        // AIWritingAssistantを使用してアクションを実行
+        if (window.aiAssistant) {
+            const result = await window.aiAssistant.executeAction(action, {
+                selectedText: selectedText,
+                cursorPosition: editor.selectionStart,
+                fullText: editor.value,
+                chapterTitle: currentChapter?.title || '',
+                chapterSummary: currentChapter?.summary || '',
+                projectId: currentProject?.id
+            });
             
-            // Set insert position based on action
-            if (action === 'continue') {
-                window.aiInsertPosition = editor.selectionEnd || editor.value.length;
+            // Display result
+            if (result.text) {
+                const agentInfo = window.aiAssistant.getCurrentAgentInfo();
+                document.getElementById('ai-suggestion').innerHTML = `
+                    <div class="ai-agent-info">
+                        <span class="agent-name">${agentInfo.name}</span>
+                        <span class="agent-style">[${agentInfo.style}]</span>
+                        <button class="customize-agent-btn" onclick="window.aiAssistant.showPanel()">🎭 カスタマイズ</button>
+                    </div>
+                    <div class="ai-suggestion-content">${escapeHtml(result.text).replace(/\n/g, '<br>')}</div>
+                `;
+                window.aiSuggestion = result.text;
+                
+                // Set insert position based on action
+                if (action === 'continue') {
+                    window.aiInsertPosition = editor.selectionEnd || editor.value.length;
+                } else {
+                    window.aiInsertPosition = editor.selectionStart;
+                    window.aiReplaceLength = editor.selectionEnd - editor.selectionStart;
+                }
             } else {
-                window.aiInsertPosition = editor.selectionStart;
-                window.aiReplaceLength = editor.selectionEnd - editor.selectionStart;
+                throw new Error('No result from AI');
             }
         } else {
-            throw new Error('No result from AI');
+            throw new Error('AI Assistant not initialized');
         }
         
     } catch (error) {
@@ -429,6 +698,68 @@ async function handleAIAssistOption(event) {
         document.getElementById('ai-suggestion').innerHTML = `<p class="error-message">${errorMessage}</p>`;
     }
 }
+
+// アクションに応じてAIエージェントを選択
+function getAIAgentForAction(action) {
+    const agentMapping = {
+        'continue': 'writer_sharp',
+        'improve': 'writer_sharp', 
+        'expand': 'writer_descriptive',
+        'dialogue': 'writer_emotional',
+        'scene': 'writer_descriptive',
+        'brainstorm': 'writer_emotional'
+    };
+    
+    return agentMapping[action] || 'writer_sharp';
+}
+
+// プロジェクトコンテキストを取得
+async function getProjectContext() {
+    if (!currentProject) return {};
+    
+    try {
+        const knowledge = await window.api.invoke('knowledge:list', { projectId: currentProject.id });
+        return {
+            projectName: currentProject.name,
+            genre: currentProject.parsedMetadata?.genre,
+            themes: knowledge.knowledge?.filter(k => k.category === 'theme')?.map(k => k.title) || []
+        };
+    } catch (error) {
+        return {};
+    }
+}
+
+// キャラクターコンテキストを取得  
+async function getCharacterContext() {
+    if (!currentProject) return {};
+    
+    try {
+        const characters = await window.api.invoke('knowledge:search', { 
+            projectId: currentProject.id, 
+            category: 'character' 
+        });
+        return {
+            characters: characters.results?.map(c => ({
+                name: c.title,
+                description: c.content.substring(0, 200)
+            })) || []
+        };
+    } catch (error) {
+        return {};
+    }
+}
+
+// Open AI Agent Customizer
+window.openAgentCustomizer = function(agentId) {
+    const customizerUrl = `./ai-customizer.html?agent=${agentId}`;
+    const customizerWindow = window.open(customizerUrl, 'ai-customizer', 
+        'width=1400,height=900,scrollbars=yes,resizable=yes');
+    
+    // Pass AI Thread Manager to customizer window
+    customizerWindow.onload = function() {
+        customizerWindow.aiThreadManager = aiThreadManager;
+    };
+};
 
 // Accept AI suggestion
 window.acceptAISuggestion = function() {
@@ -628,6 +959,85 @@ window.insertKnowledge = function(content) {
     handleEditorInput({ target: editor });
 };
 
+// AI評価機能 - 評価パネルのトグルに変更
+function evaluateWithAI() {
+    // 新しい評価パネルを使用
+    if (window.aiEvaluationPanel) {
+        window.aiEvaluationPanel.toggle();
+    }
+}
+
+// 評価基準設定を開く
+function openLinkCriteriaSettings() {
+    if (window.personalityCriteriaLink) {
+        window.personalityCriteriaLink.showLinkSettings();
+    }
+}
+
+// プロジェクトAI設定を開く
+function openProjectAISettings() {
+    if (window.projectAISettings && currentProject) {
+        window.projectAISettings.showSettingsUI(currentProject.id);
+    } else if (!currentProject) {
+        alert('プロジェクトを選択してください。');
+    }
+}
+
+// AIアシスタントパネルのトグル
+function toggleAIAssistantPanel() {
+    if (window.aiAssistant) {
+        window.aiAssistant.togglePanel();
+        
+        // ボタンの状態を更新
+        const btn = document.getElementById('ai-assistant-toggle');
+        const panel = document.getElementById('ai-assistant-panel');
+        if (btn && panel) {
+            if (panel.classList.contains('visible')) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+    }
+}
+
+// 削除: 評価結果表示関数は評価パネルに統合されました
+
+// AI設定変更リスナーのセットアップ
+function setupAISettingsListeners() {
+    // AIアシスタントのスタイル変更
+    if (window.aiAssistant) {
+        const originalSaveSettings = window.aiAssistant.saveSettings;
+        window.aiAssistant.saveSettings = function() {
+            originalSaveSettings.call(this);
+            window.dispatchEvent(new CustomEvent('ai-settings-changed', {
+                detail: { type: 'writing-assistant' }
+            }));
+        };
+    }
+    
+    // パーソナリティキャンバスの変更
+    window.addEventListener('personality-updated', () => {
+        window.dispatchEvent(new CustomEvent('ai-settings-changed', {
+            detail: { type: 'personality' }
+        }));
+    });
+    
+    // 評価基準の変更
+    window.addEventListener('criteria-updated', () => {
+        window.dispatchEvent(new CustomEvent('ai-settings-changed', {
+            detail: { type: 'criteria' }
+        }));
+    });
+    
+    // パーソナリティと評価基準のリンク変更
+    window.addEventListener('personality-criteria-linked', () => {
+        window.dispatchEvent(new CustomEvent('ai-settings-changed', {
+            detail: { type: 'links' }
+        }));
+    });
+}
+
 // Chapter notes
 async function loadChapterNotes(chapter) {
     try {
@@ -694,6 +1104,243 @@ async function updateTotalStats() {
 // Handle selection change
 function handleSelectionChange() {
     updateCursorPosition();
+}
+
+// Undo operation
+function performUndo() {
+    if (!undoRedoManager.canUndo()) return;
+    
+    const editor = document.getElementById('editor');
+    const previousState = undoRedoManager.undo();
+    
+    if (previousState) {
+        undoRedoManager.setApplyingChange(true);
+        editor.value = previousState.content;
+        editor.setSelectionRange(previousState.cursorStart, previousState.cursorEnd);
+        editorContent = previousState.content;
+        isDirty = true;
+        
+        // Update UI
+        updateCharacterCount();
+        updateCursorPosition();
+        updateUndoRedoButtons();
+        document.getElementById('last-saved').textContent = '未保存';
+        
+        undoRedoManager.setApplyingChange(false);
+    }
+}
+
+// Redo operation
+function performRedo() {
+    if (!undoRedoManager.canRedo()) return;
+    
+    const editor = document.getElementById('editor');
+    const nextState = undoRedoManager.redo();
+    
+    if (nextState) {
+        undoRedoManager.setApplyingChange(true);
+        editor.value = nextState.content;
+        editor.setSelectionRange(nextState.cursorStart, nextState.cursorEnd);
+        editorContent = nextState.content;
+        isDirty = true;
+        
+        // Update UI
+        updateCharacterCount();
+        updateCursorPosition();
+        updateUndoRedoButtons();
+        document.getElementById('last-saved').textContent = '未保存';
+        
+        undoRedoManager.setApplyingChange(false);
+    }
+}
+
+// Update undo/redo button states
+function updateUndoRedoButtons() {
+    const undoBtn = document.getElementById('undo');
+    const redoBtn = document.getElementById('redo');
+    
+    if (undoBtn) {
+        undoBtn.disabled = !undoRedoManager.canUndo();
+        undoBtn.style.opacity = undoRedoManager.canUndo() ? '1' : '0.5';
+    }
+    
+    if (redoBtn) {
+        redoBtn.disabled = !undoRedoManager.canRedo();
+        redoBtn.style.opacity = undoRedoManager.canRedo() ? '1' : '0.5';
+    }
+}
+
+// Open version history
+function openVersionHistory() {
+    if (!currentChapter) {
+        alert('章を選択してください');
+        return;
+    }
+    
+    window.versionCompareUI.open(currentChapter.id);
+}
+
+
+// Chapter jump modal
+function openChapterJumpModal() {
+    if (!currentPlot || !currentPlot.chapters || currentPlot.chapters.length === 0) {
+        window.api.showMessage('章がありません', 'warning');
+        return;
+    }
+    
+    const modal = document.getElementById('chapter-jump-modal');
+    const listContainer = document.getElementById('chapter-jump-list');
+    
+    // Generate chapter list
+    listContainer.innerHTML = currentPlot.chapters.map((chapter, index) => `
+        <div class="chapter-jump-item ${chapter.id === currentChapter?.id ? 'current' : ''}" 
+             onclick="jumpToChapter(${chapter.id})">
+            <div class="chapter-jump-number">${index + 1}</div>
+            <div class="chapter-jump-info">
+                <div class="chapter-jump-title">${escapeHtml(chapter.title)}</div>
+                <div class="chapter-jump-meta">${chapter.wordCount || 0}字 | ${chapter.status || '未設定'}</div>
+            </div>
+        </div>
+    `).join('');
+    
+    modal.style.display = 'flex';
+}
+
+function closeChapterJumpModal() {
+    document.getElementById('chapter-jump-modal').style.display = 'none';
+}
+
+async function jumpToChapter(chapterId) {
+    closeChapterJumpModal();
+    await loadChapter(chapterId);
+}
+
+// Global functions for modal onclick handlers
+window.closeChapterJumpModal = closeChapterJumpModal;
+window.jumpToChapter = jumpToChapter;
+
+// Go to line modal
+function openGotoLineModal() {
+    const editor = document.getElementById('editor');
+    const text = editor.value;
+    const lines = text.split('\n');
+    const totalLines = lines.length;
+    
+    // Calculate current line
+    const selectionStart = editor.selectionStart;
+    const textBeforeCursor = text.substring(0, selectionStart);
+    const currentLine = textBeforeCursor.split('\n').length;
+    
+    // Update modal with current info
+    document.getElementById('current-line-display').textContent = currentLine;
+    document.getElementById('total-lines-display').textContent = totalLines;
+    document.getElementById('goto-line-input').setAttribute('max', totalLines);
+    document.getElementById('goto-line-input').value = currentLine;
+    
+    // Show modal
+    const modal = document.getElementById('goto-line-modal');
+    modal.style.display = 'flex';
+    
+    // Focus and select input
+    const input = document.getElementById('goto-line-input');
+    input.focus();
+    input.select();
+    
+    // Handle Enter key in input
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            performGotoLine();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            closeGotoLineModal();
+        }
+    });
+}
+
+function closeGotoLineModal() {
+    document.getElementById('goto-line-modal').style.display = 'none';
+}
+
+function performGotoLine() {
+    const input = document.getElementById('goto-line-input');
+    const targetLine = parseInt(input.value);
+    
+    if (!targetLine || targetLine < 1) {
+        showMessage('有効な行番号を入力してください', 'warning');
+        return;
+    }
+    
+    const editor = document.getElementById('editor');
+    const text = editor.value;
+    const lines = text.split('\n');
+    const totalLines = lines.length;
+    
+    if (targetLine > totalLines) {
+        showMessage(`行番号は1から${totalLines}の間で入力してください`, 'warning');
+        return;
+    }
+    
+    // Use SearchManager's jumpToLine method if available
+    if (window.searchManager && window.searchManager.jumpToLine) {
+        const success = window.searchManager.jumpToLine(targetLine);
+        if (success) {
+            closeGotoLineModal();
+            showMessage(`${targetLine}行目に移動しました`, 'success');
+        }
+    } else {
+        // Fallback implementation
+        let position = 0;
+        for (let i = 0; i < targetLine - 1; i++) {
+            position += lines[i].length + 1; // +1 for newline character
+        }
+        
+        // Move cursor to beginning of target line
+        editor.setSelectionRange(position, position);
+        editor.focus();
+        
+        // Scroll to make the line visible
+        editor.scrollTop = Math.max(0, (targetLine - 5) * 20); // Approximate line height
+        
+        closeGotoLineModal();
+        showMessage(`${targetLine}行目に移動しました`, 'success');
+    }
+}
+
+// Global functions for modal onclick handlers
+window.closeGotoLineModal = closeGotoLineModal;
+window.performGotoLine = performGotoLine;
+
+// Handle navigation
+function handleNavigation(e) {
+    e.preventDefault();
+    const page = e.currentTarget.dataset.page;
+    
+    switch (page) {
+        case 'agent-meeting':
+            window.location.href = './agent-meeting.html';
+            break;
+        case 'projects':
+            window.location.href = './projects.html';
+            break;
+        case 'writing-editor':
+            // Already on this page
+            break;
+        case 'anything-box':
+            window.location.href = './anything-box.html';
+            break;
+        case 'serendipity':
+            window.location.href = './serendipity.html';
+            break;
+        case 'knowledge-graph':
+            window.location.href = './knowledge-graph.html';
+            break;
+        case 'settings':
+            window.location.href = './settings.html';
+            break;
+        default:
+            console.log(`Navigation to ${page} not implemented`);
+    }
 }
 
 // Utility functions

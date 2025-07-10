@@ -140,7 +140,42 @@
     background-color: white;
 }
 
-.chapter-info h2 {
+.chapter-navigation {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.chapter-nav-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: var(--bg-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 14px;
+}
+
+.chapter-nav-btn:hover:not(:disabled) {
+    background-color: var(--bg-hover);
+    border-color: var(--primary-color);
+}
+
+.chapter-nav-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.chapter-details {
+    flex: 1;
+    text-align: center;
+}
+
+.chapter-details h2 {
     font-size: 20px;
     font-weight: 600;
     color: var(--text-primary);
@@ -152,6 +187,7 @@
     gap: var(--spacing-md);
     font-size: 12px;
     color: var(--text-secondary);
+    justify-content: center;
 }
 
 /* Editor Toolbar */
@@ -623,4 +659,241 @@
     .right-panel.open {
         transform: translateX(0);
     }
+}
+
+/* Search Modal */
+.search-modal {
+    position: fixed;
+    top: 60px;
+    right: 20px;
+    z-index: 1000;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-lg);
+    min-width: 400px;
+    overflow: hidden;
+}
+
+.search-modal-content {
+    padding: var(--spacing-md);
+}
+
+.search-header {
+    margin-bottom: var(--spacing-sm);
+}
+
+.search-input-container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-sm);
+}
+
+.search-input {
+    flex: 1;
+    padding: var(--spacing-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    font-size: 14px;
+    background-color: var(--bg-secondary);
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    background-color: var(--bg-primary);
+}
+
+.search-nav-btn,
+.search-close-btn {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: var(--bg-secondary);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.search-nav-btn:hover,
+.search-close-btn:hover {
+    background-color: var(--bg-hover);
+    border-color: var(--primary-color);
+}
+
+.search-close-btn {
+    color: var(--text-secondary);
+}
+
+.search-options {
+    display: flex;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+}
+
+.search-option {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.search-option input[type="checkbox"] {
+    margin: 0;
+}
+
+.search-replace-container {
+    margin-bottom: var(--spacing-sm);
+}
+
+.replace-input-container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.replace-input {
+    flex: 1;
+    padding: var(--spacing-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    font-size: 14px;
+    background-color: var(--bg-secondary);
+}
+
+.replace-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    background-color: var(--bg-primary);
+}
+
+.replace-btn {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: var(--bg-secondary);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.replace-btn:hover {
+    background-color: var(--bg-hover);
+    border-color: var(--primary-color);
+}
+
+.search-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.toggle-replace-btn {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: var(--bg-secondary);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.toggle-replace-btn:hover,
+.toggle-replace-btn.active {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+/* Search highlights */
+.search-highlight {
+    background-color: rgba(255, 235, 59, 0.3);
+    border-radius: 2px;
+    padding: 1px 2px;
+}
+
+.search-highlight.current {
+    background-color: rgba(255, 193, 7, 0.6);
+    border: 1px solid #ff9800;
+}
+
+/* Chapter Jump Modal */
+.chapter-jump-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.chapter-jump-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.chapter-jump-item:hover {
+    background-color: var(--bg-hover);
+    border-color: var(--primary-color);
+}
+
+.chapter-jump-item.current {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.chapter-jump-number {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--primary-color);
+    min-width: 40px;
+    text-align: center;
+}
+
+.chapter-jump-item.current .chapter-jump-number {
+    color: white;
+}
+
+.chapter-jump-info {
+    flex: 1;
+}
+
+.chapter-jump-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.chapter-jump-item.current .chapter-jump-title {
+    color: white;
+}
+
+.chapter-jump-meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.chapter-jump-item.current .chapter-jump-meta {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Go to Line Modal */
+.modal-small .modal-content {
+    max-width: 400px;
+    width: 90%;
+}
+
+.help-text {
+    display: block;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: var(--spacing-xs);
 }

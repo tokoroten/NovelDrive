@@ -18,7 +18,7 @@ class PersonalityService extends EventEmitter {
         this.presets = new Map();
         
         // Paths
-        this.builtInPersonalitiesPath = path.join(__dirname, '..', '..', 'personalities');
+        this.builtInPersonalitiesPath = path.join(__dirname, '..', 'personalities');
         this.customPersonalitiesPath = null; // Will be set when initialized
         
         this.initialize();

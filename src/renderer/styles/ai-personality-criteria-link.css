@@ -1,0 +1,247 @@
+/* AI Personality and Criteria Link Styles */
+
+.personality-criteria-link-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+}
+
+.personality-criteria-link-modal .modal-content {
+    background: var(--bg-primary);
+    border-radius: 8px;
+    padding: 30px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.personality-criteria-link-modal h2 {
+    margin: 0 0 20px 0;
+    color: var(--text-primary);
+}
+
+.link-settings {
+    margin-bottom: 20px;
+}
+
+.link-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    margin-bottom: 10px;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+}
+
+.personality-info {
+    flex: 1;
+}
+
+.personality-info strong {
+    color: var(--text-primary);
+    font-size: 16px;
+}
+
+.personality-info .style {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-left: 10px;
+}
+
+.link-item select {
+    width: 250px;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.modal-actions button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    background: var(--primary);
+    color: white;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+.modal-actions button:hover {
+    background: var(--primary-dark);
+}
+
+/* Evaluation Results */
+.evaluation-results {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.evaluation-results h3 {
+    margin: 0 0 15px 0;
+    color: var(--text-primary);
+}
+
+.total-score {
+    font-size: 36px;
+    font-weight: bold;
+    color: var(--primary);
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.score-breakdown {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.score-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+}
+
+.score-item .label {
+    color: var(--text-secondary);
+}
+
+.score-item .value {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.score-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--bg-secondary);
+    border-radius: 3px;
+    margin: 0 15px;
+    overflow: hidden;
+}
+
+.score-fill {
+    height: 100%;
+    background: var(--primary);
+    transition: width 0.3s ease;
+}
+
+.feedback-section {
+    margin-bottom: 20px;
+}
+
+.feedback-section h4 {
+    margin: 0 0 10px 0;
+    color: var(--text-primary);
+    font-size: 16px;
+}
+
+.feedback-text {
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.suggestions-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.suggestions-list li {
+    padding: 10px;
+    margin-bottom: 8px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    border-left: 3px solid var(--primary);
+    color: var(--text-primary);
+}
+
+/* Integration Button */
+.link-criteria-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.link-criteria-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--primary);
+}
+
+.link-criteria-btn .icon {
+    font-size: 16px;
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+    .personality-criteria-link-modal .modal-content {
+        background: #1a1a1a;
+    }
+    
+    .link-item {
+        background: #222;
+        border-color: #333;
+    }
+    
+    .link-item select {
+        background: #1a1a1a;
+        border-color: #333;
+    }
+    
+    .evaluation-results {
+        background: #222;
+    }
+    
+    .score-item {
+        background: #2a2a2a;
+    }
+    
+    .score-bar {
+        background: #333;
+    }
+    
+    .suggestions-list li {
+        background: #2a2a2a;
+    }
+    
+    .link-criteria-btn {
+        background: #222;
+        border-color: #333;
+    }
+    
+    .link-criteria-btn:hover {
+        background: #2a2a2a;
+    }
+}

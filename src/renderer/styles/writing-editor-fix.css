@@ -1,0 +1,267 @@
+/* Writing Editor Layout Fix */
+
+/* メインコンテナの修正 */
+.app-container {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* 執筆レイアウトの修正 */
+.writing-layout {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+/* 左パネルの固定幅 */
+.left-panel {
+    flex-shrink: 0;
+    width: 250px;
+    min-width: 250px;
+    max-width: 250px;
+}
+
+/* エディタコンテナの修正 */
+.editor-container {
+    flex: 1;
+    min-width: 0; /* flexアイテムの縮小を許可 */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* エディタヘッダーの修正 */
+.editor-header {
+    flex-shrink: 0;
+    padding: var(--spacing-md);
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
+    overflow-x: auto; /* ツールバーが多い場合のスクロール */
+}
+
+/* ツールバーの修正 */
+.editor-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex-wrap: wrap; /* 画面幅が狭い時に折り返し */
+}
+
+/* エディタコンテンツエリアの修正 */
+.editor-content {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    min-height: 0; /* flexアイテムの縮小を許可 */
+}
+
+/* エディタのラッパー修正 */
+.editor-wrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow: auto;
+}
+
+/* テキストエリアの修正 */
+.editor {
+    width: 100%;
+    min-height: 100%;
+    box-sizing: border-box;
+    padding: var(--spacing-xl);
+    max-width: 900px; /* 読みやすい最大幅 */
+    margin: 0 auto;
+}
+
+/* AIアシスタントパネルの位置修正 */
+.ai-assistant-panel {
+    position: fixed !important;
+    right: 20px;
+    top: 80px;
+    z-index: 1000;
+    max-width: 400px;
+    max-height: calc(100vh - 100px);
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* AIアシスタントパネルが開いている時のエディタ調整 */
+.editor-container.with-ai-panel {
+    margin-right: 420px; /* AIパネルの幅 + 余白 */
+}
+
+/* 右サイドバーの修正 */
+.right-sidebar {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 300px;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    z-index: 900;
+}
+
+.right-sidebar.active {
+    transform: translateX(0);
+}
+
+/* モバイル/小画面対応 */
+@media (max-width: 1200px) {
+    .ai-assistant-panel {
+        max-width: 350px;
+    }
+    
+    .editor-container.with-ai-panel {
+        margin-right: 370px;
+    }
+}
+
+@media (max-width: 1024px) {
+    /* 左パネルを折りたたみ可能に */
+    .left-panel {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 1100;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+    }
+    
+    .left-panel.active {
+        transform: translateX(0);
+    }
+    
+    /* エディタコンテナを全幅に */
+    .editor-container {
+        margin-left: 0;
+        margin-right: 0;
+    }
+    
+    /* AIパネルをオーバーレイに */
+    .ai-assistant-panel {
+        position: fixed !important;
+        right: 10px;
+        left: 10px;
+        max-width: none;
+        width: auto;
+    }
+    
+    .editor-container.with-ai-panel {
+        margin-right: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    /* ツールバーボタンをコンパクトに */
+    .toolbar-btn {
+        padding: var(--spacing-xs);
+    }
+    
+    .toolbar-btn span.icon {
+        margin-right: 0;
+    }
+    
+    .toolbar-btn:not(.primary) {
+        /* アイコンのみ表示 */
+        font-size: 0;
+    }
+    
+    .toolbar-btn:not(.primary) .icon {
+        font-size: 16px;
+    }
+    
+    /* エディタの余白を調整 */
+    .editor {
+        padding: var(--spacing-md);
+    }
+}
+
+/* フルスクリーンモード */
+.editor-container.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2000;
+    background: white;
+}
+
+.editor-container.fullscreen .editor-header {
+    background: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* ダークモード対応 */
+@media (prefers-color-scheme: dark) {
+    .editor {
+        background-color: var(--bg-primary);
+    }
+    
+    .preview {
+        background-color: var(--bg-primary);
+    }
+    
+    .editor-container.fullscreen {
+        background: var(--bg-primary);
+    }
+    
+    .editor-container.fullscreen .editor-header {
+        background: var(--bg-secondary);
+    }
+}
+
+/* スクロールバーのスタイル */
+.editor::-webkit-scrollbar,
+.chapters-nav::-webkit-scrollbar,
+.knowledge-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.editor::-webkit-scrollbar-track,
+.chapters-nav::-webkit-scrollbar-track,
+.knowledge-list::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+
+.editor::-webkit-scrollbar-thumb,
+.chapters-nav::-webkit-scrollbar-thumb,
+.knowledge-list::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+.editor::-webkit-scrollbar-thumb:hover,
+.chapters-nav::-webkit-scrollbar-thumb:hover,
+.knowledge-list::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+
+/* 印刷対応 */
+@media print {
+    .left-panel,
+    .right-sidebar,
+    .editor-header,
+    .editor-footer,
+    .ai-assistant-panel {
+        display: none !important;
+    }
+    
+    .editor-container {
+        margin: 0 !important;
+    }
+    
+    .editor {
+        padding: 0;
+        max-width: none;
+        font-size: 12pt;
+        line-height: 1.5;
+    }
+}

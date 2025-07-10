@@ -10,6 +10,13 @@ class VectorSearchService {
         this.repositories = repositories;
         this.logger = getLogger();
         
+        // Debug log
+        this.logger.info('VectorSearchService constructor called with repositories:', {
+            hasRepositories: !!repositories,
+            hasKnowledge: !!repositories?.knowledge,
+            hasKnowledgeDb: !!repositories?.knowledge?.db
+        });
+        
         // Vector search configuration
         this.config = {
             dimensions: 768, // multilingual-e5-base dimension
@@ -52,7 +59,13 @@ class VectorSearchService {
      * Create vector index table for optimized search
      */
     async createVectorIndexTable() {
-        const db = this.repositories.knowledge.db;
+        const knowledgeRepo = this.repositories.knowledge;
+        if (!knowledgeRepo || !knowledgeRepo.db) {
+            this.logger.error('Knowledge repository or database not properly initialized');
+            throw new Error('Database not available');
+        }
+        
+        const db = knowledgeRepo.db;
         
         try {
             // Create vector index table

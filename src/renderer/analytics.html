@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'">
     <title>アナリティクス - NovelDrive</title>
     <link rel="stylesheet" href="./styles/common.css">
     <link rel="stylesheet" href="./styles/analytics.css">
@@ -20,6 +20,12 @@
                     <a href="./projects.html" data-page="projects">
                         <span class="icon">📁</span>
                         <span>プロジェクト</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./project-workspace.html" data-page="project-workspace">
+                        <span class="icon">💼</span>
+                        <span>ワークスペース</span>
                     </a>
                 </li>
                 <li class="nav-item">
@@ -113,7 +119,9 @@
                             </div>
                         </div>
                         <div class="chart-body">
-                            <canvas id="writing-trend-chart"></canvas>
+                            <div id="writing-trend-chart" class="css-chart">
+                                <!-- CSS-based chart will be generated here -->
+                            </div>
                         </div>
                     </div>
 
@@ -123,7 +131,9 @@
                             <h3>プロジェクト別統計</h3>
                         </div>
                         <div class="chart-body">
-                            <canvas id="project-stats-chart"></canvas>
+                            <div id="project-stats-chart" class="css-chart css-donut-chart">
+                                <!-- CSS-based donut chart will be generated here -->
+                            </div>
                         </div>
                     </div>
 
@@ -334,7 +344,8 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="./js/mock-api.js"></script>
+    <script src="./js/project-selector.js"></script>
     <script src="./js/analytics.js"></script>
 </body>
 </html>

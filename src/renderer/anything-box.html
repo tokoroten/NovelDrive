@@ -17,13 +17,31 @@
             </div>
             <ul class="nav-menu">
                 <li class="nav-item">
+                    <a href="./agent-meeting.html" data-page="agent-meeting">
+                        <span class="icon">🤝</span>
+                        <span>エージェント会議室</span>
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a href="./projects.html" data-page="projects">
                         <span class="icon">📁</span>
                         <span>プロジェクト</span>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="./project-workspace.html" data-page="project-workspace">
+                        <span class="icon">💼</span>
+                        <span>ワークスペース</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./writing-editor.html" data-page="writing-editor">
+                        <span class="icon">✍️</span>
+                        <span>執筆エディタ</span>
+                    </a>
+                </li>
                 <li class="nav-item active">
-                    <a href="#" data-page="anything-box">
+                    <a href="./anything-box.html" data-page="anything-box">
                         <span class="icon">📥</span>
                         <span>なんでもボックス</span>
                     </a>
@@ -35,13 +53,13 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="#" data-page="knowledge-graph">
+                    <a href="./knowledge-graph.html" data-page="knowledge-graph">
                         <span class="icon">🕸️</span>
                         <span>ナレッジグラフ</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="#" data-page="settings">
+                    <a href="./settings.html" data-page="settings">
                         <span class="icon">⚙️</span>
                         <span>設定</span>
                     </a>
@@ -82,14 +100,14 @@
                 <div class="tab-content active" data-tab="text">
                     <form id="text-form" class="input-form">
                         <div class="form-group">
-                            <input type="text" id="text-title" placeholder="タイトル（オプション）" class="input-title">
+                            <input type="text" id="text-title" placeholder="タイトル（空欄にした場合、AIが自動的に名付けます）" class="input-title">
                         </div>
                         <div class="form-group">
                             <textarea id="text-content" rows="6" placeholder="思いついたこと、メモ、アイデアなど、なんでも入力してください..." required></textarea>
                         </div>
                         <button type="submit" class="primary-btn">
                             <span class="icon">✨</span>
-                            インスピレーションを抽出
+                            登録
                         </button>
                     </form>
                 </div>
@@ -100,10 +118,26 @@
                         <div class="form-group">
                             <input type="url" id="url-input" placeholder="https://example.com" required>
                         </div>
-                        <button type="submit" class="primary-btn">
-                            <span class="icon">🔗</span>
-                            URLから取得
-                        </button>
+                        <div class="url-options">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="url-ai-fetch" checked>
+                                <span>AIが本文を取得</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="url-ai-summary" checked>
+                                <span>AIが自動要約</span>
+                            </label>
+                        </div>
+                        <div class="button-group">
+                            <button type="submit" class="primary-btn">
+                                <span class="icon">🔗</span>
+                                登録
+                            </button>
+                            <button type="button" id="url-ai-discussion" class="secondary-btn">
+                                <span class="icon">🤝</span>
+                                AIエージェントで議論
+                            </button>
+                        </div>
                     </form>
                 </div>
 
@@ -122,7 +156,7 @@
                             <img id="image-preview" class="image-preview" style="display: none;">
                         </div>
                         <div class="form-group" style="margin-top: 16px;">
-                            <input type="text" id="image-title" placeholder="タイトル（オプション）" class="input-title">
+                            <input type="text" id="image-title" placeholder="タイトル（空欄にした場合、AIが自動的に名付けます）" class="input-title">
                         </div>
                         <button type="submit" class="primary-btn" disabled>
                             <span class="icon">🔍</span>
@@ -178,6 +212,8 @@
         </div>
     </div>
 
+    <script src="./js/mock-api.js"></script>
+    <script src="./js/project-selector.js"></script>
     <script src="./js/anything-box.js"></script>
 </body>
 </html>

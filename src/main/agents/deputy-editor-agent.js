@@ -139,6 +139,101 @@ class DeputyEditorAgent extends BaseAgent {
     }
 
     /**
+     * Handle plot creation messages
+     * @param {Object} message
+     * @returns {Promise<Object>}
+     */
+    async handlePlotCreation(message) {
+        const { message: userMessage, plotAspect, currentPlotElements, context } = message.content;
+        
+        this.logger.info(`Deputy Editor handling plot creation: ${plotAspect}`);
+        
+        // Generate plot suggestions based on aspect
+        const suggestions = await this.generatePlotSuggestions(userMessage, plotAspect, currentPlotElements, context);
+        
+        return {
+            status: 'plot_contribution',
+            perspective: 'commercial_viability',
+            viewpoint: suggestions.viewpoint,
+            themes: suggestions.themes,
+            premise: suggestions.premise,
+            structure: suggestions.structure,
+            conflicts: suggestions.conflicts,
+            marketConsiderations: suggestions.marketConsiderations
+        };
+    }
+
+    /**
+     * Generate plot suggestions
+     * @param {string} userMessage
+     * @param {string} plotAspect
+     * @param {Object} currentPlotElements
+     * @param {Object} context
+     * @returns {Promise<Object>}
+     */
+    async generatePlotSuggestions(userMessage, plotAspect, currentPlotElements, context) {
+        const systemPrompt = this.getSystemPrompt() || 
+            `You are a Deputy Editor AI focused on commercial viability and overall story structure. 
+            Analyze plot proposals from a market perspective and suggest improvements.`;
+        
+        const prompt = `As a deputy editor, analyze this plot creation request:
+User Message: ${userMessage}
+Plot Aspect: ${plotAspect}
+Current Plot Elements: ${JSON.stringify(currentPlotElements, null, 2)}
+
+Provide suggestions focusing on:
+1. Commercial viability and market appeal
+2. Overall narrative structure and pacing
+3. Target audience considerations
+4. Potential issues that might affect publication
+
+Format your response as JSON with the following structure:
+{
+    "viewpoint": "Your editorial perspective on the plot development",
+    "themes": ["theme1", "theme2"],
+    "premise": { "title": "suggested title", "description": "premise description" },
+    "structure": { "acts": [...] },
+    "conflicts": [{ "type": "main/sub", "description": "...", "priority": "main/secondary" }],
+    "marketConsiderations": "Analysis of market appeal and commercial viability"
+}`;
+
+        try {
+            const response = await openAIService.createChatCompletion([
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: prompt }
+            ], {
+                temperature: this.getPersonalityParameters().temperature || 0.7,
+                response_format: { type: "json_object" }
+            });
+            
+            return JSON.parse(response.content);
+        } catch (error) {
+            this.logger.error('Error generating plot suggestions:', error);
+            
+            // Fallback response
+            return {
+                viewpoint: "プロットの商業的な可能性を評価し、市場での成功を目指した構造を提案します。",
+                themes: plotAspect === 'themes' ? ["読者の共感を呼ぶテーマ", "現代的な社会問題"] : [],
+                premise: plotAspect === 'premise' ? {
+                    title: "タイトル案",
+                    description: "市場で注目を集める可能性のある前提"
+                } : null,
+                structure: plotAspect === 'structure' ? {
+                    acts: [
+                        { name: "第一幕", description: "読者を引き込む導入" },
+                        { name: "第二幕", description: "緊張感を維持する展開" },
+                        { name: "第三幕", description: "満足感のある結末" }
+                    ]
+                } : null,
+                conflicts: plotAspect === 'conflicts' ? [
+                    { type: "main", description: "読者の興味を引く中心的な対立", priority: "main" }
+                ] : [],
+                marketConsiderations: "ターゲット読者層に訴求する要素を含めることで、商業的成功の可能性を高めます。"
+            };
+        }
+    }
+
+    /**
      * Analyze narrative structure
      * @param {Object} data
      * @param {Object} context

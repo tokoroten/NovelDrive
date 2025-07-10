@@ -149,6 +149,117 @@ class EditorAgent extends BaseAgent {
     }
 
     /**
+     * Handle plot creation messages
+     * @param {Object} message
+     * @returns {Promise<Object>}
+     */
+    async handlePlotCreation(message) {
+        const { message: userMessage, plotAspect, currentPlotElements, context } = message.content;
+        
+        this.logger.info(`Editor handling plot creation: ${plotAspect}`);
+        
+        // Generate editorial plot suggestions
+        const suggestions = await this.generateEditorialPlotSuggestions(userMessage, plotAspect, currentPlotElements, context);
+        
+        return {
+            status: 'plot_contribution',
+            perspective: 'reader_engagement',
+            viewpoint: suggestions.viewpoint,
+            themes: suggestions.themes,
+            conflicts: suggestions.conflicts,
+            structure: suggestions.structure,
+            pacing: suggestions.pacing,
+            readerHooks: suggestions.readerHooks
+        };
+    }
+
+    /**
+     * Generate editorial plot suggestions
+     * @param {string} userMessage
+     * @param {string} plotAspect
+     * @param {Object} currentPlotElements
+     * @param {Object} context
+     * @returns {Promise<Object>}
+     */
+    async generateEditorialPlotSuggestions(userMessage, plotAspect, currentPlotElements, context) {
+        const systemPrompt = this.getSystemPrompt() || 
+            `You are an Editor AI focused on reader engagement and story pacing. 
+            Analyze plot elements for maximum reader impact and narrative effectiveness.`;
+        
+        const prompt = `As an editor, respond to this plot creation request:
+User Message: ${userMessage}
+Plot Aspect: ${plotAspect}
+Current Plot Elements: ${JSON.stringify(currentPlotElements, null, 2)}
+
+Provide editorial suggestions focusing on:
+1. Reader engagement and page-turning quality
+2. Pacing and narrative rhythm
+3. Conflict escalation and tension
+4. Clear story structure and satisfying payoffs
+
+Format your response as JSON with the following structure:
+{
+    "viewpoint": "Your editorial perspective on reader engagement",
+    "themes": ["accessible theme", "relatable theme"],
+    "conflicts": [{ "type": "internal/external", "description": "...", "stakes": "...", "priority": "main/sub" }],
+    "structure": { 
+        "acts": [...], 
+        "turningPoints": [...],
+        "hooks": [...]
+    },
+    "pacing": {
+        "rhythm": "description of pacing strategy",
+        "tensionPoints": [...],
+        "breathingRoom": [...]
+    },
+    "readerHooks": ["opening hook", "chapter hooks", "cliffhangers"]
+}`;
+
+        try {
+            const response = await openAIService.createChatCompletion([
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: prompt }
+            ], {
+                temperature: this.getPersonalityParameters().temperature || 0.7,
+                response_format: { type: "json_object" }
+            });
+            
+            return JSON.parse(response.content);
+        } catch (error) {
+            this.logger.error('Error generating editorial plot suggestions:', error);
+            
+            // Fallback editorial response
+            return {
+                viewpoint: "読者を物語に引き込み、最後まで読ませる構造を重視します。",
+                themes: plotAspect === 'themes' ? ["普遍的な人間ドラマ", "現代的な課題"] : [],
+                conflicts: plotAspect === 'conflicts' ? [
+                    { 
+                        type: "external",
+                        description: "読者が感情移入できる明確な対立",
+                        stakes: "主人公にとって重要な何かが危機に瀕する",
+                        priority: "main"
+                    }
+                ] : [],
+                structure: plotAspect === 'structure' ? {
+                    acts: [
+                        { name: "導入", description: "読者を引き込む強力な開幕" },
+                        { name: "展開", description: "緊張が段階的に高まる中盤" },
+                        { name: "解決", description: "満足感のある結末" }
+                    ],
+                    turningPoints: ["衝撃的な転換点", "予想外の展開"],
+                    hooks: ["冒頭の謎", "章末の引き"]
+                } : null,
+                pacing: {
+                    rhythm: "緩急のバランスを保ち、読者を飽きさせないペース配分",
+                    tensionPoints: ["第一の山場", "クライマックス前の静けさ", "最終決戦"],
+                    breathingRoom: ["キャラクター掘り下げの場面", "世界観を味わう瞬間"]
+                },
+                readerHooks: ["魅力的な第一文", "各章の引き込み要素", "次が読みたくなる終わり方"]
+            };
+        }
+    }
+
+    /**
      * Edit chapter with focus on collaboration
      * @param {Object} data
      * @param {Object} context

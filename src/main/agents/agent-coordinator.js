@@ -293,7 +293,16 @@ class AgentCoordinator extends EventEmitter {
             messages: [],
             status: 'active',
             createdAt: new Date(),
-            metadata: {}
+            metadata: {},
+            plotElements: topic.type === 'plot_creation' ? {
+                themes: [],
+                premise: null,
+                characters: [],
+                setting: null,
+                conflicts: [],
+                structure: null,
+                keyScenes: []
+            } : null
         };
         
         this.sessions.set(sessionId, session);
@@ -699,6 +708,318 @@ class AgentCoordinator extends EventEmitter {
             status: agent.getStatus(),
             config: agent.config
         }));
+    }
+
+    /**
+     * Handle plot creation discussion
+     * @param {Object} data
+     */
+    async discussPlotCreation(data) {
+        const { sessionId, message, context, plotAspect } = data;
+        const session = this.getSession(sessionId);
+        
+        if (!session || session.status !== 'active') {
+            throw new Error('Invalid or inactive session');
+        }
+        
+        if (!session.plotElements) {
+            throw new Error('Session is not a plot creation session');
+        }
+        
+        const results = [];
+        
+        // Get each agent's perspective on plot creation
+        for (const agentId of session.participants) {
+            const agent = this.agents.get(agentId);
+            if (!agent) continue;
+            
+            try {
+                // Create plot discussion message
+                const plotMessage = {
+                    id: `plot-${Date.now()}-${Math.random()}`,
+                    sender: 'user',
+                    recipient: agentId,
+                    type: 'plot_creation',
+                    content: {
+                        message: message,
+                        plotAspect: plotAspect,
+                        currentPlotElements: session.plotElements,
+                        context: context,
+                        sessionId: sessionId
+                    },
+                    timestamp: new Date().toISOString()
+                };
+                
+                // Send to agent and get response
+                const response = await agent.processMessage(plotMessage);
+                
+                if (response) {
+                    // Extract plot elements from response
+                    const plotContribution = this.extractPlotElements(response.content);
+                    
+                    results.push({
+                        agentId: agentId,
+                        agentType: agent.type,
+                        contribution: response.content,
+                        plotElements: plotContribution
+                    });
+                    
+                    // Update session plot elements
+                    this.updateSessionPlotElements(session, plotContribution);
+                    
+                    // Emit agent message event
+                    this.emit('agent:message', {
+                        sessionId: sessionId,
+                        agentId: agentId,
+                        message: response.content.suggestion || response.content.viewpoint || response.content,
+                        plotElements: plotContribution
+                    });
+                }
+                
+            } catch (error) {
+                this.logger.error(`Error getting plot response from ${agent.name}:`, error);
+            }
+        }
+        
+        // Store in session history
+        session.messages.push({
+            type: 'plot_creation',
+            message: message,
+            plotAspect: plotAspect,
+            responses: results,
+            timestamp: new Date()
+        });
+        
+        return results;
+    }
+    
+    /**
+     * Extract plot elements from agent response
+     * @param {Object} content
+     * @returns {Object}
+     */
+    extractPlotElements(content) {
+        const elements = {};
+        
+        if (content.themes) elements.themes = content.themes;
+        if (content.premise) elements.premise = content.premise;
+        if (content.characters) elements.characters = content.characters;
+        if (content.setting) elements.setting = content.setting;
+        if (content.conflicts) elements.conflicts = content.conflicts;
+        if (content.structure) elements.structure = content.structure;
+        if (content.keyScenes) elements.keyScenes = content.keyScenes;
+        
+        return elements;
+    }
+    
+    /**
+     * Update session plot elements
+     * @param {Object} session
+     * @param {Object} newElements
+     */
+    updateSessionPlotElements(session, newElements) {
+        if (!session.plotElements) return;
+        
+        // Merge new elements
+        if (newElements.themes) {
+            session.plotElements.themes = [...new Set([...session.plotElements.themes, ...newElements.themes])];
+        }
+        if (newElements.premise && !session.plotElements.premise) {
+            session.plotElements.premise = newElements.premise;
+        }
+        if (newElements.characters) {
+            session.plotElements.characters = [...session.plotElements.characters, ...newElements.characters];
+        }
+        if (newElements.setting && !session.plotElements.setting) {
+            session.plotElements.setting = newElements.setting;
+        }
+        if (newElements.conflicts) {
+            session.plotElements.conflicts = [...session.plotElements.conflicts, ...newElements.conflicts];
+        }
+        if (newElements.structure && !session.plotElements.structure) {
+            session.plotElements.structure = newElements.structure;
+        }
+        if (newElements.keyScenes) {
+            session.plotElements.keyScenes = [...session.plotElements.keyScenes, ...newElements.keyScenes];
+        }
+        
+        // Emit plot update event
+        this.emit('plot:updated', {
+            sessionId: session.id,
+            plotElements: session.plotElements
+        });
+    }
+    
+    /**
+     * Generate final plot from session
+     * @param {string} sessionId
+     * @returns {Object}
+     */
+    async generateFinalPlot(sessionId) {
+        const session = this.getSession(sessionId);
+        
+        if (!session || !session.plotElements) {
+            throw new Error('Invalid session or not a plot creation session');
+        }
+        
+        // Validate minimum requirements
+        if (!session.plotElements.premise && session.plotElements.themes.length === 0) {
+            throw new Error('Plot must have at least a premise or themes to generate');
+        }
+        
+        // Generate title from premise or themes if not provided
+        let title = 'Untitled';
+        if (session.plotElements.premise?.title) {
+            title = session.plotElements.premise.title;
+        } else if (session.plotElements.themes.length > 0) {
+            title = `Story about ${session.plotElements.themes[0]}`;
+        }
+        
+        // Consolidate plot elements
+        const consolidatedPlot = {
+            title: title,
+            premise: session.plotElements.premise?.description || this.generatePremiseFromElements(session.plotElements),
+            themes: session.plotElements.themes || [],
+            setting: session.plotElements.setting || { world: 'Contemporary', atmosphere: 'Realistic' },
+            characters: this.consolidateCharacters(session.plotElements.characters),
+            mainConflict: this.selectMainConflict(session.plotElements.conflicts),
+            subConflicts: session.plotElements.conflicts.slice(1) || [],
+            structure: session.plotElements.structure || this.generateDefaultStructure(),
+            keyScenes: this.organizeKeyScenes(session.plotElements.keyScenes),
+            chapters: this.generateInitialChapters(session.plotElements),
+            createdAt: new Date().toISOString(),
+            sessionId: sessionId
+        };
+        
+        // Emit plot generation event
+        this.emit('plot:generated', {
+            sessionId: sessionId,
+            plot: consolidatedPlot
+        });
+        
+        return consolidatedPlot;
+    }
+    
+    /**
+     * Consolidate character proposals
+     * @param {Array} characters
+     * @returns {Array}
+     */
+    consolidateCharacters(characters) {
+        const characterMap = new Map();
+        
+        characters.forEach(char => {
+            if (char.name) {
+                if (!characterMap.has(char.name)) {
+                    characterMap.set(char.name, char);
+                } else {
+                    // Merge character details
+                    const existing = characterMap.get(char.name);
+                    characterMap.set(char.name, {
+                        ...existing,
+                        ...char,
+                        traits: [...(existing.traits || []), ...(char.traits || [])]
+                    });
+                }
+            }
+        });
+        
+        return Array.from(characterMap.values());
+    }
+    
+    /**
+     * Select main conflict from proposals
+     * @param {Array} conflicts
+     * @returns {Object}
+     */
+    selectMainConflict(conflicts) {
+        if (!conflicts || conflicts.length === 0) return null;
+        
+        // Select conflict with highest priority or first one
+        return conflicts.find(c => c.priority === 'main') || conflicts[0];
+    }
+    
+    /**
+     * Generate default story structure
+     * @returns {Object}
+     */
+    generateDefaultStructure() {
+        return {
+            acts: [
+                { name: '第一幕', description: '設定とキャラクター紹介' },
+                { name: '第二幕', description: '対立と発展' },
+                { name: '第三幕', description: 'クライマックスと解決' }
+            ]
+        };
+    }
+    
+    /**
+     * Organize key scenes chronologically
+     * @param {Array} scenes
+     * @returns {Array}
+     */
+    organizeKeyScenes(scenes) {
+        return scenes.sort((a, b) => {
+            const orderA = a.order || 999;
+            const orderB = b.order || 999;
+            return orderA - orderB;
+        });
+    }
+    
+    /**
+     * Generate initial chapters from plot
+     * @param {Object} plotElements
+     * @returns {Array}
+     */
+    generateInitialChapters(plotElements) {
+        const chapters = [];
+        
+        // Basic structure with 3 acts
+        const acts = plotElements.structure?.acts || [
+            { name: '第一幕', description: '設定' },
+            { name: '第二幕', description: '展開' },
+            { name: '第三幕', description: '解決' }
+        ];
+        
+        // Create chapters based on key scenes and structure
+        if (plotElements.keyScenes && plotElements.keyScenes.length > 0) {
+            plotElements.keyScenes.forEach((scene, index) => {
+                chapters.push({
+                    number: index + 1,
+                    title: scene.title || `第${index + 1}章`,
+                    summary: scene.description,
+                    act: scene.act || 1
+                });
+            });
+        } else {
+            // Generate default chapters
+            acts.forEach((act, actIndex) => {
+                for (let i = 0; i < 3; i++) {
+                    chapters.push({
+                        number: chapters.length + 1,
+                        title: `第${chapters.length + 1}章`,
+                        summary: `${act.name}の${i === 0 ? '開始' : i === 1 ? '中盤' : '終盤'}`,
+                        act: actIndex + 1
+                    });
+                }
+            });
+        }
+        
+        return chapters;
+    }
+    
+    /**
+     * Generate premise from plot elements
+     * @param {Object} plotElements
+     * @returns {string}
+     */
+    generatePremiseFromElements(plotElements) {
+        if (plotElements.themes.length > 0 && plotElements.characters.length > 0) {
+            const mainCharacter = plotElements.characters[0];
+            const theme = plotElements.themes[0];
+            return `${mainCharacter.name}が${theme}について探求する物語`;
+        }
+        return 'A story of discovery and transformation';
     }
 
     /**

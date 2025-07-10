@@ -5,6 +5,7 @@ const DeputyEditorAgent = require('../agents/deputy-editor-agent');
 const WriterAgent = require('../agents/writer-agent');
 const EditorAgent = require('../agents/editor-agent');
 const ProofreaderAgent = require('../agents/proofreader-agent');
+const workflowCoordinator = require('../services/workflow-coordinator-service');
 const { getProjectRepository } = require('../repositories');
 const { v4: uuidv4 } = require('uuid');
 
@@ -39,9 +40,14 @@ function initializeAgentSystem() {
 /**
  * Register agent-related IPC handlers
  */
-function registerAgentHandlers(mainWindow) {
+function registerAgentHandlers(mainWindow, db) {
     // Initialize agent system
     initializeAgentSystem();
+    
+    // Initialize workflow coordinator with database
+    if (db) {
+        workflowCoordinator.initialize(db);
+    }
     
     // Start agent session
     ipcMain.handle('agents:startSession', async (event, data) => {
@@ -65,18 +71,43 @@ function registerAgentHandlers(mainWindow) {
             // Store session
             activeSessions.set(sessionId, sessionData);
             
+            // Map participants to agent IDs
+            const mappedParticipants = [];
+            for (const p of participants) {
+                if (p.startsWith('custom_')) {
+                    // Handle custom agents
+                    const customAgentId = p.replace('custom_', '');
+                    const customAgent = await getCustomAgentById(customAgentId, db);
+                    if (customAgent) {
+                        // Create a dynamic agent instance for custom agents
+                        mappedParticipants.push({
+                            id: p,
+                            customAgent: customAgent
+                        });
+                    }
+                } else {
+                    // Handle built-in agents
+                    switch(p) {
+                        case 'deputy_editor': 
+                            mappedParticipants.push('deputy-editor-1');
+                            break;
+                        case 'writer': 
+                            mappedParticipants.push('writer-1');
+                            break;
+                        case 'editor': 
+                            mappedParticipants.push('editor-1');
+                            break;
+                        case 'proofreader': 
+                            mappedParticipants.push('proofreader-1');
+                            break;
+                    }
+                }
+            }
+            
             // Start session in coordinator
             await agentCoordinator.startSession(sessionId, {
                 type,
-                participants: participants.map(p => {
-                    switch(p) {
-                        case 'deputy_editor': return 'deputy-editor-1';
-                        case 'writer': return 'writer-1';
-                        case 'editor': return 'editor-1';
-                        case 'proofreader': return 'proofreader-1';
-                        default: return null;
-                    }
-                }).filter(Boolean)
+                participants: mappedParticipants
             });
             
             // Set up event forwarding
@@ -92,7 +123,7 @@ function registerAgentHandlers(mainWindow) {
     // Send message to agents
     ipcMain.handle('agents:sendMessage', async (event, data) => {
         try {
-            const { sessionId, message, role } = data;
+            const { sessionId, message, role, plotAspect } = data;
             
             const session = activeSessions.get(sessionId);
             if (!session) {
@@ -106,29 +137,58 @@ function registerAgentHandlers(mainWindow) {
                 timestamp: new Date()
             });
             
-            // Send to agents for processing
-            const results = await agentCoordinator.discussTopic({
-                sessionId,
-                topic: determineTopicFromMessage(message, session.type),
-                content: message,
-                context: session.context
-            });
-            
-            // Process agent responses
-            for (const result of results) {
-                mainWindow.webContents.send('agents:message', {
+            // Handle plot creation mode differently
+            if (session.type === 'plot_creation') {
+                const results = await agentCoordinator.discussPlotCreation({
                     sessionId,
-                    agentType: getAgentTypeFromId(result.agentId),
-                    message: result.contribution.suggestion || result.contribution.viewpoint,
-                    timestamp: new Date()
+                    message,
+                    context: session.context,
+                    plotAspect: plotAspect || 'general'
                 });
                 
-                // Add to session history
-                session.messages.push({
-                    role: result.agentId,
-                    content: result.contribution,
-                    timestamp: new Date()
+                // Process agent responses
+                for (const result of results) {
+                    mainWindow.webContents.send('agents:message', {
+                        sessionId,
+                        agentType: getAgentTypeFromId(result.agentId),
+                        message: result.contribution.suggestion || result.contribution.viewpoint || result.contribution,
+                        plotElements: result.plotElements,
+                        timestamp: new Date()
+                    });
+                    
+                    // Add to session history
+                    session.messages.push({
+                        role: result.agentId,
+                        content: result.contribution,
+                        plotElements: result.plotElements,
+                        timestamp: new Date()
+                    });
+                }
+            } else {
+                // Regular discussion mode
+                const results = await agentCoordinator.discussTopic({
+                    sessionId,
+                    topic: determineTopicFromMessage(message, session.type),
+                    content: message,
+                    context: session.context
                 });
+                
+                // Process agent responses
+                for (const result of results) {
+                    mainWindow.webContents.send('agents:message', {
+                        sessionId,
+                        agentType: getAgentTypeFromId(result.agentId),
+                        message: result.contribution.suggestion || result.contribution.viewpoint,
+                        timestamp: new Date()
+                    });
+                    
+                    // Add to session history
+                    session.messages.push({
+                        role: result.agentId,
+                        content: result.contribution,
+                        timestamp: new Date()
+                    });
+                }
             }
             
             return { success: true };
@@ -221,7 +281,265 @@ function registerAgentHandlers(mainWindow) {
         }
     });
     
+    // Generate plot from session
+    ipcMain.handle('agents:generatePlot', async (event, data) => {
+        try {
+            const { sessionId } = data;
+            
+            const session = activeSessions.get(sessionId);
+            if (!session) {
+                throw new Error('Session not found');
+            }
+            
+            if (session.type !== 'plot_creation') {
+                throw new Error('Session is not a plot creation session');
+            }
+            
+            // Generate final plot
+            const plot = await agentCoordinator.generateFinalPlot(sessionId);
+            
+            // Notify frontend
+            mainWindow.webContents.send('agents:plotGenerated', {
+                sessionId,
+                plot
+            });
+            
+            return { success: true, plot };
+        } catch (error) {
+            logger.error('Failed to generate plot:', error);
+            throw error;
+        }
+    });
+    
+    // Get current plot elements
+    ipcMain.handle('agents:getPlotElements', async (event, data) => {
+        try {
+            const { sessionId } = data;
+            
+            const session = agentCoordinator.getSession(sessionId);
+            if (!session) {
+                throw new Error('Session not found');
+            }
+            
+            return {
+                success: true,
+                plotElements: session.plotElements || null
+            };
+        } catch (error) {
+            logger.error('Failed to get plot elements:', error);
+            throw error;
+        }
+    });
+    
+    // Create custom agent
+    ipcMain.handle('agent:create', async (event, agentData) => {
+        try {
+            logger.info('Creating custom agent:', agentData.name);
+            
+            // Generate unique ID
+            const agentId = `custom-${uuidv4()}`;
+            
+            // Store custom agent
+            const customAgent = {
+                id: agentId,
+                ...agentData,
+                createdAt: new Date().toISOString(),
+                isCustom: true
+            };
+            
+            // Save to database (using settings repository for now)
+            const SettingsRepository = require('../repositories/settings-repository');
+            const settingsRepo = new SettingsRepository(db);
+            
+            // Get existing custom agents
+            const existingAgents = await settingsRepo.get('customAgents') || [];
+            
+            // Add new agent
+            existingAgents.push(customAgent);
+            
+            // Save back
+            await settingsRepo.set('customAgents', existingAgents);
+            
+            logger.info('Custom agent created successfully:', agentId);
+            
+            return {
+                success: true,
+                data: customAgent
+            };
+        } catch (error) {
+            logger.error('Failed to create custom agent:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    });
+    
+    // Get custom agents
+    ipcMain.handle('agent:getCustom', async (event) => {
+        try {
+            const SettingsRepository = require('../repositories/settings-repository');
+            const settingsRepo = new SettingsRepository(db);
+            
+            const customAgents = await settingsRepo.get('customAgents') || [];
+            
+            return {
+                success: true,
+                data: customAgents
+            };
+        } catch (error) {
+            logger.error('Failed to get custom agents:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    });
+    
+    // Delete custom agent
+    ipcMain.handle('agent:delete', async (event, agentId) => {
+        try {
+            const SettingsRepository = require('../repositories/settings-repository');
+            const settingsRepo = new SettingsRepository(db);
+            
+            const customAgents = await settingsRepo.get('customAgents') || [];
+            const filteredAgents = customAgents.filter(agent => agent.id !== agentId);
+            
+            await settingsRepo.set('customAgents', filteredAgents);
+            
+            logger.info('Custom agent deleted:', agentId);
+            
+            return {
+                success: true
+            };
+        } catch (error) {
+            logger.error('Failed to delete custom agent:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    });
+    
+    // Workflow handlers
+    ipcMain.handle('workflow:start', async (event, data) => {
+        try {
+            const { projectId, options } = data;
+            
+            logger.info(`Starting workflow for project ${projectId}`);
+            
+            const workflow = await workflowCoordinator.startWorkflow(projectId, options);
+            
+            // Setup workflow event forwarding
+            setupWorkflowEventForwarding(workflow.id, mainWindow);
+            
+            return { success: true, data: workflow };
+        } catch (error) {
+            logger.error('Failed to start workflow:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    
+    ipcMain.handle('workflow:get', async (event, data) => {
+        try {
+            const { workflowId } = data;
+            const workflow = workflowCoordinator.getWorkflow(workflowId);
+            
+            if (!workflow) {
+                throw new Error('Workflow not found');
+            }
+            
+            return { success: true, data: workflow };
+        } catch (error) {
+            logger.error('Failed to get workflow:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    
+    ipcMain.handle('workflow:transition', async (event, data) => {
+        try {
+            const { workflowId } = data;
+            
+            const workflow = await workflowCoordinator.transitionToNextPhase(workflowId);
+            
+            return { success: true, data: workflow };
+        } catch (error) {
+            logger.error('Failed to transition workflow:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    
+    ipcMain.handle('workflow:pause', async (event, data) => {
+        try {
+            const { workflowId } = data;
+            
+            workflowCoordinator.pauseWorkflow(workflowId);
+            
+            return { success: true };
+        } catch (error) {
+            logger.error('Failed to pause workflow:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    
+    ipcMain.handle('workflow:resume', async (event, data) => {
+        try {
+            const { workflowId } = data;
+            
+            workflowCoordinator.resumeWorkflow(workflowId);
+            
+            return { success: true };
+        } catch (error) {
+            logger.error('Failed to resume workflow:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    
+    ipcMain.handle('workflow:cancel', async (event, data) => {
+        try {
+            const { workflowId } = data;
+            
+            workflowCoordinator.cancelWorkflow(workflowId);
+            
+            return { success: true };
+        } catch (error) {
+            logger.error('Failed to cancel workflow:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    
     logger.info('Agent handlers registered');
+}
+
+/**
+ * Setup workflow event forwarding
+ */
+function setupWorkflowEventForwarding(workflowId, mainWindow) {
+    const coordinator = workflowCoordinator;
+    
+    // Forward workflow events
+    const events = [
+        'workflow:started',
+        'workflow:phase-transitioned',
+        'workflow:plot-creation-started',
+        'workflow:plot-progress',
+        'workflow:plot-completed',
+        'workflow:writing-started',
+        'workflow:chapter-completed',
+        'workflow:review-started',
+        'workflow:completed',
+        'workflow:paused',
+        'workflow:resumed',
+        'workflow:cancelled'
+    ];
+    
+    events.forEach(event => {
+        coordinator.on(event, (data) => {
+            if (data.workflowId === workflowId) {
+                mainWindow.webContents.send(event, data);
+            }
+        });
+    });
 }
 
 /**
@@ -234,6 +552,8 @@ function setupSessionEventForwarding(sessionId, mainWindow) {
     coordinator.removeAllListeners('agent:status');
     coordinator.removeAllListeners('agent:message');
     coordinator.removeAllListeners('session:output');
+    coordinator.removeAllListeners('plot:updated');
+    coordinator.removeAllListeners('plot:generated');
     
     // Forward agent status updates
     coordinator.on('agent:status', (data) => {
@@ -250,6 +570,7 @@ function setupSessionEventForwarding(sessionId, mainWindow) {
                 sessionId: data.sessionId,
                 agentType: getAgentTypeFromId(data.agentId),
                 message: data.message,
+                plotElements: data.plotElements,
                 timestamp: new Date()
             });
         }
@@ -264,6 +585,26 @@ function setupSessionEventForwarding(sessionId, mainWindow) {
                 title: data.title,
                 preview: data.preview,
                 content: data.content
+            });
+        }
+    });
+    
+    // Forward plot updates
+    coordinator.on('plot:updated', (data) => {
+        if (data.sessionId === sessionId) {
+            mainWindow.webContents.send('agents:plotUpdated', {
+                sessionId,
+                plotElements: data.plotElements
+            });
+        }
+    });
+    
+    // Forward plot generation
+    coordinator.on('plot:generated', (data) => {
+        if (data.sessionId === sessionId) {
+            mainWindow.webContents.send('agents:plotGenerated', {
+                sessionId,
+                plot: data.plot
             });
         }
     });
@@ -288,6 +629,11 @@ function determineTopicFromMessage(message, sessionType) {
  * Get agent type from agent ID
  */
 function getAgentTypeFromId(agentId) {
+    // Handle custom agents
+    if (agentId.startsWith('custom_') || agentId.startsWith('custom-')) {
+        return agentId;
+    }
+    
     const mapping = {
         'deputy-editor-1': 'deputy_editor',
         'writer-1': 'writer',
@@ -296,6 +642,22 @@ function getAgentTypeFromId(agentId) {
     };
     
     return mapping[agentId] || 'unknown';
+}
+
+/**
+ * Get custom agent by ID
+ */
+async function getCustomAgentById(agentId, db) {
+    try {
+        const SettingsRepository = require('../repositories/settings-repository');
+        const settingsRepo = new SettingsRepository(db);
+        
+        const customAgents = await settingsRepo.get('customAgents') || [];
+        return customAgents.find(agent => agent.id === agentId);
+    } catch (error) {
+        logger.error('Failed to get custom agent:', error);
+        return null;
+    }
 }
 
 /**

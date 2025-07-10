@@ -16,10 +16,28 @@
                 <h1>NovelDrive</h1>
             </div>
             <ul class="nav-menu">
+                <li class="nav-item active">
+                    <a href="./agent-meeting.html" data-page="agent-meeting">
+                        <span class="icon">🤝</span>
+                        <span>エージェント会議室</span>
+                    </a>
+                </li>
                 <li class="nav-item">
                     <a href="./projects.html" data-page="projects">
                         <span class="icon">📁</span>
                         <span>プロジェクト</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./project-workspace.html" data-page="project-workspace">
+                        <span class="icon">💼</span>
+                        <span>ワークスペース</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./writing-editor.html" data-page="writing-editor">
+                        <span class="icon">✍️</span>
+                        <span>執筆エディタ</span>
                     </a>
                 </li>
                 <li class="nav-item">
@@ -40,14 +58,8 @@
                         <span>ナレッジグラフ</span>
                     </a>
                 </li>
-                <li class="nav-item active">
-                    <a href="#" data-page="agent-meeting">
-                        <span class="icon">🤝</span>
-                        <span>エージェント会議室</span>
-                    </a>
-                </li>
                 <li class="nav-item">
-                    <a href="#" data-page="settings">
+                    <a href="./settings.html" data-page="settings">
                         <span class="icon">⚙️</span>
                         <span>設定</span>
                     </a>
@@ -72,6 +84,9 @@
                 <div class="panel-header">
                     <h3>エージェント状態</h3>
                     <div class="panel-actions">
+                        <button id="create-agent-btn" class="icon-btn" title="新しいエージェントを作成">
+                            <span class="icon">➕</span>
+                        </button>
                         <button id="personality-settings-btn" class="icon-btn" title="人格設定">
                             <span class="icon">🎭</span>
                         </button>
@@ -133,6 +148,14 @@
                         </div>
                     </div>
                 </div>
+                
+                <!-- カスタムエージェントセクション -->
+                <div id="custom-agents-section" style="display: none;">
+                    <h4 class="custom-agents-title">カスタムエージェント</h4>
+                    <div id="custom-agents-grid" class="agents-grid">
+                        <!-- カスタムエージェントがここに動的に追加されます -->
+                    </div>
+                </div>
             </div>
 
             <!-- セッションコントロール -->
@@ -140,6 +163,7 @@
                 <div class="session-type">
                     <label>セッションタイプ</label>
                     <select id="session-type">
+                        <option value="plot_creation">プロット作成モード（新機能）</option>
                         <option value="plot_development">プロット開発</option>
                         <option value="chapter_writing">章執筆</option>
                         <option value="character_development">キャラクター開発</option>
@@ -192,7 +216,7 @@
                                 <span class="icon">📤</span>
                             </button>
                         </div>
-                        <div class="input-actions">
+                        <div class="input-actions" id="default-actions">
                             <button class="action-btn" data-action="request-ideas" disabled>
                                 💡 アイデア要求
                             </button>
@@ -203,11 +227,66 @@
                                 ✏️ 修正要求
                             </button>
                         </div>
+                        <div class="input-actions" id="plot-actions" style="display: none;">
+                            <button class="action-btn" data-action="discuss-theme" disabled>
+                                🎭 テーマ議論
+                            </button>
+                            <button class="action-btn" data-action="discuss-character" disabled>
+                                👥 キャラクター議論
+                            </button>
+                            <button class="action-btn" data-action="discuss-conflict" disabled>
+                                ⚡ 対立議論
+                            </button>
+                            <button class="action-btn" data-action="discuss-structure" disabled>
+                                📐 構造議論
+                            </button>
+                        </div>
                     </div>
                 </div>
 
                 <!-- サイドパネル -->
                 <div class="side-panel">
+                    <!-- プロット要素パネル（プロット作成モード用） -->
+                    <div class="panel-section" id="plot-elements-panel" style="display: none;">
+                        <h4>プロット要素</h4>
+                        <div class="plot-elements" id="plot-elements-content">
+                            <div class="plot-element-section">
+                                <h5>テーマ</h5>
+                                <div id="plot-themes" class="plot-element-list">
+                                    <p class="empty-state">テーマが未設定です</p>
+                                </div>
+                            </div>
+                            <div class="plot-element-section">
+                                <h5>前提・プレミス</h5>
+                                <div id="plot-premise" class="plot-element-content">
+                                    <p class="empty-state">前提が未設定です</p>
+                                </div>
+                            </div>
+                            <div class="plot-element-section">
+                                <h5>キャラクター</h5>
+                                <div id="plot-characters" class="plot-element-list">
+                                    <p class="empty-state">キャラクターが未設定です</p>
+                                </div>
+                            </div>
+                            <div class="plot-element-section">
+                                <h5>設定・世界観</h5>
+                                <div id="plot-setting" class="plot-element-content">
+                                    <p class="empty-state">設定が未設定です</p>
+                                </div>
+                            </div>
+                            <div class="plot-element-section">
+                                <h5>対立・コンフリクト</h5>
+                                <div id="plot-conflicts" class="plot-element-list">
+                                    <p class="empty-state">対立が未設定です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <button id="generate-plot-btn" class="primary-btn full-width" style="margin-top: 1rem;">
+                            <span class="icon">✨</span>
+                            プロット生成
+                        </button>
+                    </div>
+                    
                     <!-- セッション履歴 -->
                     <div class="panel-section">
                         <h4>セッション履歴</h4>
@@ -303,6 +382,8 @@
         </div>
     </div>
 
+    <script src="./js/mock-api.js"></script>
+    <script src="./js/shared/sidebar-component.js"></script>
     <script src="./js/agent-meeting.js"></script>
 </body>
 </html>

@@ -22,6 +22,12 @@
                         <span>プロジェクト</span>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="./project-workspace.html" data-page="project-workspace">
+                        <span class="icon">💼</span>
+                        <span>ワークスペース</span>
+                    </a>
+                </li>
                 <li class="nav-item active">
                     <a href="#" data-page="project-knowledge">
                         <span class="icon">📚</span>
@@ -60,6 +66,10 @@
                     <select id="project-selector" class="project-selector">
                         <option value="">プロジェクトを選択...</option>
                     </select>
+                    <button id="view-graph" class="secondary-btn" disabled onclick="viewKnowledgeGraph()">
+                        <span class="icon">🔗</span>
+                        グラフ表示
+                    </button>
                     <button id="add-knowledge" class="primary-btn" disabled>
                         <span class="icon">➕</span>
                         知識を追加
@@ -300,6 +310,8 @@
         </div>
     </div>
 
+    <script src="./js/mock-api.js"></script>
+    <script src="./js/project-selector.js"></script>
     <script src="./js/project-knowledge.js"></script>
 </body>
 </html>

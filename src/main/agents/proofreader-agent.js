@@ -151,6 +151,120 @@ class ProofreaderAgent extends BaseAgent {
     }
 
     /**
+     * Handle plot creation messages
+     * @param {Object} message
+     * @returns {Promise<Object>}
+     */
+    async handlePlotCreation(message) {
+        const { message: userMessage, plotAspect, currentPlotElements, context } = message.content;
+        
+        this.logger.info(`Proofreader handling plot creation: ${plotAspect}`);
+        
+        // Generate consistency-focused plot suggestions
+        const suggestions = await this.generateConsistencyPlotSuggestions(userMessage, plotAspect, currentPlotElements, context);
+        
+        return {
+            status: 'plot_contribution',
+            perspective: 'consistency_logic',
+            viewpoint: suggestions.viewpoint,
+            logicalIssues: suggestions.logicalIssues,
+            timelineConsiderations: suggestions.timelineConsiderations,
+            worldBuildingRules: suggestions.worldBuildingRules,
+            potentialContradictions: suggestions.potentialContradictions
+        };
+    }
+
+    /**
+     * Generate consistency-focused plot suggestions
+     * @param {string} userMessage
+     * @param {string} plotAspect
+     * @param {Object} currentPlotElements
+     * @param {Object} context
+     * @returns {Promise<Object>}
+     */
+    async generateConsistencyPlotSuggestions(userMessage, plotAspect, currentPlotElements, context) {
+        const systemPrompt = this.getSystemPrompt() || 
+            `You are a Proofreader AI focused on consistency, logic, and plot coherence. 
+            Ensure all plot elements are logically sound and free from contradictions.`;
+        
+        const prompt = `As a proofreader, analyze this plot creation request for consistency:
+User Message: ${userMessage}
+Plot Aspect: ${plotAspect}
+Current Plot Elements: ${JSON.stringify(currentPlotElements, null, 2)}
+
+Provide consistency analysis focusing on:
+1. Logical coherence of plot elements
+2. Timeline consistency
+3. World-building rules and their implications
+4. Potential contradictions or plot holes
+
+Format your response as JSON with the following structure:
+{
+    "viewpoint": "Your perspective on plot consistency and logic",
+    "logicalIssues": [
+        { "element": "...", "issue": "...", "suggestion": "..." }
+    ],
+    "timelineConsiderations": {
+        "chronology": "Analysis of temporal consistency",
+        "keyEvents": [...],
+        "potentialConflicts": [...]
+    },
+    "worldBuildingRules": [
+        { "rule": "...", "implication": "...", "consistency": "..." }
+    ],
+    "potentialContradictions": [
+        { "element1": "...", "element2": "...", "conflict": "...", "resolution": "..." }
+    ]
+}`;
+
+        try {
+            const response = await openAIService.createChatCompletion([
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: prompt }
+            ], {
+                temperature: this.getPersonalityParameters().temperature || 0.6,
+                response_format: { type: "json_object" }
+            });
+            
+            return JSON.parse(response.content);
+        } catch (error) {
+            this.logger.error('Error generating consistency plot suggestions:', error);
+            
+            // Fallback consistency response
+            return {
+                viewpoint: "プロットの論理的整合性と一貫性を確保し、矛盾のない物語構造を目指します。",
+                logicalIssues: plotAspect === 'conflicts' ? [
+                    {
+                        element: "主要な対立",
+                        issue: "動機の明確化が必要",
+                        suggestion: "キャラクターの行動原理を一貫させる"
+                    }
+                ] : [],
+                timelineConsiderations: {
+                    chronology: "時系列の整合性を保ち、因果関係を明確にする",
+                    keyEvents: ["起点となる出来事", "転換点", "結末への道筋"],
+                    potentialConflicts: ["同時進行する出来事の調整が必要"]
+                },
+                worldBuildingRules: plotAspect === 'setting' ? [
+                    {
+                        rule: "世界観の基本法則",
+                        implication: "キャラクターの行動範囲への影響",
+                        consistency: "全編を通じて一貫した適用が必要"
+                    }
+                ] : [],
+                potentialContradictions: [
+                    {
+                        element1: "キャラクターの能力",
+                        element2: "物語の制約",
+                        conflict: "能力と制限の整合性",
+                        resolution: "明確なルール設定による解決"
+                    }
+                ]
+            };
+        }
+    }
+
+    /**
      * Check consistency across the manuscript
      * @param {Object} data
      * @param {Object} context

@@ -3,8 +3,9 @@
     "target": "ES2022",
     "module": "commonjs",
     "lib": ["ES2022", "DOM"],
+    "jsx": "react-jsx",
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": "./",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -29,6 +30,6 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["node"]
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "old"]
+  "include": ["src-electron/**/*", "src-react/**/*", "shared/**/*"],
+  "exclude": ["node_modules", "dist", "old", "src/**/*", "out/**/*"]
 }

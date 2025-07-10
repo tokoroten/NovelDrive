@@ -24,6 +24,15 @@ class BaseRepository {
       throw error;
     }
   }
+  
+  /**
+   * Alias for findById
+   * @param {number} id
+   * @returns {Object|null}
+   */
+  get(id) {
+    return this.findById(id);
+  }
 
   /**
    * Find all records
@@ -207,7 +216,7 @@ class BaseRepository {
    */
   transaction(callback) {
     if (this.db.transaction) {
-      return this.db.transaction(callback)();
+      return this.db.transaction(callback);
     }
     // Fallback for databases without transaction support
     return callback();

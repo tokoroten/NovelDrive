@@ -1,0 +1,43 @@
+{
+  "name": "noveldrive",
+  "version": "1.0.0",
+  "description": "Two-layer creative writing platform with serendipity knowledge management and multi-agent novel creation engine",
+  "main": "src/main/index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dev": "npm start",
+    "vite:dev": "vite",
+    "vite:build": "vite build",
+    "vite:preview": "vite preview",
+    "debug": "vite --open /vite-debug.html",
+    "build": "echo \"Build not configured yet\"",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "rebuild": "electron-rebuild"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tokoroten/NovelDrive.git"
+  },
+  "keywords": ["electron", "creative-writing", "ai", "typescript"],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/tokoroten/NovelDrive/issues"
+  },
+  "homepage": "https://github.com/tokoroten/NovelDrive#readme",
+  "devDependencies": {
+    "@types/node": "^24.0.10",
+    "electron": "^37.2.0",
+    "electron-rebuild": "^3.2.9",
+    "typescript": "^5.8.3",
+    "vite": "^4.5.0"
+  },
+  "dependencies": {
+    "@xenova/transformers": "^2.17.2",
+    "better-sqlite3": "^11.7.0",
+    "uuid": "^11.0.5"
+  }
+}

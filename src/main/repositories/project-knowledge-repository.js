@@ -6,7 +6,7 @@ const { getLogger } = require('../utils/logger');
  */
 class ProjectKnowledgeRepository extends BaseRepository {
     constructor(db) {
-        super(db, 'project_knowledge');
+        super(db, 'knowledge');
         this.logger = getLogger('project-knowledge-repository');
     }
 
@@ -33,7 +33,7 @@ class ProjectKnowledgeRepository extends BaseRepository {
      */
     async getByProject(projectId) {
         try {
-            const items = await this.list({ projectId });
+            const items = await this.findBy('project_id', projectId);
             return items.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
         } catch (error) {
             this.logger.error('Error getting knowledge by project:', error);
@@ -49,8 +49,8 @@ class ProjectKnowledgeRepository extends BaseRepository {
      */
     async getByCategory(projectId, category) {
         try {
-            const items = await this.list({ projectId, category });
-            return items;
+            const items = await this.findBy('project_id', projectId);
+            return items.filter(item => item.category === category);
         } catch (error) {
             this.logger.error('Error getting knowledge by category:', error);
             throw error;

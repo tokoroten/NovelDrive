@@ -9,45 +9,8 @@
     <link rel="stylesheet" href="./styles/projects.css">
 </head>
 <body>
-    <div class="app-container">
-        <!-- サイドバー -->
-        <nav class="sidebar">
-            <div class="app-title">
-                <h1>NovelDrive</h1>
-            </div>
-            <ul class="nav-menu">
-                <li class="nav-item active">
-                    <a href="#" data-page="projects">
-                        <span class="icon">📁</span>
-                        <span>プロジェクト</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#" data-page="anything-box">
-                        <span class="icon">📥</span>
-                        <span>なんでもボックス</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#" data-page="serendipity">
-                        <span class="icon">✨</span>
-                        <span>セレンディピティ</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#" data-page="knowledge-graph">
-                        <span class="icon">🕸️</span>
-                        <span>ナレッジグラフ</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#" data-page="settings">
-                        <span class="icon">⚙️</span>
-                        <span>設定</span>
-                    </a>
-                </li>
-            </ul>
-        </nav>
+    <div class="app-container" id="app-container">
+        <!-- Sidebar will be injected here by component -->
 
         <!-- メインコンテンツ -->
         <main class="main-content">
@@ -124,6 +87,72 @@
         </div>
     </div>
 
+    <!-- プロジェクト編集モーダル -->
+    <div id="edit-project-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>プロジェクト編集</h3>
+                <button class="close-btn" onclick="hideEditProjectModal()">✕</button>
+            </div>
+            <form id="edit-project-form" class="modal-form">
+                <input type="hidden" id="edit-project-id">
+                <div class="form-group">
+                    <label for="edit-project-name">プロジェクト名 <span class="required">*</span></label>
+                    <input type="text" id="edit-project-name" name="name" required 
+                           placeholder="例: 星降る夜の物語">
+                </div>
+                <div class="form-group">
+                    <label for="edit-project-description">説明</label>
+                    <textarea id="edit-project-description" name="description" rows="3"
+                              placeholder="プロジェクトの概要を入力してください"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="edit-project-genre">ジャンル</label>
+                    <select id="edit-project-genre" name="genre">
+                        <option value="">選択してください</option>
+                        <option value="fantasy">ファンタジー</option>
+                        <option value="scifi">SF</option>
+                        <option value="mystery">ミステリー</option>
+                        <option value="romance">恋愛</option>
+                        <option value="literary">純文学</option>
+                        <option value="other">その他</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="edit-target-length">目標文字数</label>
+                    <input type="number" id="edit-target-length" name="targetLength" 
+                           placeholder="100000" min="0" step="1000">
+                </div>
+                <div class="form-group">
+                    <label for="edit-project-status">ステータス</label>
+                    <select id="edit-project-status" name="status">
+                        <option value="planning">企画中</option>
+                        <option value="writing">執筆中</option>
+                        <option value="editing">編集中</option>
+                        <option value="completed">完成</option>
+                        <option value="paused">中断</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="danger-btn" onclick="deleteProject()">
+                        削除
+                    </button>
+                    <div style="flex: 1;"></div>
+                    <button type="button" class="secondary-btn" onclick="hideEditProjectModal()">
+                        キャンセル
+                    </button>
+                    <button type="submit" class="primary-btn">
+                        保存
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="./js/mock-api.js"></script>
+    <script src="./js/shared/global-store.js"></script>
+    <script src="./js/shared/sidebar-component.js"></script>
+    <script src="./js/keyboard-shortcuts.js"></script>
     <script src="./js/projects.js"></script>
 </body>
 </html>

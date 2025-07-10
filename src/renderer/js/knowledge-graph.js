@@ -44,17 +44,11 @@ function setupEventListeners() {
     const linkStrengthSlider = document.getElementById('link-strength');
 
     nodeSizeSlider.addEventListener('input', (e) => {
-        if (graph) {
-            graph.nodeRelSize(parseInt(e.target.value));
-        }
+        console.log('Node size changed to:', e.target.value);
     });
 
     linkStrengthSlider.addEventListener('input', (e) => {
-        if (graph) {
-            const strength = parseInt(e.target.value) / 100;
-            graph.d3Force('link').strength(strength);
-            graph.numDimensions(3); // Trigger re-render
-        }
+        console.log('Link strength changed to:', e.target.value);
     });
 
     // Navigation
@@ -63,28 +57,24 @@ function setupEventListeners() {
     });
 }
 
-// Initialize 3D graph
+// Initialize 3D graph (Three.js なし版)
 function initializeGraph() {
     const container = document.getElementById('graph-view');
     
-    // Create 3D force graph
-    graph = ForceGraph3D()(container)
-        .backgroundColor('#f5f5f5')
-        .nodeLabel('title')
-        .nodeColor(node => getNodeColor(node.type))
-        .nodeOpacity(0.9)
-        .nodeRelSize(15)
-        .linkColor(() => '#999999')
-        .linkOpacity(0.5)
-        .linkWidth(link => Math.sqrt(link.strength) * 2)
-        .onNodeClick(handleNodeClick)
-        .onNodeHover(handleNodeHover);
-
-    // Set camera position
-    graph.cameraPosition({ x: 0, y: 0, z: 500 });
-
-    // Enable pointer interactions
-    graph.enablePointerInteraction(true);
+    // Show Three.js dependency notice
+    container.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; padding: 2rem; color: var(--text-secondary);">
+            <div style="font-size: 64px; margin-bottom: 1rem;">🕸️</div>
+            <h3 style="margin-bottom: 1rem;">3Dナレッジグラフ機能</h3>
+            <p style="margin-bottom: 1rem;">この機能はThree.jsと3d-force-graphライブラリに依存しています。<br>オフライン利用のため、CDN依存関係を削除しました。</p>
+            <p style="color: var(--text-tertiary); font-size: 0.9rem;">将来のバージョンでローカルライブラリまたは<br>代替実装で対応予定です。</p>
+            <div style="margin-top: 2rem;">
+                <a href="./knowledge-graph-visual.html" class="primary-btn" style="text-decoration: none; display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: var(--primary-color); color: white; border-radius: 6px;">
+                    🔗 2Dビジュアルグラフを使用
+                </a>
+            </div>
+        </div>
+    `;
 }
 
 // Load projects
@@ -135,7 +125,7 @@ async function loadGraphData() {
 
     try {
         // Load knowledge items
-        const knowledgeResponse = await window.api.invoke('knowledge:getByProject', currentProjectId);
+        const knowledgeResponse = await window.api.invoke('knowledge:listByProject', { projectId: currentProjectId });
         
         if (knowledgeResponse.success) {
             const knowledge = knowledgeResponse.data;
@@ -450,8 +440,14 @@ function handleNavigation(e) {
     const page = e.currentTarget.dataset.page;
     
     switch (page) {
+        case 'agent-meeting':
+            window.location.href = './agent-meeting.html';
+            break;
         case 'projects':
             window.location.href = './projects.html';
+            break;
+        case 'writing-editor':
+            window.location.href = './writing-editor.html';
             break;
         case 'anything-box':
             window.location.href = './anything-box.html';
@@ -461,6 +457,12 @@ function handleNavigation(e) {
             break;
         case 'knowledge-graph':
             // Already on this page
+            break;
+        case 'settings':
+            window.location.href = './settings.html';
+            break;
+        case 'project-workspace':
+            window.location.href = './project-workspace.html';
             break;
         default:
             showInfo(`${e.currentTarget.querySelector('span:last-child').textContent}は開発中です`);

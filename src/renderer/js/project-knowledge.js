@@ -44,10 +44,19 @@ function initializeEventListeners() {
     });
 }
 
+// View knowledge graph
+function viewKnowledgeGraph() {
+    if (currentProject) {
+        window.location.href = `knowledge-graph-visual.html?project=${currentProject.id}`;
+    }
+}
+
 // Load projects
 async function loadProjects() {
     try {
-        const projects = await window.api.invoke('project:list');
+        const apiInstance = window.api || window.mockAPI;
+        const response = await apiInstance.invoke('project:getAll');
+        const projects = window.mockAPI && response.data ? response.data : response;
         const selector = document.getElementById('project-selector');
         
         selector.innerHTML = '<option value="">プロジェクトを選択...</option>';
@@ -76,13 +85,15 @@ async function handleProjectChange(event) {
     if (!projectId) {
         currentProject = null;
         document.getElementById('add-knowledge').disabled = true;
+        document.getElementById('view-graph').disabled = true;
         displayKnowledge([]);
         return;
     }
     
-    currentProject = projectId;
+    currentProject = { id: parseInt(projectId) };
     localStorage.setItem('currentProjectId', projectId);
     document.getElementById('add-knowledge').disabled = false;
+    document.getElementById('view-graph').disabled = false;
     
     await loadKnowledge();
 }

@@ -3,47 +3,358 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-inline'; style-src 'self' 'unsafe-inline'">
-    <title>NovelDrive</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'">
+    <title>NovelDrive - AI創作支援ツール</title>
+    <link rel="stylesheet" href="./styles/common.css">
     <style>
+        /* Landing page specific styles */
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f5f5f5;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            overflow-x: hidden;
         }
-        .loading-container {
+
+        .landing-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .landing-header {
+            padding: 2rem;
+            text-align: center;
+            position: relative;
+        }
+
+        .app-logo {
+            font-size: 4rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .app-tagline {
+            font-size: 1.5rem;
+            font-weight: 300;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .cta-btn {
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .cta-primary {
+            background-color: white;
+            color: #667eea;
+        }
+
+        .cta-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+
+        .cta-secondary {
+            background-color: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+
+        .cta-secondary:hover {
+            background-color: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+
+        /* Features section */
+        .features-section {
+            flex: 1;
+            padding: 4rem 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .features-title {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 3rem;
+            opacity: 0.9;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .feature-card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 1rem;
+            padding: 2rem;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            background: rgba(255,255,255,0.15);
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .feature-description {
+            font-size: 1rem;
+            opacity: 0.8;
+            line-height: 1.6;
+        }
+
+        /* Quick start */
+        .quick-start {
+            background: rgba(255,255,255,0.1);
+            border-radius: 1rem;
+            padding: 2rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .quick-start-title {
+            font-size: 1.8rem;
+            margin-bottom: 1.5rem;
             text-align: center;
         }
-        .loading-icon {
-            font-size: 48px;
-            animation: spin 2s linear infinite;
-            margin-bottom: 20px;
+
+        .quick-start-steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
         }
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
         }
-        .loading-text {
-            color: #666;
-            font-size: 18px;
+
+        .step-number {
+            width: 2.5rem;
+            height: 2.5rem;
+            background: white;
+            color: #667eea;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .step-text {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+
+        /* Footer */
+        .landing-footer {
+            padding: 2rem;
+            text-align: center;
+            background: rgba(0,0,0,0.2);
+            margin-top: 2rem;
+        }
+
+        .footer-text {
+            opacity: 0.7;
+            font-size: 0.9rem;
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .feature-card,
+        .quick-start {
+            animation: fadeInUp 0.6s ease forwards;
+        }
+
+        .feature-card:nth-child(1) { animation-delay: 0.1s; }
+        .feature-card:nth-child(2) { animation-delay: 0.2s; }
+        .feature-card:nth-child(3) { animation-delay: 0.3s; }
+        .feature-card:nth-child(4) { animation-delay: 0.4s; }
+        .feature-card:nth-child(5) { animation-delay: 0.5s; }
+        .feature-card:nth-child(6) { animation-delay: 0.6s; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .app-logo {
+                font-size: 3rem;
+            }
+            
+            .app-tagline {
+                font-size: 1.2rem;
+            }
+            
+            .features-title {
+                font-size: 2rem;
+            }
+            
+            .cta-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .cta-btn {
+                width: 200px;
+                justify-content: center;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="loading-container">
-        <div class="loading-icon">⏳</div>
-        <div class="loading-text">NovelDriveを起動しています...</div>
+    <div class="landing-container">
+        <!-- Header -->
+        <header class="landing-header">
+            <h1 class="app-logo">📚 NovelDrive</h1>
+            <p class="app-tagline">AIと一緒に創作する、次世代の小説執筆ツール</p>
+            
+            <div class="cta-buttons">
+                <a href="./projects.html" class="cta-btn cta-primary">
+                    <span>🚀</span>
+                    今すぐ始める
+                </a>
+                <a href="./agent-meeting.html" class="cta-btn cta-secondary">
+                    <span>🤝</span>
+                    AIエージェント会議室
+                </a>
+            </div>
+        </header>
+
+        <!-- Features section -->
+        <section class="features-section">
+            <h2 class="features-title">✨ 主な機能</h2>
+            
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <h3 class="feature-title">AI エージェント</h3>
+                    <p class="feature-description">編集者、作家、校正者のAIエージェントが協力してあなたの創作をサポートします</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">✍️</div>
+                    <h3 class="feature-title">高機能エディタ</h3>
+                    <p class="feature-description">章管理、バージョン履歴、検索・置換など、執筆に必要な機能を完備</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3 class="feature-title">プロジェクト管理</h3>
+                    <p class="feature-description">複数のプロジェクトを整理し、進捗を視覚的に管理できます</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🧠</div>
+                    <h3 class="feature-title">ナレッジ管理</h3>
+                    <p class="feature-description">設定資料、キャラクター情報を整理して執筆時に活用</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🎯</div>
+                    <h3 class="feature-title">自動ワークフロー</h3>
+                    <p class="feature-description">プロット作成から執筆、校正まで、AIが段階的にサポート</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🌐</div>
+                    <h3 class="feature-title">オフライン対応</h3>
+                    <p class="feature-description">インターネット接続なしでも基本機能をご利用いただけます</p>
+                </div>
+            </div>
+
+            <!-- Quick start -->
+            <div class="quick-start">
+                <h3 class="quick-start-title">🚀 クイックスタート</h3>
+                <div class="quick-start-steps">
+                    <div class="step">
+                        <div class="step-number">1</div>
+                        <div class="step-text">新しいプロジェクトを作成</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">2</div>
+                        <div class="step-text">AIワークフローを開始</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">3</div>
+                        <div class="step-text">エージェントと協力して執筆</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">4</div>
+                        <div class="step-text">完成した作品をエクスポート</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="landing-footer">
+            <p class="footer-text">© 2024 NovelDrive - AI-Powered Creative Writing Tool</p>
+        </footer>
     </div>
+
     <script>
-        // Redirect to projects page after a short delay
-        setTimeout(() => {
-            window.location.href = './projects.html';
-        }, 1000);
+        // Add smooth scroll behavior for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Add entrance animation delay
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                document.body.style.overflow = 'auto';
+            }, 100);
+        });
     </script>
+    <script src="./js/shared/sidebar-component.js"></script>
 </body>
 </html>

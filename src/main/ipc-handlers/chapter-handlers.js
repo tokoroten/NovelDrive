@@ -10,6 +10,8 @@ const logger = getLogger('chapter-handlers');
  */
 function setupChapterHandlers(db) {
     const dataPath = path.join(app.getPath('userData'), 'chapters');
+    const { RepositoryFactory } = require('../repositories');
+    const repositories = new RepositoryFactory(db);
     
     // Ensure chapters directory exists
     ensureChaptersDirectory();
@@ -98,7 +100,7 @@ function setupChapterHandlers(db) {
     ipcMain.handle('chapter:export', async (event, { plotId, chapterId, format }) => {
         try {
             const content = await getChapterContent(plotId, chapterId);
-            const chapter = await getChapterInfo(plotId, chapterId);
+            const chapter = await getChapterInfo(plotId, chapterId, repositories);
             
             switch (format) {
                 case 'txt':
@@ -119,10 +121,25 @@ function setupChapterHandlers(db) {
     // Get writing statistics
     ipcMain.handle('stats:getWriting', async (event, { projectId }) => {
         try {
-            const stats = await calculateWritingStats(projectId);
+            const stats = await calculateWritingStats(projectId, repositories);
             return stats;
         } catch (error) {
             logger.error('Error getting writing stats:', error);
+            throw error;
+        }
+    });
+
+    // Get chapters by project
+    ipcMain.handle('chapter:list', async (event, projectId) => {
+        try {
+            if (!projectId) {
+                throw new Error('Project ID is required');
+            }
+            
+            const chapters = await repositories.chapters.findBy('project_id', projectId);
+            return chapters;
+        } catch (error) {
+            logger.error('Error listing chapters:', error);
             throw error;
         }
     });
@@ -203,10 +220,8 @@ async function getChapterContent(plotId, chapterId) {
     }
 }
 
-async function getChapterInfo(plotId, chapterId) {
+async function getChapterInfo(plotId, chapterId, repositories) {
     // Get chapter info from database
-    const db = require('../database/sqlite-database').getDatabase();
-    const repositories = db.getRepositories();
     const plot = await repositories.plots.get(plotId);
     
     return plot.chapters.find(ch => ch.id === chapterId);
@@ -265,9 +280,7 @@ function exportAsHTML(chapter, content) {
     };
 }
 
-async function calculateWritingStats(projectId) {
-    const db = require('../database/sqlite-database').getDatabase();
-    const repositories = db.getRepositories();
+async function calculateWritingStats(projectId, repositories) {
     
     let totalChars = 0;
     let todayChars = 0;

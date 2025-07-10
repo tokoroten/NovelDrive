@@ -172,6 +172,108 @@ function registerSettingsHandlers(db) {
         }
     });
 
+    // Backup handlers
+    ipcMain.handle('backup:list', async () => {
+        try {
+            const backupDir = path.join(app.getPath('userData'), 'backups');
+            
+            // Ensure backup directory exists
+            try {
+                await fs.access(backupDir);
+            } catch {
+                await fs.mkdir(backupDir, { recursive: true });
+                return { success: true, data: [] };
+            }
+            
+            const files = await fs.readdir(backupDir);
+            const backups = [];
+            
+            for (const file of files) {
+                if (file.endsWith('.db.backup') || file.endsWith('.backup')) {
+                    const filePath = path.join(backupDir, file);
+                    const stat = await fs.stat(filePath);
+                    
+                    backups.push({
+                        name: file,
+                        path: filePath,
+                        size: stat.size,
+                        created: stat.birthtime,
+                        modified: stat.mtime
+                    });
+                }
+            }
+            
+            // Sort by creation date (newest first)
+            backups.sort((a, b) => new Date(b.created) - new Date(a.created));
+            
+            return { success: true, data: backups };
+        } catch (error) {
+            logger.error('Failed to list backups:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Storage info handler
+    ipcMain.handle('storage:getInfo', async () => {
+        try {
+            const userDataPath = app.getPath('userData');
+            const dbPath = path.join(userDataPath, 'noveldrive.db');
+            const cacheDir = path.join(userDataPath, 'cache');
+            const backupDir = path.join(userDataPath, 'backups');
+            
+            // Get database size
+            let dbSize = 0;
+            try {
+                const dbStat = await fs.stat(dbPath);
+                dbSize = dbStat.size;
+            } catch {
+                // Database might not exist yet
+            }
+            
+            // Get cache size
+            let cacheSize = 0;
+            try {
+                cacheSize = await getDirectorySize(cacheDir);
+            } catch {
+                // Cache directory might not exist
+            }
+            
+            // Get backup size
+            let backupSize = 0;
+            try {
+                backupSize = await getDirectorySize(backupDir);
+            } catch {
+                // Backup directory might not exist
+            }
+            
+            // Get disk space info
+            const diskUsage = await getDiskUsage(userDataPath);
+            
+            return {
+                success: true,
+                data: {
+                    database: {
+                        size: dbSize,
+                        path: dbPath
+                    },
+                    cache: {
+                        size: cacheSize,
+                        path: cacheDir
+                    },
+                    backups: {
+                        size: backupSize,
+                        path: backupDir
+                    },
+                    disk: diskUsage,
+                    total: dbSize + cacheSize + backupSize
+                }
+            };
+        } catch (error) {
+            logger.error('Failed to get storage info:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
     logger.info('Settings handlers registered');
 }
 
@@ -195,6 +297,89 @@ async function clearDirectory(dirPath) {
         if (error.code !== 'ENOENT') {
             throw error;
         }
+    }
+}
+
+// Helper function to get directory size
+async function getDirectorySize(dirPath) {
+    let totalSize = 0;
+    
+    try {
+        const files = await fs.readdir(dirPath);
+        
+        for (const file of files) {
+            const filePath = path.join(dirPath, file);
+            const stat = await fs.stat(filePath);
+            
+            if (stat.isDirectory()) {
+                totalSize += await getDirectorySize(filePath);
+            } else {
+                totalSize += stat.size;
+            }
+        }
+    } catch (error) {
+        if (error.code !== 'ENOENT') {
+            throw error;
+        }
+    }
+    
+    return totalSize;
+}
+
+// Helper function to get disk usage
+async function getDiskUsage(dirPath) {
+    const { execSync } = require('child_process');
+    
+    try {
+        let command;
+        let output;
+        
+        if (process.platform === 'win32') {
+            // Windows: use wmic to get disk free space
+            const drive = path.parse(dirPath).root;
+            command = `wmic logicaldisk where size!="0" get size,freespace,caption`;
+            output = execSync(command, { encoding: 'utf8' });
+            
+            const lines = output.split('\n').filter(line => line.trim());
+            for (const line of lines) {
+                if (line.includes(drive.charAt(0))) {
+                    const parts = line.trim().split(/\s+/);
+                    if (parts.length >= 3) {
+                        return {
+                            free: parseInt(parts[1]) || 0,
+                            total: parseInt(parts[2]) || 0
+                        };
+                    }
+                }
+            }
+        } else {
+            // Unix-like: use df command
+            command = `df -k "${dirPath}"`;
+            output = execSync(command, { encoding: 'utf8' });
+            
+            const lines = output.split('\n');
+            if (lines.length > 1) {
+                const parts = lines[1].trim().split(/\s+/);
+                if (parts.length >= 4) {
+                    return {
+                        free: parseInt(parts[3]) * 1024, // Convert from KB to bytes
+                        total: parseInt(parts[1]) * 1024 // Convert from KB to bytes
+                    };
+                }
+            }
+        }
+        
+        // Fallback if parsing fails
+        return {
+            free: 0,
+            total: 0
+        };
+    } catch (error) {
+        logger.warn('Failed to get disk usage:', error);
+        return {
+            free: 0,
+            total: 0
+        };
     }
 }
 

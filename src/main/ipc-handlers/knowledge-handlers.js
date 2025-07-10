@@ -144,6 +144,33 @@ function registerKnowledgeHandlers(db) {
         }
     });
 
+    // Get links
+    ipcMain.handle('knowledge:getLinks', async (event, { projectId }) => {
+        try {
+            logger.info('Getting knowledge links for project:', projectId);
+            const knowledgeItems = await knowledgeRepo.list(projectId);
+            const links = [];
+            
+            // Extract links from knowledge items
+            for (const item of knowledgeItems) {
+                if (item.related_ids) {
+                    const relatedIds = JSON.parse(item.related_ids);
+                    relatedIds.forEach(relatedId => {
+                        links.push({
+                            source: item.id,
+                            target: relatedId
+                        });
+                    });
+                }
+            }
+            
+            return { success: true, data: links };
+        } catch (error) {
+            logger.error('Failed to get knowledge links:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
     // Export as markdown
     ipcMain.handle('knowledge:exportAsMarkdown', async (event, { projectId }) => {
         try {
@@ -151,6 +178,50 @@ function registerKnowledgeHandlers(db) {
             return { success: true, data: markdown };
         } catch (error) {
             logger.error('Failed to export as markdown:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Get knowledge graph
+    ipcMain.handle('knowledge:getGraph', async (event, projectId) => {
+        try {
+            logger.info('Getting knowledge graph for project:', projectId);
+            // Use the main knowledge repository for graph data
+            const KnowledgeRepository = require('../repositories/knowledge-repository');
+            const mainKnowledgeRepo = new KnowledgeRepository(db);
+            const graphData = await mainKnowledgeRepo.getKnowledgeGraph(projectId);
+            return graphData;
+        } catch (error) {
+            logger.error('Failed to get knowledge graph:', error);
+            throw error;
+        }
+    });
+
+    // Get knowledge subgraph
+    ipcMain.handle('knowledge:getSubgraph', async (event, { nodeId, depth }) => {
+        try {
+            logger.info('Getting knowledge subgraph:', { nodeId, depth });
+            const KnowledgeRepository = require('../repositories/knowledge-repository');
+            const mainKnowledgeRepo = new KnowledgeRepository(db);
+            const subgraph = await mainKnowledgeRepo.getKnowledgeSubgraph(nodeId, depth);
+            return subgraph;
+        } catch (error) {
+            logger.error('Failed to get knowledge subgraph:', error);
+            throw error;
+        }
+    });
+
+    // Get knowledge list by project
+    ipcMain.handle('knowledge:list', async (event, projectId) => {
+        try {
+            if (!projectId) {
+                throw new Error('Project ID is required');
+            }
+            
+            const items = await knowledgeRepo.getByProject(projectId);
+            return { success: true, data: items };
+        } catch (error) {
+            logger.error('Failed to list knowledge:', error);
             return { success: false, error: error.message };
         }
     });

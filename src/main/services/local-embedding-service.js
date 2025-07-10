@@ -1,11 +1,10 @@
-const { pipeline } = require('@xenova/transformers');
-
 class LocalEmbeddingService {
     constructor() {
         this.model = null;
         this.modelName = 'Xenova/multilingual-e5-base';
         this.isInitialized = false;
         this.initPromise = null;
+        this.pipeline = null;
     }
 
     /**
@@ -23,7 +22,10 @@ class LocalEmbeddingService {
     async _initialize() {
         try {
             console.log('Initializing local embedding model...');
-            this.model = await pipeline('feature-extraction', this.modelName);
+            // Dynamic import for ESM module
+            const transformers = await import('@xenova/transformers');
+            this.pipeline = transformers.pipeline;
+            this.model = await this.pipeline('feature-extraction', this.modelName);
             console.log('Local embedding model initialized successfully');
         } catch (error) {
             console.error('Failed to initialize embedding model:', error);

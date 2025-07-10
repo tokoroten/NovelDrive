@@ -4,6 +4,7 @@ const ProjectRepository = require('./project-repository');
 const KnowledgeRepository = require('./knowledge-repository');
 const CharacterRepository = require('./character-repository');
 const PlotRepository = require('./plot-repository');
+const ChapterRepository = require('./chapter-repository');
 const ProjectKnowledgeRepository = require('./project-knowledge-repository');
 const SettingsRepository = require('./settings-repository');
 const AnalyticsRepository = require('./analytics-repository');
@@ -64,9 +65,12 @@ class RepositoryFactory {
     return this._repositories.analytics;
   }
 
-  // Add more repositories as needed
-  // get chapters() { ... }
-  // get discussions() { ... }
+  get chapters() {
+    if (!this._repositories.chapters) {
+      this._repositories.chapters = new ChapterRepository(this.db);
+    }
+    return this._repositories.chapters;
+  }
 }
 
 module.exports = {
@@ -75,6 +79,7 @@ module.exports = {
   KnowledgeRepository,
   CharacterRepository,
   PlotRepository,
+  ChapterRepository,
   ProjectKnowledgeRepository,
   SettingsRepository,
   AnalyticsRepository,

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://unpkg.com; style-src 'self' 'unsafe-inline'; connect-src 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'">
     <title>ナレッジグラフ - NovelDrive</title>
     <link rel="stylesheet" href="./styles/common.css">
     <link rel="stylesheet" href="./styles/knowledge-graph.css">
@@ -17,9 +17,27 @@
             </div>
             <ul class="nav-menu">
                 <li class="nav-item">
+                    <a href="./agent-meeting.html" data-page="agent-meeting">
+                        <span class="icon">🤝</span>
+                        <span>エージェント会議室</span>
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a href="./projects.html" data-page="projects">
                         <span class="icon">📁</span>
                         <span>プロジェクト</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./project-workspace.html" data-page="project-workspace">
+                        <span class="icon">💼</span>
+                        <span>ワークスペース</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./writing-editor.html" data-page="writing-editor">
+                        <span class="icon">✍️</span>
+                        <span>執筆エディタ</span>
                     </a>
                 </li>
                 <li class="nav-item">
@@ -35,13 +53,13 @@
                     </a>
                 </li>
                 <li class="nav-item active">
-                    <a href="#" data-page="knowledge-graph">
+                    <a href="./knowledge-graph.html" data-page="knowledge-graph">
                         <span class="icon">🕸️</span>
                         <span>ナレッジグラフ</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="#" data-page="settings">
+                    <a href="./settings.html" data-page="settings">
                         <span class="icon">⚙️</span>
                         <span>設定</span>
                     </a>
@@ -183,10 +201,7 @@
         </div>
     </div>
 
-    <!-- Three.js for 3D graphics -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- Force-graph-3d for 3D graph visualization -->
-    <script src="https://unpkg.com/3d-force-graph@1"></script>
     <script src="./js/knowledge-graph.js"></script>
+    <script src="./js/project-selector.js"></script>
 </body>
 </html>

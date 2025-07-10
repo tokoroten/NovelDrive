@@ -1,14 +1,17 @@
 const { ipcMain } = require('electron');
 const { getLogger } = require('../utils/logger');
 const openAIService = require('../services/openai-service');
-const { getSettingsRepository } = require('../repositories');
 
 const logger = getLogger('openai-handlers');
 
 /**
  * Register OpenAI-related IPC handlers
+ * @param {BrowserWindow} mainWindow - The main window
+ * @param {Object} db - Database instance
  */
-function registerOpenAIHandlers(mainWindow) {
+function registerOpenAIHandlers(mainWindow, db) {
+    const SettingsRepository = require('../repositories/settings-repository');
+    const settingsRepository = new SettingsRepository(db);
     // Set API key
     ipcMain.handle('openai:setApiKey', async (event, data) => {
         try {
@@ -26,9 +29,10 @@ function registerOpenAIHandlers(mainWindow) {
             // Set API key in service
             openAIService.setApiKey(apiKey);
             
-            // Save to settings
-            const settingsRepo = getSettingsRepository();
-            await settingsRepo.set('openai_api_key', apiKey);
+            // Save to settings with proper structure
+            const currentSettings = await settingsRepository.load();
+            currentSettings.api.openai.apiKey = apiKey;
+            await settingsRepository.save(currentSettings);
             
             logger.info('OpenAI API key updated');
             return { success: true };
@@ -41,14 +45,14 @@ function registerOpenAIHandlers(mainWindow) {
     // Get API configuration
     ipcMain.handle('openai:getConfig', async (event) => {
         try {
-            const settingsRepo = getSettingsRepository();
-            const apiKey = await settingsRepo.get('openai_api_key');
-            const model = await settingsRepo.get('openai_model') || 'gpt-4';
-            const temperature = await settingsRepo.get('openai_temperature') || 0.7;
+            const settings = await settingsRepository.load();
+            const apiKey = settings.api.openai.apiKey;
+            const model = settings.api.openai.model || 'gpt-4o';
+            const temperature = settings.api.openai.temperature || 0.7;
             
             return {
                 isConfigured: openAIService.isConfigured(),
-                hasApiKey: !!apiKey,
+                hasApiKey: !!apiKey && apiKey.length > 0,
                 model,
                 temperature
             };
@@ -62,17 +66,20 @@ function registerOpenAIHandlers(mainWindow) {
     ipcMain.handle('openai:updateSettings', async (event, data) => {
         try {
             const { model, temperature } = data;
-            const settingsRepo = getSettingsRepository();
+            
+            const currentSettings = await settingsRepository.load();
             
             if (model) {
                 openAIService.setModel(model);
-                await settingsRepo.set('openai_model', model);
+                currentSettings.api.openai.model = model;
             }
             
             if (temperature !== undefined) {
                 openAIService.setTemperature(temperature);
-                await settingsRepo.set('openai_temperature', temperature);
+                currentSettings.api.openai.temperature = temperature;
             }
+            
+            await settingsRepository.save(currentSettings);
             
             logger.info('OpenAI settings updated');
             return { success: true };
@@ -192,44 +199,112 @@ function registerOpenAIHandlers(mainWindow) {
         }
     });
     
+    // Test API connection
+    ipcMain.handle('openai:testConnection', async (event, data) => {
+        try {
+            const { apiKey, model = 'gpt-4o', temperature = 0.7 } = data;
+            
+            // Temporarily set API key for testing
+            const originalApiKey = openAIService.apiKey;
+            if (apiKey) {
+                openAIService.setApiKey(apiKey);
+            }
+            
+            // Test with appropriate prompt for the model
+            const startTime = Date.now();
+            let testMessage, maxTokens;
+            
+            if (model.startsWith('o1-')) {
+                testMessage = "小説創作において、魅力的なキャラクターを作るための3つの重要な要素を分析してください。";
+                maxTokens = 200;
+            } else {
+                testMessage = "こんにちは。短く挨拶を返してください。";
+                maxTokens = 50;
+            }
+                
+            const result = await openAIService.generateText(testMessage, {
+                model: model,
+                temperature: temperature,
+                maxTokens: maxTokens
+            });
+            
+            const responseTime = Date.now() - startTime;
+            
+            // Restore original API key
+            if (originalApiKey) {
+                openAIService.setApiKey(originalApiKey);
+            }
+            
+            return {
+                success: true,
+                model: model,
+                testMessage: result,
+                responseTime: responseTime,
+                tokensUsed: result.length, // Approximate
+                modelInfo: getModelInfo(model)
+            };
+        } catch (error) {
+            logger.error('OpenAI API test failed:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    });
+
     // Initialize service with saved settings
-    initializeOpenAIService();
+    initializeOpenAIService(settingsRepository);
     
     logger.info('OpenAI handlers registered');
 }
 
 /**
  * Initialize OpenAI service with saved settings
+ * @param {SettingsRepository} settingsRepository
  */
-async function initializeOpenAIService() {
+async function initializeOpenAIService(settingsRepository) {
     try {
-        const settingsRepo = getSettingsRepository();
+        const settings = await settingsRepository.load();
         
-        // Load saved settings
-        const apiKey = await settingsRepo.get('openai_api_key');
-        const model = await settingsRepo.get('openai_model');
-        const temperature = await settingsRepo.get('openai_temperature');
-        
-        // Apply settings if available
-        if (apiKey) {
-            openAIService.setApiKey(apiKey);
+        if (settings.api.openai.apiKey) {
+            openAIService.setApiKey(settings.api.openai.apiKey);
+            logger.info('OpenAI API key loaded from settings');
         }
         
-        if (model) {
-            openAIService.setModel(model);
+        if (settings.api.openai.model) {
+            openAIService.setModel(settings.api.openai.model);
         }
         
-        if (temperature !== null) {
-            openAIService.setTemperature(temperature);
+        if (settings.api.openai.temperature !== undefined) {
+            openAIService.setTemperature(settings.api.openai.temperature);
         }
         
         logger.info('OpenAI service initialized with saved settings');
     } catch (error) {
         logger.error('Failed to initialize OpenAI service:', error);
-        // Don't throw - service can still be configured later
     }
 }
 
+/**
+ * Get model information
+ * @param {string} model
+ * @returns {string}
+ */
+function getModelInfo(model) {
+    const modelInfo = {
+        'gpt-4o': 'GPT-4o - 最新のマルチモーダルモデル、高性能でコスト効率が良い',
+        'gpt-4o-mini': 'GPT-4o Mini - 軽量版、高速でコスト効率に優れる',
+        'gpt-4-turbo': 'GPT-4 Turbo - 高性能、長いコンテキストをサポート',
+        'gpt-4': 'GPT-4 - 安定版、高い精度と信頼性',
+        'gpt-3.5-turbo': 'GPT-3.5 Turbo - 軽量、高速、一般的なタスクに適している',
+        'o1-preview': 'o1-preview - 推論特化モデル、複雑な問題解決に特化',
+        'o1-mini': 'o1-mini - 推論特化の軽量版、数学や論理的思考に適している'
+    };
+    
+    return modelInfo[model] || `${model} - OpenAI提供モデル`;
+}
+
 module.exports = {
-    registerOpenAIHandlers
+    registerOpenAIHandlers,
+    setupOpenAIHandlers: registerOpenAIHandlers // For backward compatibility
 };

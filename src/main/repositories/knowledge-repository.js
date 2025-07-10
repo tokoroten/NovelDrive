@@ -200,9 +200,9 @@ class KnowledgeRepository extends BaseRepository {
    */
   getKnowledgeGraph(projectId) {
     try {
-      // Get nodes
+      // Get nodes with full details for visualization
       const nodes = this.query(
-        `SELECT id, title, type, created_at 
+        `SELECT id, title, type, content, tags, importance, created_at 
          FROM ${this.tableName} 
          WHERE project_id = ?`,
         [projectId]
@@ -221,6 +221,112 @@ class KnowledgeRepository extends BaseRepository {
       return { nodes, links };
     } catch (error) {
       console.error('Error getting knowledge graph:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get knowledge graph with pagination for large graphs
+   * @param {number} projectId
+   * @param {Object} options
+   * @returns {Object} { nodes, links, hasMore }
+   */
+  getKnowledgeGraphPaginated(projectId, options = {}) {
+    const { limit = 100, offset = 0, types = null } = options;
+    
+    try {
+      let nodeQuery = `
+        SELECT id, title, type, content, tags, importance, created_at 
+        FROM ${this.tableName} 
+        WHERE project_id = ?
+      `;
+      const nodeParams = [projectId];
+
+      if (types && types.length > 0) {
+        const placeholders = types.map(() => '?').join(',');
+        nodeQuery += ` AND type IN (${placeholders})`;
+        nodeParams.push(...types);
+      }
+
+      nodeQuery += ' ORDER BY importance DESC, created_at DESC LIMIT ? OFFSET ?';
+      nodeParams.push(limit + 1, offset); // Get one extra to check if there are more
+
+      const nodes = this.query(nodeQuery, nodeParams);
+      const hasMore = nodes.length > limit;
+      
+      if (hasMore) {
+        nodes.pop(); // Remove the extra node
+      }
+
+      // Get all node IDs for link query
+      const nodeIds = nodes.map(n => n.id);
+      
+      let links = [];
+      if (nodeIds.length > 0) {
+        const placeholders = nodeIds.map(() => '?').join(',');
+        links = this.query(
+          `SELECT * FROM knowledge_links 
+           WHERE source_id IN (${placeholders}) 
+              OR target_id IN (${placeholders})`,
+          [...nodeIds, ...nodeIds]
+        );
+      }
+
+      return { nodes, links, hasMore };
+    } catch (error) {
+      console.error('Error getting paginated knowledge graph:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get knowledge subgraph centered on a specific node
+   * @param {number} nodeId
+   * @param {number} depth - How many levels of connections to include
+   * @returns {Object} { nodes, links }
+   */
+  getKnowledgeSubgraph(nodeId, depth = 2) {
+    try {
+      const visitedNodes = new Set();
+      const nodes = [];
+      const links = [];
+      
+      // BFS to get nodes within depth
+      const queue = [{ id: nodeId, level: 0 }];
+      
+      while (queue.length > 0) {
+        const { id, level } = queue.shift();
+        
+        if (visitedNodes.has(id) || level > depth) continue;
+        visitedNodes.add(id);
+        
+        // Get node details
+        const node = this.findById(id);
+        if (node) {
+          nodes.push(node);
+          
+          if (level < depth) {
+            // Get connected nodes
+            const connectedLinks = this.query(
+              `SELECT * FROM knowledge_links 
+               WHERE source_id = ? OR target_id = ?`,
+              [id, id]
+            );
+            
+            connectedLinks.forEach(link => {
+              links.push(link);
+              const nextId = link.source_id === id ? link.target_id : link.source_id;
+              if (!visitedNodes.has(nextId)) {
+                queue.push({ id: nextId, level: level + 1 });
+              }
+            });
+          }
+        }
+      }
+      
+      return { nodes, links };
+    } catch (error) {
+      console.error('Error getting knowledge subgraph:', error);
       throw error;
     }
   }

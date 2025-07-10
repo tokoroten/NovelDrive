@@ -171,6 +171,107 @@ class ProjectRepository extends BaseRepository {
       throw error;
     }
   }
+
+  /**
+   * Get project statistics
+   * @param {number} projectId
+   * @returns {Object}
+   */
+  getProjectStats(projectId) {
+    try {
+      const query = `
+        SELECT 
+          COUNT(DISTINCT k.id) as knowledge_count,
+          COUNT(DISTINCT c.id) as character_count,
+          COUNT(DISTINCT pl.id) as plot_count,
+          COUNT(DISTINCT ch.id) as chapter_count,
+          COALESCE(SUM(ch.word_count), 0) as total_words
+        FROM projects p
+        LEFT JOIN knowledge k ON p.id = k.project_id
+        LEFT JOIN characters c ON p.id = c.project_id
+        LEFT JOIN plots pl ON p.id = pl.project_id
+        LEFT JOIN chapters ch ON p.id = ch.project_id
+        WHERE p.id = ?
+        GROUP BY p.id
+      `;
+
+      if (this.db.prepare) {
+        const stmt = this.db.prepare(query);
+        return stmt.get(projectId) || {
+          knowledge_count: 0,
+          character_count: 0,
+          plot_count: 0,
+          chapter_count: 0,
+          total_words: 0
+        };
+      }
+      return {
+        knowledge_count: 0,
+        character_count: 0,
+        plot_count: 0,
+        chapter_count: 0,
+        total_words: 0
+      };
+    } catch (error) {
+      console.error('Error getting project stats:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get project timeline
+   * @param {number} projectId
+   * @param {number} limit
+   * @returns {Array}
+   */
+  getTimeline(projectId, limit = 20) {
+    try {
+      const query = `
+        SELECT 
+          'knowledge' as type,
+          title as name,
+          created_at,
+          updated_at
+        FROM knowledge
+        WHERE project_id = ?
+        UNION ALL
+        SELECT 
+          'character' as type,
+          name,
+          created_at,
+          updated_at
+        FROM characters
+        WHERE project_id = ?
+        UNION ALL
+        SELECT 
+          'plot' as type,
+          title as name,
+          created_at,
+          updated_at
+        FROM plots
+        WHERE project_id = ?
+        UNION ALL
+        SELECT 
+          'chapter' as type,
+          title as name,
+          created_at,
+          updated_at
+        FROM chapters
+        WHERE project_id = ?
+        ORDER BY updated_at DESC
+        LIMIT ?
+      `;
+
+      if (this.db.prepare) {
+        const stmt = this.db.prepare(query);
+        return stmt.all(projectId, projectId, projectId, projectId, limit);
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting project timeline:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = ProjectRepository;

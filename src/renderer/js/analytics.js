@@ -30,13 +30,18 @@ function initializeEventListeners() {
 // Load projects
 async function loadProjects() {
     try {
-        const projects = await window.api.invoke('project:list');
+        // Use Mock API if available
+        const response = window.api ? 
+            await window.api.invoke('project:getAll') :
+            await window.mockAPI.invoke('project:getAll');
+            
+        const projects = response.success ? response.data : response;
         const selector = document.getElementById('project-filter');
         
         projects.forEach(project => {
             const option = document.createElement('option');
             option.value = project.id;
-            option.textContent = project.name;
+            option.textContent = project.name || project.title;
             selector.appendChild(option);
         });
         
@@ -45,21 +50,29 @@ async function loadProjects() {
         projects.forEach(project => {
             const option = document.createElement('option');
             option.value = project.id;
-            option.textContent = project.name;
+            option.textContent = project.name || project.title;
             goalSelector.appendChild(option);
         });
     } catch (error) {
         console.error('Failed to load projects:', error);
+        // Load mock data on error
+        loadMockData();
     }
 }
 
 // Load analytics data
 async function loadAnalyticsData() {
     try {
-        const result = await window.api.invoke('analytics:getData', {
-            period: currentPeriod,
-            projectId: currentProject === 'all' ? null : currentProject
-        });
+        // Use Mock API if available
+        const result = window.api ? 
+            await window.api.invoke('analytics:getData', {
+                period: currentPeriod,
+                projectId: currentProject === 'all' ? null : currentProject
+            }) :
+            await window.mockAPI.invoke('analytics:getData', {
+                period: currentPeriod,
+                projectId: currentProject === 'all' ? null : currentProject
+            });
         
         if (result.success) {
             updateSummaryCards(result.data.summary);
@@ -78,63 +91,20 @@ async function loadAnalyticsData() {
 
 // Initialize charts
 function initializeCharts() {
-    // Writing trend chart
-    const trendCtx = document.getElementById('writing-trend-chart').getContext('2d');
-    charts.trend = new Chart(trendCtx, {
-        type: 'line',
-        data: {
-            labels: [],
-            datasets: [{
-                label: '文字数',
-                data: [],
-                borderColor: 'rgb(75, 192, 192)',
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                tension: 0.4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            }
-        }
-    });
+    // Initialize empty chart containers
+    charts.trend = {
+        data: { labels: [], values: [] },
+        container: document.getElementById('writing-trend-chart')
+    };
     
-    // Project stats chart
-    const projectCtx = document.getElementById('project-stats-chart').getContext('2d');
-    charts.project = new Chart(projectCtx, {
-        type: 'doughnut',
-        data: {
-            labels: [],
-            datasets: [{
-                data: [],
-                backgroundColor: [
-                    'rgba(255, 99, 132, 0.8)',
-                    'rgba(54, 162, 235, 0.8)',
-                    'rgba(255, 205, 86, 0.8)',
-                    'rgba(75, 192, 192, 0.8)',
-                    'rgba(153, 102, 255, 0.8)'
-                ]
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'right'
-                }
-            }
-        }
-    });
+    charts.project = {
+        data: { labels: [], values: [] },
+        container: document.getElementById('project-stats-chart')
+    };
+    
+    // Create initial empty charts
+    createBarChart(charts.trend.container, [], []);
+    createDonutChart(charts.project.container, [], []);
 }
 
 // Update summary cards
@@ -149,16 +119,18 @@ function updateSummaryCards(summary) {
 function updateCharts(data) {
     // Update trend chart
     charts.trend.data.labels = data.trend.labels;
-    charts.trend.data.datasets[0].data = data.trend.values;
-    charts.trend.update();
+    charts.trend.data.values = data.trend.values;
+    createBarChart(charts.trend.container, data.trend.labels, data.trend.values);
     
     // Update project chart
-    charts.project.data.labels = data.projects.map(p => p.name);
-    charts.project.data.datasets[0].data = data.projects.map(p => p.words);
-    charts.project.update();
+    const projectLabels = data.projects.map(p => p.name);
+    const projectValues = data.projects.map(p => p.words);
+    charts.project.data.labels = projectLabels;
+    charts.project.data.values = projectValues;
+    createDonutChart(charts.project.container, projectLabels, projectValues);
 }
 
-// Update heatmap
+// Update heatmap with animations
 function updateHeatmap(heatmapData) {
     const container = document.getElementById('writing-heatmap');
     container.innerHTML = '';
@@ -171,6 +143,8 @@ function updateHeatmap(heatmapData) {
         for (let day = 0; day < days; day++) {
             const cell = document.createElement('div');
             cell.className = 'heatmap-cell';
+            cell.style.opacity = '0';
+            cell.style.transform = 'scale(0.8)';
             
             const date = new Date();
             date.setDate(date.getDate() - ((weeks - week - 1) * 7 + (6 - day)));
@@ -178,9 +152,33 @@ function updateHeatmap(heatmapData) {
             
             const data = heatmapData[dateStr] || { level: 0, words: 0 };
             cell.dataset.level = data.level;
-            cell.title = `${dateStr}: ${data.words}文字`;
+            
+            // Enhanced tooltip
+            const tooltip = document.createElement('div');
+            tooltip.className = 'heatmap-tooltip';
+            tooltip.innerHTML = `
+                <div class="tooltip-date">${formatDate(date)}</div>
+                <div class="tooltip-words">${formatNumber(data.words)} 文字</div>
+                <div class="tooltip-level">レベル ${data.level}/4</div>
+            `;
+            cell.appendChild(tooltip);
+            
+            // Add interactive events
+            cell.addEventListener('mouseenter', showHeatmapTooltip);
+            cell.addEventListener('mouseleave', hideHeatmapTooltip);
+            cell.addEventListener('click', () => {
+                showDateDetails(dateStr, data);
+            });
             
             container.appendChild(cell);
+            
+            // Animate cell appearance
+            const delay = (week * days + day) * 5; // Stagger animation
+            setTimeout(() => {
+                cell.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                cell.style.opacity = '1';
+                cell.style.transform = 'scale(1)';
+            }, delay);
         }
     }
 }
@@ -268,32 +266,197 @@ function handleChartTabChange(event) {
 
 // Update trend chart
 function updateTrendChart(type) {
-    const datasets = {
-        words: {
-            label: '文字数',
-            borderColor: 'rgb(75, 192, 192)',
-            backgroundColor: 'rgba(75, 192, 192, 0.2)'
-        },
-        time: {
-            label: '時間（分）',
-            borderColor: 'rgb(255, 99, 132)',
-            backgroundColor: 'rgba(255, 99, 132, 0.2)'
-        },
-        sessions: {
-            label: 'セッション数',
-            borderColor: 'rgb(54, 162, 235)',
-            backgroundColor: 'rgba(54, 162, 235, 0.2)'
+    // For now, use the same data but would normally fetch different data based on type
+    const labels = charts.trend.data.labels;
+    const values = charts.trend.data.values;
+    
+    // Update chart with current data
+    createBarChart(charts.trend.container, labels, values);
+}
+
+// Create CSS-based bar chart with animations
+function createBarChart(container, labels, values) {
+    if (!container) return;
+    
+    container.innerHTML = '';
+    container.className = 'css-chart';
+    
+    if (!labels.length || !values.length) {
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">データがありません</div>';
+        return;
+    }
+    
+    const maxValue = Math.max(...values);
+    
+    labels.forEach((label, index) => {
+        const value = values[index];
+        const height = maxValue > 0 ? (value / maxValue) * 80 : 0; // 80% max height
+        
+        const bar = document.createElement('div');
+        bar.className = 'chart-bar';
+        bar.style.height = '0%';
+        bar.style.opacity = '0';
+        bar.innerHTML = `
+            <div class="chart-bar-value">${formatNumber(value)}</div>
+            <div class="chart-bar-label">${label}</div>
+            <div class="chart-tooltip">
+                <div class="tooltip-content">
+                    <strong>${label}</strong><br>
+                    ${formatNumber(value)} 文字
+                </div>
+            </div>
+        `;
+        
+        // Add hover events for tooltip
+        bar.addEventListener('mouseenter', showChartTooltip);
+        bar.addEventListener('mouseleave', hideChartTooltip);
+        
+        container.appendChild(bar);
+        
+        // Animate bar with delay
+        setTimeout(() => {
+            bar.style.transition = 'height 0.8s ease, opacity 0.8s ease';
+            bar.style.height = `${height}%`;
+            bar.style.opacity = '1';
+        }, index * 100);
+    });
+}
+
+// Create CSS-based donut chart with animations
+function createDonutChart(container, labels, values) {
+    if (!container) return;
+    
+    container.innerHTML = '';
+    container.className = 'css-chart css-donut-chart';
+    
+    if (!labels.length || !values.length) {
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">データがありません</div>';
+        return;
+    }
+    
+    const total = values.reduce((sum, value) => sum + value, 0);
+    
+    // Generate colors
+    const colors = [
+        'var(--primary-color)',
+        'var(--secondary-color)', 
+        'var(--accent-color)',
+        'var(--warning-color)',
+        'var(--success-color)'
+    ];
+    
+    // Create donut chart
+    let cumulativeAngle = 0;
+    const gradientParts = [];
+    const segments = [];
+    
+    values.forEach((value, index) => {
+        const percentage = (value / total) * 100;
+        const angle = (value / total) * 360;
+        const color = colors[index % colors.length];
+        
+        gradientParts.push(`${color} ${cumulativeAngle}deg ${cumulativeAngle + angle}deg`);
+        segments.push({
+            label: labels[index],
+            value: value,
+            percentage: percentage,
+            color: color,
+            startAngle: cumulativeAngle,
+            endAngle: cumulativeAngle + angle
+        });
+        cumulativeAngle += angle;
+    });
+    
+    const donutContainer = document.createElement('div');
+    donutContainer.className = 'donut-container';
+    
+    const donutChart = document.createElement('div');
+    donutChart.className = 'donut-chart animated-donut';
+    donutChart.style.background = `conic-gradient(var(--bg-secondary) 0deg 360deg)`;
+    
+    // Add interactive tooltip
+    const tooltip = document.createElement('div');
+    tooltip.className = 'donut-tooltip';
+    tooltip.style.display = 'none';
+    donutContainer.appendChild(tooltip);
+    
+    // Add hover functionality
+    donutChart.addEventListener('mousemove', (e) => {
+        const rect = donutChart.getBoundingClientRect();
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const x = e.clientX - rect.left - centerX;
+        const y = e.clientY - rect.top - centerY;
+        
+        const angle = (Math.atan2(y, x) * 180 / Math.PI + 90 + 360) % 360;
+        
+        const segment = segments.find(s => angle >= s.startAngle && angle < s.endAngle);
+        if (segment) {
+            tooltip.innerHTML = `
+                <div class="tooltip-title">${segment.label}</div>
+                <div class="tooltip-value">${formatNumber(segment.value)} 文字</div>
+                <div class="tooltip-percentage">${segment.percentage.toFixed(1)}%</div>
+            `;
+            tooltip.style.display = 'block';
+            tooltip.style.left = e.clientX - rect.left + 'px';
+            tooltip.style.top = e.clientY - rect.top + 'px';
+        } else {
+            tooltip.style.display = 'none';
         }
-    };
+    });
     
-    charts.trend.data.datasets[0] = {
-        ...charts.trend.data.datasets[0],
-        ...datasets[type]
-    };
+    donutChart.addEventListener('mouseleave', () => {
+        tooltip.style.display = 'none';
+    });
     
-    // Update with appropriate data
-    // This would fetch different data based on type
-    charts.trend.update();
+    const donutCenter = document.createElement('div');
+    donutCenter.className = 'donut-center';
+    donutCenter.innerHTML = `
+        <div class="donut-center-value">0</div>
+        <div class="donut-center-label">総文字数</div>
+    `;
+    
+    donutContainer.appendChild(donutChart);
+    donutContainer.appendChild(donutCenter);
+    
+    // Create legend with animations
+    const legend = document.createElement('div');
+    legend.className = 'donut-legend';
+    
+    labels.forEach((label, index) => {
+        const value = values[index];
+        const color = colors[index % colors.length];
+        
+        const legendItem = document.createElement('div');
+        legendItem.className = 'donut-legend-item';
+        legendItem.style.opacity = '0';
+        legendItem.style.transform = 'translateY(10px)';
+        legendItem.innerHTML = `
+            <div class="donut-legend-color" style="background-color: ${color}"></div>
+            <span>${label}: ${formatNumber(value)}</span>
+        `;
+        
+        legend.appendChild(legendItem);
+        
+        // Animate legend items
+        setTimeout(() => {
+            legendItem.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+            legendItem.style.opacity = '1';
+            legendItem.style.transform = 'translateY(0)';
+        }, index * 150);
+    });
+    
+    container.appendChild(donutContainer);
+    container.appendChild(legend);
+    
+    // Animate donut chart
+    setTimeout(() => {
+        donutChart.style.transition = 'background 1s ease';
+        donutChart.style.background = `conic-gradient(${gradientParts.join(', ')})`;
+        
+        // Animate center value
+        animateNumber(donutCenter.querySelector('.donut-center-value'), 0, total, 1000);
+    }, 300);
 }
 
 // Export data
@@ -428,4 +591,63 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Utility functions for animations and interactions
+function showChartTooltip(event) {
+    const tooltip = event.currentTarget.querySelector('.chart-tooltip');
+    if (tooltip) {
+        tooltip.style.display = 'block';
+    }
+}
+
+function hideChartTooltip(event) {
+    const tooltip = event.currentTarget.querySelector('.chart-tooltip');
+    if (tooltip) {
+        tooltip.style.display = 'none';
+    }
+}
+
+function showHeatmapTooltip(event) {
+    const tooltip = event.currentTarget.querySelector('.heatmap-tooltip');
+    if (tooltip) {
+        tooltip.style.display = 'block';
+    }
+}
+
+function hideHeatmapTooltip(event) {
+    const tooltip = event.currentTarget.querySelector('.heatmap-tooltip');
+    if (tooltip) {
+        tooltip.style.display = 'none';
+    }
+}
+
+function showDateDetails(dateStr, data) {
+    alert(`${dateStr}\n文字数: ${formatNumber(data.words)}\nレベル: ${data.level}/4`);
+}
+
+function formatDate(date) {
+    return date.toLocaleDateString('ja-JP', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
+}
+
+function animateNumber(element, start, end, duration) {
+    const startTime = performance.now();
+    
+    function update(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        const current = Math.floor(start + (end - start) * progress);
+        element.textContent = formatNumber(current);
+        
+        if (progress < 1) {
+            requestAnimationFrame(update);
+        }
+    }
+    
+    requestAnimationFrame(update);
 }

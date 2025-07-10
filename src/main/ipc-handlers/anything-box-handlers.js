@@ -13,37 +13,74 @@ function setupAnythingBoxHandlers(db) {
   const anythingBoxService = new AnythingBoxService(repositories);
   
   // Process text input
-  ipcMain.handle('anythingBox:processText', errorHandler.wrapIPCHandler(async (event, projectId, text, options) => {
-    if (!projectId) {
-      throw new ValidationError('Project ID is required', 'projectId');
-    }
-    
-    if (!text || typeof text !== 'string') {
-      throw new ValidationError('Text content is required', 'text');
-    }
+  ipcMain.handle('anythingBox:processText', async (event, data) => {
+    try {
+      console.log('anythingBox:processText called with:', data);
+      
+      const { projectId, text, options } = data || {};
+      
+      if (!projectId) {
+        throw new ValidationError('Project ID is required', 'projectId');
+      }
+      
+      if (!text || typeof text !== 'string' || text.trim() === '') {
+        console.error('Text validation failed:', { 
+          text, 
+          type: typeof text, 
+          trimmed: text?.trim()
+        });
+        throw new ValidationError('Text content is required', 'text');
+      }
 
-    return anythingBoxService.processText(projectId, text, options);
-  }, 'anythingBox:processText'));
+      const result = await anythingBoxService.processText(projectId, text, options);
+      return { success: true, data: result };
+    } catch (error) {
+      errorHandler.handle(error, 'anythingBox:processText');
+      return { 
+        success: false, 
+        error: {
+          message: error.message,
+          type: error.name
+        }
+      };
+    }
+  });
 
   // Process URL input
-  ipcMain.handle('anythingBox:processURL', errorHandler.wrapIPCHandler(async (event, projectId, url, options) => {
-    if (!projectId) {
-      throw new ValidationError('Project ID is required', 'projectId');
-    }
-    
-    if (!url || typeof url !== 'string') {
-      throw new ValidationError('URL is required', 'url');
-    }
-
-    // Basic URL validation
+  ipcMain.handle('anythingBox:processURL', async (event, data) => {
     try {
-      new URL(url);
-    } catch (error) {
-      throw new ValidationError('Invalid URL format', 'url');
-    }
+      console.log('anythingBox:processURL called with:', data);
+      
+      const { projectId, url, options } = data || {};
+      
+      if (!projectId) {
+        throw new ValidationError('Project ID is required', 'projectId');
+      }
+      
+      if (!url || typeof url !== 'string') {
+        throw new ValidationError('URL is required', 'url');
+      }
 
-    return anythingBoxService.processURL(projectId, url, options);
-  }, 'anythingBox:processURL'));
+      // Basic URL validation
+      try {
+        new URL(url);
+      } catch (error) {
+        throw new ValidationError('Invalid URL format', 'url');
+      }
+
+      const result = await anythingBoxService.processURL(projectId, url, options);
+      return { success: true, data: result };
+    } catch (error) {
+      errorHandler.handle(error, 'anythingBox:processURL');
+      return { 
+        success: false, 
+        error: {
+          message: error.message,
+          type: error.name
+        }
+      };
+    }
+  });
 
   // Process image input
   ipcMain.handle('anythingBox:processImage', errorHandler.wrapIPCHandler(async (event, projectId, imagePath, options) => {
@@ -59,13 +96,27 @@ function setupAnythingBoxHandlers(db) {
   }, 'anythingBox:processImage'));
 
   // Get recent entries
-  ipcMain.handle('anythingBox:getRecent', errorHandler.wrapIPCHandler(async (event, projectId, limit) => {
-    if (!projectId) {
-      throw new ValidationError('Project ID is required', 'projectId');
-    }
+  ipcMain.handle('anythingBox:getRecent', async (event, data) => {
+    try {
+      const { projectId, limit = 50 } = data || {};
+      
+      if (!projectId) {
+        throw new ValidationError('Project ID is required', 'projectId');
+      }
 
-    return anythingBoxService.getRecentEntries(projectId, limit);
-  }, 'anythingBox:getRecent'));
+      const result = await anythingBoxService.getRecentEntries(projectId, limit);
+      return { success: true, data: result };
+    } catch (error) {
+      errorHandler.handle(error, 'anythingBox:getRecent');
+      return { 
+        success: false, 
+        error: {
+          message: error.message,
+          type: error.name
+        }
+      };
+    }
+  });
 
   // Search entries
   ipcMain.handle('anythingBox:search', errorHandler.wrapIPCHandler(async (event, projectId, query) => {
@@ -97,6 +148,37 @@ function setupAnythingBoxHandlers(db) {
 
     return repositories.knowledge.delete(entryId);
   }, 'anythingBox:delete'));
+
+  // Abstract idea
+  ipcMain.handle('anythingBox:abstract', errorHandler.wrapIPCHandler(async (event, data) => {
+    if (!data.content) {
+      throw new ValidationError('Content is required', 'content');
+    }
+
+    return anythingBoxService.abstractIdea(data.content, data.type, data.projectId);
+  }, 'anythingBox:abstract'));
+
+  // Concretize abstractions
+  ipcMain.handle('anythingBox:concretize', errorHandler.wrapIPCHandler(async (event, data) => {
+    if (!data.abstractions || !Array.isArray(data.abstractions)) {
+      throw new ValidationError('Abstractions array is required', 'abstractions');
+    }
+
+    return anythingBoxService.concretizeIdea(data.abstractions, data.originalContent, data.projectId);
+  }, 'anythingBox:concretize'));
+
+  // Create new entry
+  ipcMain.handle('anythingBox:create', errorHandler.wrapIPCHandler(async (event, data) => {
+    if (!data.projectId) {
+      throw new ValidationError('Project ID is required', 'projectId');
+    }
+    
+    if (!data.content) {
+      throw new ValidationError('Content is required', 'content');
+    }
+
+    return anythingBoxService.createEntry(data);
+  }, 'anythingBox:create'));
 }
 
 module.exports = setupAnythingBoxHandlers;

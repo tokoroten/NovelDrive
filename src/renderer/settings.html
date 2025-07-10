@@ -17,15 +17,21 @@
             </div>
             <ul class="nav-menu">
                 <li class="nav-item">
+                    <a href="./agent-meeting.html" data-page="agent-meeting">
+                        <span class="icon">🤝</span>
+                        <span>エージェント会議室</span>
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a href="./projects.html" data-page="projects">
                         <span class="icon">📁</span>
                         <span>プロジェクト</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="./project-knowledge.html" data-page="project-knowledge">
-                        <span class="icon">📚</span>
-                        <span>プロジェクト知識</span>
+                    <a href="./project-workspace.html" data-page="project-workspace">
+                        <span class="icon">💼</span>
+                        <span>ワークスペース</span>
                     </a>
                 </li>
                 <li class="nav-item">
@@ -35,13 +41,25 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="./agent-meeting.html" data-page="agent-meeting">
-                        <span class="icon">🤝</span>
-                        <span>エージェント会議室</span>
+                    <a href="./anything-box.html" data-page="anything-box">
+                        <span class="icon">📥</span>
+                        <span>なんでもボックス</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./serendipity.html" data-page="serendipity">
+                        <span class="icon">✨</span>
+                        <span>セレンディピティ</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="./knowledge-graph.html" data-page="knowledge-graph">
+                        <span class="icon">🕸️</span>
+                        <span>ナレッジグラフ</span>
                     </a>
                 </li>
                 <li class="nav-item active">
-                    <a href="#" data-page="settings">
+                    <a href="./settings.html" data-page="settings">
                         <span class="icon">⚙️</span>
                         <span>設定</span>
                     </a>
@@ -55,6 +73,16 @@
                 <div>
                     <h2>設定</h2>
                     <p class="page-description">アプリケーションの設定を管理</p>
+                </div>
+                <div class="header-actions">
+                    <button class="secondary-btn" onclick="resetSettings()">
+                        <span class="icon">↩️</span>
+                        デフォルトに戻す
+                    </button>
+                    <button class="primary-btn" onclick="saveSettings()">
+                        <span class="icon">💾</span>
+                        設定を保存
+                    </button>
                 </div>
             </header>
 
@@ -103,16 +131,25 @@
                                         <span class="icon">👁️</span>
                                     </button>
                                 </div>
-                                <small class="help-text">OpenAI APIキーを入力してください</small>
+                                <small class="help-text">
+                                    OpenAI APIキーを入力してください
+                                    <a href="#" onclick="openExternalLink('https://platform.openai.com/api-keys')" class="external-link">
+                                        APIキーを取得 <span class="icon">🔗</span>
+                                    </a>
+                                </small>
                             </div>
                             
                             <div class="form-group">
                                 <label for="openai-model">使用モデル</label>
                                 <select id="openai-model">
-                                    <option value="gpt-4">GPT-4</option>
-                                    <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                                    <option value="gpt-4o" selected>GPT-4o (推奨・最新)</option>
+                                    <option value="gpt-4o-mini">GPT-4o Mini (高速・低コスト)</option>
+                                    <option value="o3">o3 (最新・最高性能推論モデル)</option>
+                                    <option value="o3-mini">o3-mini (推論特化・バランス型)</option>
+                                    <option value="o1-preview">o1-preview (推論特化・複雑な問題解決)</option>
+                                    <option value="o1-mini">o1-mini (推論特化・軽量版)</option>
                                 </select>
+                                <small class="help-text">o1/o3モデルは複雑な推論タスクに特化しており、調べものや複雑な創作課題に適しています</small>
                             </div>
                             
                             <div class="form-group">
@@ -122,6 +159,18 @@
                                     <span class="slider-value">0.7</span>
                                 </div>
                                 <small class="help-text">創造性の度合い（0: 確定的、2: 最大創造性）</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <button class="secondary-btn" id="test-openai-connection" onclick="testOpenAIConnection()">
+                                    <span class="icon">🔍</span>
+                                    接続テスト
+                                </button>
+                                <small class="help-text">OpenAI APIの接続とAPIキーの有効性を確認</small>
+                                <div id="api-test-result" class="api-test-result" style="display: none;">
+                                    <div class="test-status"></div>
+                                    <div class="test-details"></div>
+                                </div>
                             </div>
                         </div>
 
@@ -368,7 +417,7 @@
                             </div>
                             
                             <div class="app-links">
-                                <button class="secondary-btn" onclick="openExternal('https://github.com/yourusername/noveldrive')">
+                                <button class="secondary-btn" onclick="openExternal('https://github.com/tokoroten/noveldrive')">
                                     <span class="icon">🔗</span>
                                     GitHubで見る
                                 </button>
@@ -393,20 +442,13 @@
                 </div>
             </div>
 
-            <!-- 保存ボタン -->
-            <div class="settings-actions">
-                <button class="primary-btn" onclick="saveSettings()">
-                    <span class="icon">💾</span>
-                    設定を保存
-                </button>
-                <button class="secondary-btn" onclick="resetSettings()">
-                    <span class="icon">↩️</span>
-                    デフォルトに戻す
-                </button>
-            </div>
         </main>
     </div>
 
+    <script src="./js/mock-api.js"></script>
+    <script src="./js/project-selector.js"></script>
+    <script src="./js/state-manager.js"></script>
     <script src="./js/settings.js"></script>
+    <script src="./js/settings-verify.js"></script>
 </body>
 </html>
