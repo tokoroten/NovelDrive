@@ -71,7 +71,9 @@ NovelDrive v3は、複数のAIエージェントが協働してドキュメン�
   title: string,
   participantIds: string[],
   documentId: string,
-  createdAt: Date
+  currentResponseId: string, // 最新のOpenAI Response ID
+  createdAt: Date,
+  updatedAt: Date
 }
 
 // documents - ドキュメント
@@ -84,15 +86,16 @@ NovelDrive v3は、複数のAIエージェントが協働してドキュメン�
   updatedAt: Date
 }
 
-// messages - 会話ログ
+// conversationTurns - 会話ログ（ローカル管理）
 {
   id: string,
   meetingId: string,
-  speaker: string,
+  speaker: string, // "user" または agentId
   message: string,
+  targetAgent?: string, // ユーザーが指定した発言先
+  responseId?: string, // AIの場合のOpenAI Response ID
   editRequest?: object,
   editAction?: object,
-  nextSpeaker: object,
   timestamp: Date
 }
 
@@ -118,7 +121,49 @@ NovelDrive v3は、複数のAIエージェントが協働してドキュメン�
 }
 ```
 
+## API実装方針
+
+### OpenAI Responses APIの活用
+
+NovelDrive v3では、OpenAIの新しいResponses APIを使用して効率的な会話管理を実現します。
+
+**主な利点:**
+- `previous_response_id`による会話の継続性
+- 全履歴を毎回送信する必要がない
+- OpenAI側での会話状態管理
+- トレーサビリティの確保（Response IDによる履歴追跡）
+
+### 実装アーキテクチャ
+
+```typescript
+// 初回の応答
+const firstResponse = await openai.responses.create({
+  model: "gpt-4o",
+  instructions: agentSystemPrompt,
+  input: userInput,
+  text: {
+    format: {
+      type: "json_schema",
+      json_schema: {
+        name: "agent_response",
+        schema: agentResponseSchema
+      }
+    }
+  }
+});
+
+// 継続応答（履歴送信不要）
+const nextResponse = await openai.responses.create({
+  model: "gpt-4o",
+  instructions: nextAgentSystemPrompt,
+  input: nextInput,
+  previous_response_id: firstResponse.id
+});
+```
+
 ## 会話フローとStructured Output
+
+### エージェントの応答構造
 
 エージェントの発言は以下のJSON構造で制御されます：
 
@@ -143,6 +188,33 @@ NovelDrive v3は、複数のAIエージェントが協働してドキュメン�
   }
 }
 ```
+
+### ユーザー入力の処理
+
+ユーザーは特定のエージェントを指定して話しかけることができます：
+
+1. **発言先の選択**
+   - 特定のエージェントを選択
+   - 「誰でも」を選択（ランダムなエージェントが応答）
+
+2. **データフロー**
+   ```typescript
+   // ユーザー入力はIndexedDBに保存
+   await saveUserMessage(meetingId, userMessage, targetAgentId);
+   
+   // 対象エージェントが応答
+   const response = await openai.responses.create({
+     model: "gpt-4o",
+     instructions: targetAgent.systemPrompt,
+     input: `[ユーザーから${agentName}への発言]\n${userMessage}`,
+     previous_response_id: meeting.currentResponseId
+   });
+   ```
+
+3. **会話の継続性**
+   - ユーザー発言とAI応答を別々に管理
+   - Response IDで会話チェーンを維持
+   - 表示時に統合して自然な会話ログを生成
 
 ## 設計原則
 

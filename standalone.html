@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Agent Chat Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="module">
+        import OpenAI from 'https://cdn.jsdelivr.net/npm/openai@4.52.1/+esm';
+        window.OpenAI = OpenAI;
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        // ここにReactコードを直接書く
+        const API_KEY = prompt('OpenAI APIキーを入力してください:');
+        
+        // ... App.tsxの内容をここに貼り付け
+    </script>
+</body>
+</html>

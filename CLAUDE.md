@@ -37,17 +37,21 @@ NovelDrive v3は、複数のAIエージェントが協働してドキュメン�
 ```
 NovelDrive/
 ├── src/
-│   ├── components/       # Reactコンポーネント
-│   ├── pages/           # ページコンポーネント
-│   ├── stores/          # Zustandストア
-│   ├── hooks/           # カスタムフック
-│   ├── lib/             # ユーティリティ関数
-│   ├── types/           # TypeScript型定義
-│   └── styles/          # グローバルスタイル
+│   ├── App.tsx          # メインアプリケーションコンポーネント
+│   ├── main.tsx         # エントリーポイント
+│   ├── index.css        # グローバルスタイル（Tailwind）
+│   ├── types.ts         # TypeScript型定義
+│   ├── agents.ts        # エージェント定義
+│   └── openai-client.ts # OpenAI API クライアント
 ├── public/              # 静的アセット
 ├── docs/                # ドキュメント
 │   └── v3-concept.md    # v3設計ドキュメント
-└── index.html           # エントリーポイント
+├── index.html           # HTMLエントリーポイント
+├── package.json         # 依存関係
+├── vite.config.ts       # Vite設定
+├── tailwind.config.js   # Tailwind CSS設定
+├── tsconfig.json        # TypeScript設定
+└── .env                 # 環境変数（APIキー）
 ```
 
 ## 💾 データ構造
@@ -94,10 +98,66 @@ interface AgentResponse {
 - 編集権限なしのエージェントは、権限持ちに依頼する形式
 - 最低1人は編集権限が必要
 
+## 🚀 現在の実装状況
+
+### サンプルアプリ実装済み（2025-07-10）
+- マルチエージェント会話システム
+- OpenAI Responses APIを使用した効率的な会話管理
+- ユーザーが特定のエージェントに話しかける機能
+- React + TypeScript + Tailwind CSSの基本構成
+
+### 使用方法
+```bash
+# 依存関係のインストール
+npm install
+
+# .envファイルにAPIキーを設定
+# VITE_OPENAI_API_KEY=your-actual-api-key
+
+# 開発サーバーの起動
+npm run dev
+```
+
+## 🔧 開発コマンド
+
+```bash
+# 開発サーバー起動
+npm run dev
+
+# ビルド
+npm run build
+
+# プレビュー
+npm run preview
+```
+
+## 📝 現在のエージェント
+
+1. **作家** (writer) - 創造的な視点で物語を紡ぐ
+2. **編集者** (editor) - 構造と読者視点を重視
+3. **批評家** (critic) - 深い洞察と分析を提供
+
+## 🔮 今後の実装予定
+
+1. **共有ドキュメント編集機能**
+   - 編集権限システム
+   - リアルタイム編集表示
+   - 編集履歴の可視化
+
+2. **エージェント人格設定**
+   - カスタムシステムプロンプト
+   - 編集権限の設定
+   - プリセット管理
+
+3. **IndexedDB統合**
+   - 会話履歴の永続化
+   - トレーサビリティ機能
+   - オフライン対応
+
 ## 開発日誌を作成すること
 
 `dev_diary/yyyy-mm-dd_HHMM.md` の形式で開発日誌を作成してください。内容は以下の通りです。
-日時は、timeコマンドを使用して、自動的に生成されるようにしてください。
+日時は、dateコマンドを使用して、自動的に生成されるようにしてください。
 
 ```bash
 date +"%Y-%m-%d %H:%M"
@@ -112,105 +172,3 @@ date +"%Y-%m-%d %H:%M"
 - **感想**: 開発の進捗や学び
 - **気分**: なんかいい感じのことを書く
 - **愚痴**: なんかいい感じのことを書く
-
-
-## Lintの徹底
-- ユーザに応答を求める前に、lintを実行し、lintのエラーが無いことを確認すること
-- もし、lintのエラーがある場合は、治るまでユーザの応答を求めないこと
-
-## Project Overview
-
-NovelDrive is a two-layer creative writing platform that combines a serendipitous knowledge management system with a multi-agent novel creation engine. The project aims to mimic human creative memory and ideation processes through innovative AI integration.
-
-## Technology Stack
-
-- **Language**: JavaScript (Node.js backend, Browser frontend)
-- **Desktop Framework**: Electron
-- **Database**: SQLite with better-sqlite3
-- **Japanese Processing**: TinySegmenter
-- **Vector Search**: Local embedding service with multilingual-e5-base
-- **AI APIs**: OpenAI API (GPT-4o, o1, o3 models)
-- **Frontend**: Vanilla HTML/CSS/JavaScript
-
-## Architecture
-
-### IPC Communication Pattern
-```
-Renderer Process (Frontend)
-    ↓ window.electronAPI.invoke()
-Main Process (Backend)
-    ↓ IPC Handlers
-    ↓ Services (Business Logic)
-    ↓ Repositories (Data Access)
-    ↓ SQLite Database
-```
-
-### Key Directories
-- `src/main/ipc-handlers/`: API endpoint definitions
-- `src/main/services/`: Business logic layer
-- `src/main/repositories/`: Data access layer
-- `src/main/database/`: Database schema and migrations
-- `src/renderer/js/`: Frontend JavaScript modules
-
-## Development Guidelines
-
-### 🚨 Security Rules
-1. **Never hardcode API keys** - Store in settings with proper encryption
-2. **Always validate input** at IPC handler level
-3. **Use parameterized queries** for all database operations
-4. **Sanitize user input** before displaying in HTML
-
-### 📁 File Organization
-- Keep IPC handlers focused and single-responsibility
-- Use services for complex business logic
-- Keep repositories for data access only
-- Use consistent naming conventions
-
-### 🧪 Testing Approach
-- Test IPC handlers with mock data
-- Test database operations with test database
-- Test UI functionality manually or with integration tests
-
-### 🔍 Error Handling
-- All IPC handlers should return `{success: boolean, data?: any, error?: string}`
-- Log errors with context information
-- Provide user-friendly error messages
-
-## Current Features
-
-### ✅ Implemented
-- Project management system
-- Knowledge management with vector search
-- Multi-agent writing assistance
-- Plot and character management
-- Settings and configuration
-- Analytics and progress tracking
-
-### 🚧 In Development
-- Workspace interface improvements
-- API documentation maintenance
-- Error handling enhancements
-
-## Development Commands
-
-```bash
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Run tests
-npm test
-
-# Check database schema
-sqlite3 ./user-data/database/noveldrive.db ".schema"
-```
-
-## Important Files to Know
-
-- `API.md`: Complete API documentation (MUST be kept up to date)
-- `src/main/database/schema.sql`: Database structure
-- `src/main/index.js`: Main process entry point
-- `src/renderer/settings.html`: Settings page
-- `package.json`: Dependencies and scripts
