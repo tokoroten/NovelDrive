@@ -1,146 +1,132 @@
-# NovelDrive
+# NovelDrive v3
 
-NovelDriveは、セレンディピティ付き知識管理システムとマルチエージェント小説創作エンジンを統合した、二層構造の創造的執筆プラットフォームです。人間の創造的記憶と発想プロセスを模倣し、AIとの対話を通じて小説創作を支援します。
+NovelDriveは、マルチエージェント協調による創造的執筆支援システムです。複数のAIエージェントが協力して小説創作を支援し、人間の創作者と自然に対話しながら作品を磨き上げていきます。
 
-## 🌟 特徴
+## 🌟 v3の新機能
 
-- **二層構造アーキテクチャ**
-  - 第1層：創造的知識管理システム（セレンディピティ検索、なんでもボックス）
-  - 第2層：マルチエージェント小説創作エンジン
+### マルチエージェント会話システム
+- 複数のAIエージェント（作家、編集者、批評家）が自然に会話
+- OpenAI Responses APIを活用した効率的な会話管理
+- ユーザーが特定のエージェントに話しかけることが可能
+- 観察モード：AI同士の議論を静かに観察
 
-- **セレンディピティ検索**
-  - ベクトル類似度検索にノイズを注入し、予期せぬ発見を促進
-  - 人間の記憶の曖昧さを再現
+### モダンな技術スタック
+- **フロントエンド**: React + TypeScript + Tailwind CSS
+- **ビルドツール**: Vite
+- **状態管理**: Zustand（予定）
+- **AI API**: OpenAI GPT-4o with Responses API
 
-- **マルチエージェントシステム**
-  - 作家AI、編集AI、校閲AI、副編集長AIが協働
-  - 作家AIは編集の意見を「程よく無視」する性格設定
-
-## 📋 要件
-
-- Node.js 20.x以上（Electronとの互換性のため）
-- npm 9.x以上
-- Windows 10/11、macOS 10.14以上、Ubuntu 20.04以上
-
-## 🚀 セットアップ
+## 🚀 クイックスタート
 
 ### 1. リポジトリのクローン
-
 ```bash
 git clone https://github.com/yourusername/NovelDrive.git
 cd NovelDrive
 ```
 
 ### 2. 依存関係のインストール
-
-現在、依存関係の管理に問題がある場合は、以下のスクリプトを使用してください：
-
-**Linux/WSL:**
 ```bash
-./install-deps.sh
-```
-
-**Windows:**
-```powershell
-# PowerShellで実行
 npm install
 ```
 
-### 3. 開発モードで起動
-
-**Linux/WSL:**
+### 3. 環境設定
+`.env`ファイルを作成し、OpenAI APIキーを設定：
 ```bash
-./run-dev.sh
+cp .env.example .env
+# .envファイルを編集してOPENAI_API_KEYを設定
 ```
 
-**Windows:**
-```powershell
-# PowerShellで実行
-.\scripts\build-windows.ps1
-```
-
-または直接：
+### 4. 開発サーバーの起動
 ```bash
-npm start
+npm run dev
 ```
+
+ブラウザで http://localhost:5173 を開いて使用開始！
+
+## 🎮 使い方
+
+### 基本的な使い方
+1. 「会話を開始」ボタンをクリック
+2. AIエージェントたちが創作について議論を始めます
+3. あなたも会話に参加できます（誰に話しかけるか選択可能）
+
+### 設定オプション
+- **AI応答速度**: 即座〜3秒まで調整可能
+- **観察モード**: チェックを入れるとAI同士の会話を観察のみ
+- **発言先の選択**: 特定のエージェントまたは全員に向けて発言
+
+### エージェントの紹介
+- **✍️ 作家**: 創造的な視点と独自のビジョンを持つ
+- **📝 編集者**: 構造と読者視点を重視する実務派
+- **🎭 批評家**: 作品の深層を分析する鋭い洞察力
 
 ## 🏗️ プロジェクト構造
 
 ```
 NovelDrive/
 ├── src/
-│   ├── main/              # メインプロセス
-│   │   ├── index.js       # アプリケーションエントリーポイント
-│   │   ├── preload.js     # プリロードスクリプト
-│   │   ├── database.js    # データベース接続（現在はモック実装）
-│   │   ├── database/      # データベース関連
-│   │   │   ├── schema.sql # SQLスキーマ定義
-│   │   │   └── migrate.js # マイグレーションスクリプト
-│   │   ├── repositories/  # データアクセス層
-│   │   │   ├── base-repository.js
-│   │   │   ├── project-repository.js
-│   │   │   ├── knowledge-repository.js
-│   │   │   └── character-repository.js
-│   │   └── utils/         # ユーティリティ
-│   │       ├── logger.js  # ロギングシステム
-│   │       └── error-handler.js # エラーハンドリング
-│   └── renderer/          # レンダラープロセス
-│       ├── index.html     # メインHTML
-│       └── renderer.js    # レンダラースクリプト
-├── docs/                  # ドキュメント
-│   └── requirements.md    # 詳細な要求仕様書
-├── dev_diary/            # 開発日誌
-├── scripts/              # ビルドスクリプト
-└── old/                  # 旧コード（gitignore対象）
+│   ├── App.tsx           # メインアプリケーションコンポーネント
+│   ├── agents.ts         # AIエージェントの定義
+│   ├── types.ts          # TypeScript型定義
+│   ├── openai-client.ts  # OpenAI APIクライアント
+│   └── main.tsx          # アプリケーションエントリーポイント
+├── docs/
+│   └── v3-concept.md     # v3アーキテクチャ設計書
+├── index.html            # HTMLエントリーポイント
+├── vite.config.ts        # Vite設定
+├── tailwind.config.js    # Tailwind CSS設定
+└── tsconfig.json         # TypeScript設定
 ```
 
-## 🛠️ 技術スタック
-
-- **フレームワーク**: Electron
-- **言語**: JavaScript (TypeScriptへの移行予定)
-- **データベース**: SQLite3 (better-sqlite3)
-- **日本語処理**: TinySegmenter（実装予定）
-- **ベクトル検索**: カスタム実装
-- **AI API**: OpenAI API（実装予定）
-
-## 📝 現在の実装状況
+## 📝 開発ロードマップ
 
 ### ✅ 完了
-- Electronアプリケーションの基本構造
-- IPC通信の実装
-- データベーススキーマ設計
-- リポジトリパターンによるデータアクセス層
-- エラーハンドリングとロギングシステム
-- カウンターとアイテムリストのデモ機能
+- マルチエージェント会話システム
+- OpenAI Responses API統合
+- ユーザー参加機能
+- 観察モード
+- AI応答速度調整
 
-### 🚧 進行中
-- SQLite3への完全移行
-- 基本的なUI実装
+### 🚧 開発中
+- ドキュメント編集機能（ChatGPT Canvas風）
+- エージェントごとの編集権限管理
 
-### 📅 今後の実装予定
-- なんでもボックス機能
-- ローカル埋め込み生成（@xenova/transformers）
-- セレンディピティ検索の実装
-- マルチエージェントシステム
-- プロット管理機能
-- 執筆エディター
+### 📅 今後の予定
+- 永続的な会話履歴
+- カスタムエージェントの作成
+- 小説プロジェクト管理
+- エクスポート機能
 
-## 🐛 既知の問題
+## 🛠️ 技術詳細
 
-1. **node_modules権限エラー（WSL環境）**
-   - 一時的な回避策として`install-deps.sh`スクリプトを使用
+### OpenAI Responses API
+効率的な会話管理のため、`previous_response_id`を活用：
+- 前回の応答IDを参照することで、文脈を保持
+- トークン使用量を削減
+- より自然な会話の流れを実現
 
-2. **TypeScriptビルド環境**
-   - ネイティブモジュールの問題により、現在はJavaScriptで実装
+### 構造化出力
+JSON形式での応答を強制し、会話フローを制御：
+```json
+{
+  "speaker": "エージェントID",
+  "message": "発言内容",
+  "next_speaker": {
+    "type": "specific" | "random" | "user",
+    "agent": "次の発言者ID"
+  }
+}
+```
 
 ## 📖 詳細ドキュメント
 
-- [要求仕様書](docs/requirements.md) - プロジェクトの詳細な仕様と設計
+- [v3コンセプト](docs/v3-concept.md) - 新アーキテクチャの詳細設計
+- [API.md](API.md) - API仕様書（移行中）
 - [CLAUDE.md](CLAUDE.md) - Claude Code用の開発ガイドライン
 
 ## 🤝 貢献
 
-現在は個人開発プロジェクトですが、フィードバックや提案は歓迎します。
+フィードバックや提案を歓迎します！
 
 ## 📄 ライセンス
 

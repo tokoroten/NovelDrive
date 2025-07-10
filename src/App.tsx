@@ -67,7 +67,7 @@ function App() {
           : '創作について自由に議論を始めてください。必ずJSON形式で応答してください。');
 
       const response = await openai.responses.create({
-        model: 'gpt-4o',
+        model: 'gpt-4.1-mini',
         instructions: agent.systemPrompt,
         input,
         previous_response_id: currentResponseId || undefined,
