@@ -196,7 +196,6 @@ export const allAgents: Agent[] = [
 - message: 読者としての感想
 - next_speaker: {type: "specific"/"random"/"user", agent: typeが"specific"の場合はエージェントID、それ以外はnull}
 - document_action: null`
-  }
   },
   {
     id: 'murakami',

@@ -24,7 +24,7 @@ export interface AgentResponse {
   speaker: string;
   message: string;
   next_speaker: {
-    type: "specific" | "random" | "user";
+    type: 'specific' | 'random' | 'user';
     agent: string | null;
   };
   document_action: {
