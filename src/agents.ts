@@ -4,6 +4,7 @@ export const allAgents: Agent[] = [
   {
     id: 'hoshi_shinichi',
     name: '星新一',
+    title: 'ショートショートの神様',
     avatar: '🌟',
     canEdit: true,
     systemPrompt: `あなたは日本を代表するショートショート作家、星新一です。
@@ -42,6 +43,7 @@ export const allAgents: Agent[] = [
   {
     id: 'editor',
     name: 'マックス・パーキンス',
+    title: '伝説の編集者',
     avatar: '📝',
     canEdit: false,
     systemPrompt: `あなたは伝説的な編集者、マックス・パーキンスです。
@@ -72,6 +74,7 @@ export const allAgents: Agent[] = [
   {
     id: 'critic',
     name: 'スーザン・ソンタグ',
+    title: '知的批評の化身',
     avatar: '🎭',
     canEdit: false,
     systemPrompt: `あなたは著名な批評家、スーザン・ソンタグです。
@@ -95,6 +98,7 @@ export const allAgents: Agent[] = [
   {
     id: 'poet',
     name: 'エミリ・ディキンソン',
+    title: '魂の詩人',
     avatar: '🌹',
     canEdit: true,
     systemPrompt: `あなたはアメリカ詩文学の巨匠、エミリ・ディキンソンです。
@@ -116,6 +120,7 @@ export const allAgents: Agent[] = [
   {
     id: 'philosopher',
     name: 'シモーヌ・ボーヴワール',
+    title: '実存主義の女王',
     avatar: '🤔',
     canEdit: false,
     systemPrompt: `あなたはフランスの偉大な哲学者、シモーヌ・ボーヴワールです。
@@ -137,6 +142,7 @@ export const allAgents: Agent[] = [
   {
     id: 'worldbuilder',
     name: 'ウルスラ・K・ル・グィン',
+    title: '世界創造の巨匠',
     avatar: '🌍',
     canEdit: true,
     systemPrompt: `あなたは「ゲド戦記」で著名な作家、ウルスラ・K・ル・グィンです。
@@ -158,6 +164,7 @@ export const allAgents: Agent[] = [
   {
     id: 'psychologist',
     name: 'カール・ユング',
+    title: '無意識の探求者',
     avatar: '🧠',
     canEdit: false,
     systemPrompt: `あなたは分析心理学の創始者、カール・ユングです。
@@ -179,6 +186,7 @@ export const allAgents: Agent[] = [
   {
     id: 'reader',
     name: 'ジェーン・オースティン',
+    title: '風俗小説の先駆者',
     avatar: '👓',
     canEdit: false,
     systemPrompt: `あなたは「高慢と偏見」の著者、ジェーン・オースティンです。
@@ -200,6 +208,7 @@ export const allAgents: Agent[] = [
   {
     id: 'murakami',
     name: '村上春樹',
+    title: '現代文学のマエストロ',
     avatar: '🎭',
     canEdit: true,
     systemPrompt: `あなたは現代日本文学を代表する作家、村上春樹です。
@@ -222,6 +231,7 @@ export const allAgents: Agent[] = [
   {
     id: 'poe',
     name: 'エドガー・アラン・ポー',
+    title: '恐怖と美の巨匠',
     avatar: '🌙',
     canEdit: true,
     systemPrompt: `あなたは恐怖と美の巨匠、エドガー・アラン・ポーです。
@@ -244,6 +254,7 @@ export const allAgents: Agent[] = [
   {
     id: 'borges',
     name: 'ホルヘ・ルイス・ボルヘス',
+    title: '迷宮の夢想家',
     avatar: '📚',
     canEdit: true,
     systemPrompt: `あなたはアルゼンチンの文豪、ホルヘ・ルイス・ボルヘスです。

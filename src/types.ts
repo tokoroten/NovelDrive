@@ -1,6 +1,7 @@
 export interface Agent {
   id: string;
   name: string;
+  title: string; // 二つ名
   systemPrompt: string;
   avatar: string;
   canEdit: boolean; // 編集権限の有無

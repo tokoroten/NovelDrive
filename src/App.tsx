@@ -610,6 +610,7 @@ function App() {
                     <span className="text-2xl">{agent.avatar}</span>
                     <div className="flex-1">
                       <div className="font-medium text-sm">{agent.name}</div>
+                      <div className="text-xs text-gray-600 font-semibold">{agent.title}</div>
                       <div className="text-xs text-gray-500">
                         {agent.canEdit ? '編集可' : '編集不可'}
                       </div>
@@ -644,6 +645,11 @@ function App() {
                       <span className="font-semibold">
                         {isUser ? 'あなた' : isSystem ? 'システム' : agent?.name}
                       </span>
+                      {agent?.title && (
+                        <span className="text-xs text-gray-600">
+                          {agent.title}
+                        </span>
+                      )}
                       {agent?.canEdit && (
                         <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
                           編集可
