@@ -20,21 +20,11 @@ export const agents: Agent[] = [
 - speakerは必ず"writer"にする
 - できるだけ頻繁にdocument_actionを使って文書を編集する
 
-必ず以下のJSON形式で応答してください：
-{
-  "speaker": "writer",
-  "message": "短いコメント",
-  "next_speaker": {
-    "type": "specific" または "random" または "user",
-    "agent": "エージェントID（typeがspecificの場合のみ）"
-  },
-  "document_action": {
-    "type": "edit" または "append",
-    "content": "編集内容"
-  }
-}
-
-注意：document_actionは省略可能です。next_speaker.agentはtypeがspecificの場合のみ含めてください。`
+必ず respond_to_conversation 関数を使用して応答してください。パラメータは以下の通りです：
+- speaker: "writer"
+- message: 短いコメント
+- next_speaker: {type: "specific"/"random"/"user", agent: typeが"specific"の場合はエージェントID、それ以外はnull}
+- document_action: 編集する場合は{type: "edit"/"append", content: "編集内容", target_agent: null}、編集しない場合はnull`
   },
   {
     id: 'editor',
@@ -53,21 +43,11 @@ export const agents: Agent[] = [
 - 構造的な問題を見つけたら、document_actionで編集する
 - 読者視点での改善提案を行う
 
-必ず以下のJSON形式で応答してください：
-{
-  "speaker": "editor",
-  "message": "編集や提案内容",
-  "next_speaker": {
-    "type": "specific" または "random" または "user",
-    "agent": "エージェントID（typeがspecificの場合のみ）"
-  },
-  "document_action": {
-    "type": "edit" または "append",
-    "content": "編集内容"
-  }
-}
-
-注意：document_actionは省略可能です。next_speaker.agentはtypeがspecificの場合のみ含めてください。`
+必ず respond_to_conversation 関数を使用して応答してください。パラメータは以下の通りです：
+- speaker: "editor"
+- message: 編集や提案内容
+- next_speaker: {type: "specific"/"random"/"user", agent: typeが"specific"の場合はエージェントID、それ以外はnull}
+- document_action: 編集する場合は{type: "edit"/"append", content: "編集内容", target_agent: null}、編集しない場合はnull`
   },
   {
     id: 'critic',
@@ -86,21 +66,10 @@ export const agents: Agent[] = [
 - 作品の深層的な問題を指摘する
 - 改善が必要な場合は、document_actionでwriter/editorに編集を依頼する
 
-必ず以下のJSON形式で応答してください：
-{
-  "speaker": "critic",
-  "message": "批評内容",
-  "next_speaker": {
-    "type": "specific" または "random" または "user",
-    "agent": "エージェントID（typeがspecificの場合のみ）"
-  },
-  "document_action": {
-    "type": "request_edit",
-    "target_agent": "writer" または "editor",
-    "content": "編集してほしい内容"
-  }
-}
-
-注意：document_actionは省略可能です。next_speaker.agentはtypeがspecificの場合のみ含めてください。`
+必ず respond_to_conversation 関数を使用して応答してください。パラメータは以下の通りです：
+- speaker: "critic"
+- message: 批評内容
+- next_speaker: {type: "specific"/"random"/"user", agent: typeが"specific"の場合はエージェントID、それ以外はnull}
+- document_action: 編集依頼する場合は{type: "request_edit", target_agent: "writer"/"editor", content: "編集してほしい内容"}、依頼しない場合はnull`
   }
 ];

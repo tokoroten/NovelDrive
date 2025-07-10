@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { openai } from './openai-client';
 import { agents } from './agents';
 import { ConversationTurn, AgentResponse } from './types';
@@ -14,10 +14,10 @@ function App() {
   const [observerMode, setObserverMode] = useState(false); // 観察モード
   const [agentDelay, setAgentDelay] = useState(0); // エージェント間の遅延（ミリ秒）
   const [documentContent, setDocumentContent] = useState<string>('# 小説のタイトル\n\n第1章\n\nここに物語を書き始めてください...'); // ドキュメント内容
-  const [thinkingAgentId, setThinkingAgentId] = useState<string | null>(null); // 考え中のエージェントID
+  const [, setThinkingAgentId] = useState<string | null>(null); // 考え中のエージェントID
   const [queueLength, setQueueLength] = useState(0); // キューの長さ
   const conversationEndRef = useRef<HTMLDivElement>(null);
-  const userTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // const userTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isRunningRef = useRef(false); // isRunningの最新値を保持
   
   // 会話キューの作成
@@ -112,78 +112,113 @@ function App() {
       console.log(`   Total turns in conversation: ${currentConversation.length}`);
       console.log(`   Real messages (non-thinking): ${realMessages.length}`);
       
-      // メッセージ配列を構築
-      const messages: any[] = [
-        { role: 'system', content: agent.systemPrompt },
+      console.log(`📝 Preparing request for ${agent.name}:`);
+      console.log(`  Document length: ${documentContent.length} chars`);
+      console.log(`  Conversation history: ${realMessages.length} messages`);
+      
+      // メッセージ配列を構築（ChatCompletions API形式）
+      const messages = [
         { 
-          role: 'user', 
-          content: `以下のドキュメントを確認して、議論や編集を行ってください。\n\n【現在のドキュメント】\n${documentContent}`
+          role: 'system' as const, 
+          content: agent.systemPrompt 
+        },
+        {
+          role: 'user' as const,
+          content: `【現在のドキュメント】\n${documentContent}\n\n` +
+                   (realMessages.length > 0 ? 
+                     `【これまでの会話】\n${realMessages.map(turn => {
+                       if (turn.speaker === 'user') {
+                         const targetName = turn.targetAgent ? agents.find(a => a.id === turn.targetAgent)?.name : null;
+                         return targetName 
+                           ? `ユーザー → ${targetName}: ${turn.message}`
+                           : `ユーザー: ${turn.message}`;
+                       } else if (turn.speaker === 'system') {
+                         return `[システム] ${turn.message}`;
+                       } else {
+                         const agentName = agents.find(a => a.id === turn.speaker)?.name || turn.speaker;
+                         return `${agentName}: ${turn.message}`;
+                       }
+                     }).join('\n')}\n\n` : '') +
+                   (realMessages.length > 0 
+                     ? 'この会話の続きから、あなたの番です。必ず respond_to_conversation 関数を使って応答してください。'
+                     : '創作について自由に議論を始めてください。必要に応じてドキュメントを編集できます。必ず respond_to_conversation 関数を使って応答してください。')
         }
       ];
 
-      // 会話履歴を追加
-      if (realMessages.length > 0) {
-        // 過去の会話を全て追加
-        realMessages.forEach(turn => {
-          if (turn.speaker === 'user') {
-            messages.push({
-              role: 'user',
-              content: turn.targetAgent 
-                ? `[${agents.find(a => a.id === turn.targetAgent)?.name}への発言] ${turn.message}`
-                : turn.message
-            });
-          } else if (turn.speaker === 'system') {
-            messages.push({
-              role: 'user',
-              content: `[システム] ${turn.message}`
-            });
-          } else {
-            // エージェントの発言はassistantロールで追加
-            const agentName = agents.find(a => a.id === turn.speaker)?.name || turn.speaker;
-            messages.push({
-              role: 'assistant',
-              content: `[${agentName}] ${turn.message}`
-            });
-          }
-        });
-        
-        // 最後に現在の状況を説明
-        messages.push({
-          role: 'user',
-          content: 'この会話の続きから、あなたの番です。'
-        });
-      } else {
-        // 会話履歴がない場合
-        messages.push({
-          role: 'user',
-          content: '創作について自由に議論を始めてください。必要に応じてドキュメントを編集できます。'
-        });
-      }
-
-      console.log(`📝 Input for ${agent.name}:`);
-      console.log(`  Document length: ${documentContent.length} chars`);
-      console.log(`  Messages count: ${messages.length}`);
-      console.log(`  Conversation history: ${realMessages.length} messages`);
-      
       // デバッグ用：実際のメッセージ内容を出力
       console.log('📋 Full messages being sent:');
       messages.forEach((msg, index) => {
         console.log(`  [${index}] Role: ${msg.role}`);
-        if (typeof msg.content === 'string') {
-          console.log(`       Content: ${msg.content.substring(0, 200)}...`);
-        } else if (Array.isArray(msg.content)) {
-          msg.content.forEach((part: any) => {
-            console.log(`       ${part.type}: ${part.text.substring(0, 200)}...`);
-          });
-        }
+        console.log(`       Content: ${msg.content.substring(0, 200)}...`);
       });
 
-      // APIリクエストペイロードを構築
+      // Function callingのツール定義
+      const tools = [{
+        type: "function" as const,
+        name: "respond_to_conversation",
+        description: "Respond to the conversation with a message and optional document action",
+        parameters: {
+          type: "object",
+          properties: {
+            speaker: {
+              type: "string",
+              description: "The ID of the agent speaking"
+            },
+            message: {
+              type: "string",
+              description: "The message content"
+            },
+            next_speaker: {
+              type: "object",
+              properties: {
+                type: {
+                  type: "string",
+                  enum: ["specific", "random", "user"],
+                  description: "Type of next speaker selection"
+                },
+                agent: {
+                  type: ["string", "null"],
+                  description: "Agent ID when type is specific (null when type is not specific)"
+                }
+              },
+              required: ["type", "agent"],
+              additionalProperties: false
+            },
+            document_action: {
+              type: ["object", "null"],
+              properties: {
+                type: {
+                  type: "string",
+                  enum: ["edit", "append", "request_edit"],
+                  description: "Type of document action"
+                },
+                content: {
+                  type: ["string", "null"],
+                  description: "Content for the action"
+                },
+                target_agent: {
+                  type: ["string", "null"],
+                  description: "Target agent for request_edit"
+                }
+              },
+              required: ["type", "content", "target_agent"],
+              additionalProperties: false
+            }
+          },
+          required: ["speaker", "message", "next_speaker"],
+          additionalProperties: false
+        },
+        strict: true
+      }];
+
+      // APIリクエストペイロードを構築（新しいResponses API形式）
       const requestPayload = {
-        model: 'gpt-4.1-mini',
-        messages: messages,
-        response_format: {
-          type: 'json_object'
+        model: 'gpt-4.1',
+        input: messages,
+        tools: tools,
+        tool_choice: {
+          type: "function" as const,
+          name: "respond_to_conversation"
         }
       };
       
@@ -191,18 +226,18 @@ function App() {
       console.log('🚀 API Request Payload:');
       console.log(JSON.stringify(requestPayload, null, 2));
       
-      const response = await openai.beta.chat.completions.parse(requestPayload);
+      const response = await (openai as any).responses.create(requestPayload);
 
       console.log(`🔄 Response from OpenAI:`, response);
       
-      // トークン使用量を表示
+      // トークン使用量を表示（Responses APIの場合はusageフィールドがある場合のみ）
       if (response.usage) {
         console.log(`📊 Token usage:`);
         console.log(`  Prompt tokens: ${response.usage.prompt_tokens}`);
         console.log(`  Completion tokens: ${response.usage.completion_tokens}`);
         console.log(`  Total tokens: ${response.usage.total_tokens}`);
         
-        // トークン数が多い場合の警告（GPT-4の場合は128k、GPT-4.1-miniの場合は適切な上限値）
+        // トークン数が多い場合の警告
         if (response.usage.total_tokens > 100000) {
           console.warn(`⚠️ Token usage is high! Consider clearing old conversation history.`);
         }
@@ -210,49 +245,49 @@ function App() {
       
       let agentResponse: AgentResponse;
       
-      // parsed_outputを使用
-      if (response.parsed) {
-        agentResponse = response.parsed as AgentResponse;
-        console.log(`📦 Parsed agent response:`, agentResponse);
-      } else {
-        // フォールバック: content から JSON をパース
-        const content = response.choices[0]?.message?.content;
-        console.log(`📄 Raw content:`, content);
+      // Responses APIのレスポンス処理
+      console.log(`📄 Raw response:`, response);
+      
+      // outputがfunction_callの配列として返ってくる
+      if (response.output && Array.isArray(response.output) && response.output.length > 0) {
+        const functionCall = response.output[0];
+        console.log(`🔧 Function call:`, functionCall);
         
-        try {
-          agentResponse = JSON.parse(content || '{}');
-          console.log(`📦 Manually parsed agent response:`, agentResponse);
-        } catch (parseError) {
-          console.error(`❌ JSON Parse Error:`, parseError);
-          console.error(`Raw text that failed to parse:`, content);
-          
-          // フォールバック応答を作成
-          agentResponse = {
-            speaker: agentId,
-            message: content || 'エラーが発生しました',
-            next_speaker: {
-              type: 'random'
-            }
-          };
-          console.log(`🔧 Using fallback response:`, agentResponse);
-        }
+        if (functionCall.type === 'function_call' && functionCall.arguments) {
+          try {
+            const functionArgs = JSON.parse(functionCall.arguments);
+            agentResponse = functionArgs as AgentResponse;
+            console.log(`📦 Parsed agent response:`, agentResponse);
+          } catch (parseError) {
+        console.error(`❌ JSON Parse Error:`, parseError);
+            console.error(`Raw arguments that failed to parse:`, functionCall.arguments);
+        
+            // フォールバック応答を作成
+            agentResponse = {
+              speaker: agentId,
+              message: response.output_text || 'エラーが発生しました',
+              next_speaker: {
+                type: 'random'
+              }
+            };
+        console.log(`🔧 Using fallback response:`, agentResponse);
       }
       
       // ドキュメントアクションの処理
-      if (agentResponse.document_action) {
+      if (agentResponse.document_action !== null) {
         const action = agentResponse.document_action;
         const agent = agents.find(a => a.id === agentId);
         console.log(`📄 Document action detected:`, action);
         
-        if (action.type === 'edit' && agent?.canEdit && action.content) {
+        if (action.type === 'edit' && agent?.canEdit && action.content !== null) {
           // 編集権限がある場合、ドキュメントを更新
           console.log(`✏️ ${agent.name} is editing the document`);
           setDocumentContent(action.content);
-        } else if (action.type === 'append' && agent?.canEdit && action.content) {
+        } else if (action.type === 'append' && agent?.canEdit && action.content !== null) {
           // 追記権限がある場合、ドキュメントに追記
           console.log(`➕ ${agent.name} is appending to the document`);
           setDocumentContent(prev => prev + '\n\n' + action.content);
-        } else if (action.type === 'request_edit' && action.target_agent) {
+        } else if (action.type === 'request_edit' && action.target_agent !== null && action.content !== null) {
           // 編集リクエストの場合、メッセージに含める
           console.log(`📨 ${agent?.name} is requesting edit from ${action.target_agent}`);
           agentResponse.message += `\n\n【編集リクエスト → ${action.target_agent}】\n${action.content}`;
@@ -302,10 +337,10 @@ function App() {
         } else {
           let nextAgentId: string | undefined;
           
-          if (agentResponse.next_speaker.type === 'specific' && agentResponse.next_speaker.agent) {
+          if (agentResponse.next_speaker.type === 'specific' && agentResponse.next_speaker.agent !== null) {
             nextAgentId = agentResponse.next_speaker.agent;
           } else {
-            // randomまたはagentが未定義の場合
+            // randomまたはagentがnullの場合
             nextAgentId = agents[Math.floor(Math.random() * agents.length)].id;
           }
           
@@ -335,8 +370,30 @@ function App() {
             });
           }
         }
+        } else {
+          console.log('🛑 Conversation stopped (isRunningRef.current is false)');
+        }
+        } else {
+          // function_callでない場合のフォールバック
+          console.warn(`⚠️ No function call in response, using fallback`);
+          agentResponse = {
+            speaker: agentId,
+            message: response.output_text || 'エラーが発生しました',
+            next_speaker: {
+              type: 'random'
+            }
+          };
+        }
       } else {
-        console.log('🛑 Conversation stopped (isRunningRef.current is false)');
+        // outputがない場合のフォールバック
+        console.warn(`⚠️ No output in response, using fallback`);
+        agentResponse = {
+          speaker: agentId,
+          message: response.output_text || 'エラーが発生しました',
+          next_speaker: {
+            type: 'random'
+          }
+        };
       }
     } catch (error) {
       console.error('❌ Error in agent turn:', error);

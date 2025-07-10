@@ -25,11 +25,11 @@ export interface AgentResponse {
   message: string;
   next_speaker: {
     type: "specific" | "random" | "user";
-    agent?: string;
+    agent: string | null;
   };
-  document_action?: {
+  document_action: {
     type: 'edit' | 'append' | 'request_edit';
-    content?: string;
-    target_agent?: string; // request_editの場合、誰に編集を依頼するか
-  };
+    content: string | null;
+    target_agent: string | null; // request_editの場合、誰に編集を依頼するか
+  } | null;
 }
