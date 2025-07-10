@@ -2,70 +2,97 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## 重要な制約事項
+## 🚀 NovelDrive v3 - マルチエージェント協働執筆システム
 
-### ❌ OpenAIの埋め込みAPIは使用禁止
-- **埋め込み生成には必ずローカルモデル（LocalEmbeddingService）を使用すること**
-- OpenAIのembeddings APIは絶対に使用しない
-- テキスト生成（completion/chat）のみOpenAI APIを使用可能
-- 埋め込み関連のコードを書く際は必ずLocalEmbeddingServiceを使用
+### プロジェクト概要
+NovelDrive v3は、複数のAIエージェントが協働してドキュメントを編集するWebアプリケーションです。Electronから完全に移行し、モダンなWeb技術スタックを採用しています。
 
-## 📚 API Documentation Maintenance Rules
+### 技術スタック
+- **フロントエンド**: React + TypeScript
+- **ビルドツール**: Vite
+- **状態管理**: Zustand
+- **スタイリング**: Tailwind CSS
+- **データ永続化**: IndexedDB
+- **AI**: OpenAI API (直接ブラウザから呼び出し)
 
-### 🔄 Always Update API.md When Modifying APIs
-**重要**: APIを変更する場合は、必ずAPI.mdを同時に更新してください。
+## 📋 重要な設計原則
 
-#### When to Update API.md:
-1. **新しいIPCハンドラーを追加した時**
-   - 新しいエンドポイントをAPI.mdに追加
-   - パラメータとレスポンス形式を文書化
-   - 使用例を提供
+### 1. シンプルさを保つ
+- 過度に複雑な機能は避ける
+- コア機能（エージェント会議室、人格設定、設定画面）に集中
+- 明確で直感的なUIを維持
 
-2. **既存のIPCハンドラーを変更した時**
-   - パラメータが変更された場合
-   - レスポンス形式が変更された場合
-   - 動作が変更された場合
+### 2. トレーサビリティの確保
+- すべての編集履歴を記録
+- エージェントの意思決定過程を追跡可能に
+- 編集の理由と根拠を保存
 
-3. **データベーススキーマを変更した時**
-   - 新しいテーブルを追加した場合
-   - テーブル構造を変更した場合
-   - 外部キー関係を変更した場合
+### 3. ユーザー中心設計
+- ユーザーが常に最高権限を持つ
+- エージェントの議論を一時停止/再開可能
+- 直接編集とエージェント経由の編集の両方をサポート
 
-4. **新しいサービスを追加した時**
-   - サービス層の説明を更新
-   - 新しいビジネスロジックを文書化
+## 🏗️ プロジェクト構造（v3）
 
-#### API Documentation Update Process:
-```bash
-# 1. API変更を実装
-# 2. API.mdを更新
-# 3. 変更をコミット
-git add API.md src/main/ipc-handlers/your-handler.js
-git commit -m "feat: add new API endpoint and update documentation"
+```
+NovelDrive/
+├── src/
+│   ├── components/       # Reactコンポーネント
+│   ├── pages/           # ページコンポーネント
+│   ├── stores/          # Zustandストア
+│   ├── hooks/           # カスタムフック
+│   ├── lib/             # ユーティリティ関数
+│   ├── types/           # TypeScript型定義
+│   └── styles/          # グローバルスタイル
+├── public/              # 静的アセット
+├── docs/                # ドキュメント
+│   └── v3-concept.md    # v3設計ドキュメント
+└── index.html           # エントリーポイント
 ```
 
-#### API.md Update Checklist:
-- [ ] エンドポイント名とメソッド
-- [ ] パラメータの型と必須フィールド
-- [ ] レスポンス形式
-- [ ] エラーハンドリング
-- [ ] 使用例のJavaScriptコード
-- [ ] 関連するデータベーステーブル
+## 💾 データ構造
 
-#### Example API Documentation Format:
-```markdown
-#### `your-module:yourAction`
-説明文
-- **Parameters**:
-  - `param1` (type): 説明
-  - `param2` (type, optional): 説明
-- **Returns**: `{success: boolean, data: Type}`
-```javascript
-const result = await window.electronAPI.invoke('your-module:yourAction', {
-    param1: 'value',
-    param2: 'value'
-});
+### IndexedDB スキーマ
+- `agentPersonalities`: エージェントの人格定義
+- `meetings`: 会議セッション
+- `documents`: ドキュメント
+- `messages`: 会話ログ
+- `editHistory`: 編集履歴（トレーサビリティ）
+- `settings`: アプリケーション設定
+
+詳細は `docs/v3-concept.md` を参照してください。
+
+## 🤖 エージェントシステム
+
+### Structured Output
+エージェントの応答は必ず以下のJSON形式で返すこと：
+
+```typescript
+interface AgentResponse {
+  speaker: string;
+  message: string;
+  edit_action?: {
+    type: "replace";
+    old_text: string;
+    new_text: string;
+  };
+  edit_request?: {
+    target_agent: string;
+    suggested_text: string;
+    reason: string;
+  };
+  next_speaker: {
+    type: "specific" | "random" | "user";
+    agent?: string;
+    prompt?: string;
+  };
+}
 ```
+
+### 編集権限
+- エージェントは `hasEditPermission` フラグで編集権限を管理
+- 編集権限なしのエージェントは、権限持ちに依頼する形式
+- 最低1人は編集権限が必要
 
 ## 開発日誌を作成すること
 
