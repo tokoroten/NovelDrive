@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { ConversationTurn } from './types';
-import { defaultActiveAgents } from './agents';
+import { defaultActiveAgents, allAgents } from './agents';
 
 interface AppState {
   // 会話関連
@@ -66,33 +66,26 @@ const saveToLocalStorage = <T>(key: string, value: T) => {
 // Zustandストアの作成
 export const useAppStore = create<AppState>((set) => ({
   // 会話関連
-  conversation: [],
-  setConversation: (conversation) => set({ conversation }),
+  conversation: [] as ConversationTurn[],
+  setConversation: (conversation) => {
+    console.log('Setting conversation:', conversation);
+    set({ conversation: Array.isArray(conversation) ? conversation : [] });
+  },
   addConversationTurn: (turn) => set((state) => ({ 
     conversation: [...state.conversation, turn] 
   })),
-  updateConversation: (updater) => set((state) => ({ 
-    conversation: updater(state.conversation) 
-  })),
+  updateConversation: (updater) => set((state) => {
+    const currentConversation = Array.isArray(state.conversation) ? state.conversation : [];
+    const updated = updater(currentConversation);
+    return { conversation: Array.isArray(updated) ? updated : [] };
+  }),
 
   // エージェント関連
   activeAgentIds: (() => {
     const saved = loadFromLocalStorage<string[]>('noveldrive-active-agents', defaultActiveAgents);
     // 保存されたエージェントIDが有効かチェック
     const validIds = saved.filter((id: string) => {
-      const allAgents = [
-        { id: 'hoshi_shinichi' },
-        { id: 'editor' },
-        { id: 'critic' },
-        { id: 'poet' },
-        { id: 'philosopher' },
-        { id: 'worldbuilder' },
-        { id: 'psychologist' },
-        { id: 'reader' },
-        { id: 'murakami' },
-        { id: 'poe' },
-        { id: 'borges' }
-      ];
+      // 実際のエージェントリストから有効なIDをチェック
       return allAgents.some(agent => agent.id === id);
     });
     return validIds.length > 0 ? validIds : defaultActiveAgents;

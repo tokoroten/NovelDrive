@@ -6,7 +6,7 @@ import { ConversationQueue, QueueEvent } from './ConversationQueue';
 import { useAppStore } from './store';
 
 function App() {
-  // Zustandストアから状態を取得
+  // Zustandストアから状態を取得 - v2 fix for cache issues
   const {
     conversation,
     setConversation,
@@ -93,7 +93,7 @@ function App() {
     const currentState = useAppStore.getState();
     const currentIsRunning = currentState.isRunning;
     const currentActiveAgentIds = currentState.activeAgentIds;
-    const currentConversation = currentState.conversation;
+    const currentConversation = Array.isArray(currentState.conversation) ? currentState.conversation : [];
     const currentDocumentContent = currentState.documentContent;
     
     console.log(`🎯 Processing turn for agent: ${agentId}, isRunning:`, currentIsRunning);
@@ -105,10 +105,15 @@ function App() {
     }
     
     // 最新のアクティブエージェントを取得
+    console.log('🔍 Debug - currentActiveAgentIds:', currentActiveAgentIds);
+    console.log('🔍 Debug - Looking for agent:', agentId);
+    console.log('🔍 Debug - All agents:', allAgents.map(a => a.id));
     const currentActiveAgents = allAgents.filter(agent => currentActiveAgentIds.includes(agent.id));
+    console.log('🔍 Debug - Active agents:', currentActiveAgents.map(a => a.id));
     const agent = currentActiveAgents.find(a => a.id === agentId);
     if (!agent) {
       console.error(`Agent not found: ${agentId}`);
+      console.error('Available active agents:', currentActiveAgents.map(a => a.id));
       // エージェントが見つからない場合、システムメッセージを追加
       const missingAgentName = allAgents.find(a => a.id === agentId)?.name || agentId;
       const systemMessage: ConversationTurn = {
@@ -117,7 +122,11 @@ function App() {
         message: `（${missingAgentName}は現在会話に参加していません。会話中にエージェントが変更されました）`,
         timestamp: new Date()
       };
-      updateConversation(prev => [...prev, systemMessage]);
+      console.log('🔍 Debug - Adding system message, current conversation length:', currentConversation.length);
+      updateConversation(prev => {
+        console.log('🔍 Debug - prev conversation in updateConversation:', prev);
+        return [...prev, systemMessage];
+      });
       
       // ランダムなアクティブエージェントを選択して続行
       if (currentActiveAgents.length > 0 && currentIsRunning) {
@@ -131,8 +140,9 @@ function App() {
     
     console.log(`🎯 Agent details: ${agent.name} (${agentId})`);
     console.log(`📄 Current document content: "${currentDocumentContent.substring(0, 100)}..."`);
-    console.log(`💬 Current conversation length: ${currentConversation.length} turns`);
-    console.log(`💬 Real conversation (non-thinking) length: ${currentConversation.filter(t => !t.isThinking).length} turns`);
+    const safeConversation = Array.isArray(currentConversation) ? currentConversation : [];
+    console.log(`💬 Current conversation length: ${safeConversation.length} turns`);
+    console.log(`💬 Real conversation (non-thinking) length: ${safeConversation.filter(t => !t.isThinking).length} turns`);
     
     // 考え中の状態を表示
     setThinkingAgentId(agentId);
@@ -147,10 +157,10 @@ function App() {
 
     try {
       // thinking状態でない全ての発言を取得
-      const realMessages = currentConversation.filter(turn => !turn.isThinking);
+      const realMessages = safeConversation.filter(turn => !turn.isThinking);
       
       console.log(`📊 Building messages for ${agent.name}:`);
-      console.log(`   Total turns in conversation: ${currentConversation.length}`);
+      console.log(`   Total turns in conversation: ${safeConversation.length}`);
       console.log(`   Real messages (non-thinking): ${realMessages.length}`);
       
       console.log(`📝 Preparing request for ${agent.name}:`);
@@ -186,7 +196,7 @@ function App() {
                          return `## ${emoji} ${agentName}\n\n${turn.message}\n`;
                        }
                      }).join('\n---\n\n')}\n\n---\n\n` : '') +
-                   `# 現在のドキュメント\n\n\`\`\`markdown\n${currentDocumentContent}\n\`\`\`\n\n` +
+                   `# 現在のドキュメント\n\n**文字数: ${currentDocumentContent.length}文字**\n\n\`\`\`markdown\n${currentDocumentContent}\n\`\`\`\n\n` +
                    (realMessages.length > 0 
                      ? '上記の会話を踏まえて、あなたの番です。必要に応じてドキュメントを確認・編集してください。必ず respond_to_conversation 関数を使って応答してください。'
                      : '現在のドキュメントを確認し、創作について自由に議論を始めてください。必要に応じて編集できます。必ず respond_to_conversation 関数を使って応答してください。')
@@ -321,7 +331,7 @@ function App() {
         });
         
         // アクティブなエージェントがいる場合は、ランダムに選択して続行
-        if (currentActiveAgents.length > 0 && isRunningRef.current) {
+        if (currentActiveAgents.length > 0 && currentIsRunning) {
           const randomAgent = currentActiveAgents[Math.floor(Math.random() * currentActiveAgents.length)];
           console.log(`🔄 Selecting random active agent after removal: ${randomAgent.name}`);
           processAgentTurn(randomAgent.id);
@@ -785,7 +795,7 @@ function App() {
         {/* 会話ログ */}
         <div className="flex-1 overflow-y-auto p-6">
           <div className="max-w-4xl mx-auto space-y-4">
-            {conversation.map((turn) => {
+            {(Array.isArray(conversation) ? conversation : []).map((turn) => {
               const agent = allAgents.find(a => a.id === turn.speaker);
               const isUser = turn.speaker === 'user';
               const isSystem = turn.speaker === 'system';
