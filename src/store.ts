@@ -69,6 +69,12 @@ export const useAppStore = create<AppState>((set) => ({
   conversation: [] as ConversationTurn[],
   setConversation: (conversation) => {
     console.log('Setting conversation:', conversation);
+    console.log('Is array?', Array.isArray(conversation));
+    console.log('Conversation length:', Array.isArray(conversation) ? conversation.length : 'not array');
+    if (!Array.isArray(conversation)) {
+      console.error('WARNING: setConversation called with non-array value:', conversation);
+      console.trace('Stack trace for non-array conversation:');
+    }
     set({ conversation: Array.isArray(conversation) ? conversation : [] });
   },
   addConversationTurn: (turn) => set((state) => ({ 
@@ -77,6 +83,14 @@ export const useAppStore = create<AppState>((set) => ({
   updateConversation: (updater) => set((state) => {
     const currentConversation = Array.isArray(state.conversation) ? state.conversation : [];
     const updated = updater(currentConversation);
+    if (!Array.isArray(updated)) {
+      console.error('WARNING: updateConversation updater returned non-array:', updated);
+      console.trace('Stack trace for non-array update:');
+    }
+    if (Array.isArray(updated) && updated.length === 0 && currentConversation.length > 0) {
+      console.warn('WARNING: Conversation being cleared from', currentConversation.length, 'to 0 items');
+      console.trace('Stack trace for conversation clear:');
+    }
     return { conversation: Array.isArray(updated) ? updated : [] };
   }),
 
