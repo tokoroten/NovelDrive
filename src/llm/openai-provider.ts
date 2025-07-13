@@ -19,7 +19,7 @@ export class OpenAIProvider implements LLMProvider {
   async createResponse(
     messages: LLMMessage[],
     tools: LLMTool[],
-    toolChoice: { type: 'function'; name: string }
+    toolChoice: { type: 'function'; name: string } | { type: 'none' }
   ): Promise<LLMResponse> {
     const apiKey = this.getApiKey();
     if (!apiKey) {
@@ -38,8 +38,10 @@ export class OpenAIProvider implements LLMProvider {
       body: JSON.stringify({
         model,
         messages,
-        tools,
-        tool_choice: toolChoice,
+        ...(toolChoice.type === 'function' ? {
+          tools,
+          tool_choice: toolChoice,
+        } : {}),
         temperature: 0.7,
       }),
     });

@@ -55,6 +55,9 @@ function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [showVersionTimeline, setShowVersionTimeline] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
   
   // 会話キューの作成
   const conversationQueue = useMemo(() => new ConversationQueue(), []);
@@ -105,6 +108,85 @@ function App() {
 
     return () => clearTimeout(saveTimer);
   }, [conversation, documentContent, activeAgentIds, currentSessionId]);
+  
+  // 自動タイトル生成（1000文字を超えたとき）
+  useEffect(() => {
+    if (!currentSessionId || !documentContent || documentContent.length < 1000) return;
+    
+    // タイトルがまだデフォルトの場合のみ自動生成
+    if (sessionTitle && !sessionTitle.includes('新しい作品')) return;
+    
+    // 既に生成中の場合はスキップ
+    if (isGeneratingTitle) return;
+    
+    generateTitle();
+  }, [documentContent, currentSessionId, sessionTitle]);
+  
+  // タイトルを生成する関数
+  const generateTitle = async () => {
+    if (!documentContent || documentContent.trim().length === 0) return;
+    
+    setIsGeneratingTitle(true);
+    try {
+      const provider = getCurrentProvider();
+      if (!provider || !provider.isConfigured()) {
+        console.warn('⚠️ LLMプロバイダーが設定されていません');
+        return;
+      }
+      
+      const messages = [
+        {
+          role: 'system' as const,
+          content: 'あなたはプロの編集者です。与えられた小説の内容から、魅力的で簡潔なタイトルを提案してください。'
+        },
+        {
+          role: 'user' as const,
+          content: `以下の小説の内容を読んで、適切なタイトルを一つだけ提案してください。タイトルのみを返答し、それ以外の説明は不要です。
+
+${documentContent.substring(0, 2000)}`
+        }
+      ];
+      
+      const response = await provider.createResponse(
+        messages,
+        [],
+        { type: 'none' }
+      );
+      
+      if (response.output_text && response.output_text.trim()) {
+        const newTitle = response.output_text.trim().replace(/[「」“”"']/g, '');
+        setSessionTitle(newTitle);
+        
+        // セッションを更新
+        if (currentSessionId) {
+          await sessionService.updateSession(currentSessionId, {
+            title: newTitle
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to generate title:', error);
+    } finally {
+      setIsGeneratingTitle(false);
+    }
+  };
+  
+  // タイトル編集を保存
+  const saveTitle = async () => {
+    if (!currentSessionId || !editingTitle.trim()) return;
+    
+    setSessionTitle(editingTitle);
+    setIsEditingTitle(false);
+    
+    // セッションを更新
+    try {
+      await sessionService.updateSession(currentSessionId, {
+        title: editingTitle
+      });
+    } catch (error) {
+      console.error('Failed to save title:', error);
+    }
+  };
   
   // アクティブなエージェントのみを取得
   const agents = useMemo(() => {
@@ -1011,7 +1093,67 @@ function App() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div>
-                <h1 className="text-2xl font-bold">{sessionTitle || '無題の作品'}</h1>
+                <div className="flex items-center gap-2">
+                  {isEditingTitle ? (
+                    <input
+                      type="text"
+                      value={editingTitle}
+                      onChange={(e) => setEditingTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          saveTitle();
+                        } else if (e.key === 'Escape') {
+                          setIsEditingTitle(false);
+                          setEditingTitle(sessionTitle);
+                        }
+                      }}
+                      onBlur={saveTitle}
+                      className="text-2xl font-bold bg-transparent border-b-2 border-blue-500 outline-none"
+                      autoFocus
+                    />
+                  ) : (
+                    <>
+                      <h1 className="text-2xl font-bold">{sessionTitle || '無題の作品'}</h1>
+                      <button
+                        onClick={() => {
+                          setIsEditingTitle(true);
+                          setEditingTitle(sessionTitle);
+                        }}
+                        className="p-1 hover:bg-gray-200 rounded transition-colors"
+                        title="タイトルを編集"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M11.5 2.5L13.5 4.5L4.5 13.5L2 14L2.5 11.5L11.5 2.5Z" />
+                          <path d="M10 4L12 6" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={generateTitle}
+                        disabled={isGeneratingTitle || documentContent.length === 0}
+                        className="p-1 hover:bg-gray-200 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="AIでタイトルを生成"
+                      >
+                        {isGeneratingTitle ? (
+                          <div className="animate-spin">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M8 2V6" />
+                              <path d="M8 10V14" />
+                              <path d="M2 8H6" />
+                              <path d="M10 8H14" />
+                            </svg>
+                          </div>
+                        ) : (
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                            <circle cx="8" cy="8" r="6" />
+                            <path d="M8 4V8L10 10" />
+                            <path d="M4 2L2 4" />
+                            <path d="M12 2L14 4" />
+                          </svg>
+                        )}
+                      </button>
+                    </>
+                  )}
+                </div>
                 <p className="text-sm text-gray-600">NovelDrive - AIマルチエージェント執筆システム</p>
               </div>
               {queueLength > 0 && (

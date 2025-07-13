@@ -53,11 +53,13 @@ export class ClaudeProvider implements LLMProvider {
           role: msg.role === 'user' ? 'user' : 'assistant',
           content: msg.content,
         })),
-        tools: claudeTools,
-        tool_choice: {
-          type: 'tool',
-          name: toolChoice.name,
-        },
+        ...(toolChoice.type === 'function' ? {
+          tools: claudeTools,
+          tool_choice: {
+            type: 'tool',
+            name: toolChoice.name,
+          },
+        } : {}),
         max_tokens: 4096,
         temperature: 0.7,
       }),

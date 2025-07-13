@@ -47,6 +47,6 @@ export interface LLMProvider {
   createResponse(
     messages: LLMMessage[],
     tools: LLMTool[],
-    toolChoice: { type: 'function'; name: string }
+    toolChoice: { type: 'function'; name: string } | { type: 'none' }
   ): Promise<LLMResponse>;
 }

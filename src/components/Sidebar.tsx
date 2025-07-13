@@ -97,9 +97,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               title="新規作成"
             >
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="4" y="4" width="12" height="12" rx="2" />
-                <line x1="10" y1="8" x2="10" y2="12" />
-                <line x1="8" y1="10" x2="12" y2="10" />
+                <rect x="3" y="3" width="14" height="14" rx="2" />
+                <line x1="10" y1="6" x2="10" y2="14" />
+                <line x1="6" y1="10" x2="14" y2="10" />
               </svg>
             </button>
           </div>
