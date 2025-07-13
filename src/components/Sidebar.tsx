@@ -149,50 +149,59 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       </div>
                     </button>
                     
-                    {/* 削除ボタン（現在のセッション以外で表示） */}
-                    {currentSessionId !== session.id && (
-                      showDeleteConfirm === session.id ? (
-                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              try {
-                                await sessionService.deleteSession(session.id);
-                                await loadSessions();
-                                setShowDeleteConfirm(null);
-                              } catch (error) {
-                                console.error('Failed to delete session:', error);
-                              }
-                            }}
-                            className="text-xs px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded"
-                          >
-                            削除
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
+                    {/* 削除ボタン */}
+                    {showDeleteConfirm === session.id ? (
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (currentSessionId === session.id) {
+                              alert('現在開いている作品は削除できません');
                               setShowDeleteConfirm(null);
-                            }}
-                            className="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded"
-                          >
-                            取消
-                          </button>
-                        </div>
-                      ) : (
+                              return;
+                            }
+                            try {
+                              await sessionService.deleteSession(session.id);
+                              await loadSessions();
+                              setShowDeleteConfirm(null);
+                            } catch (error) {
+                              console.error('Failed to delete session:', error);
+                            }
+                          }}
+                          className="text-xs px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded"
+                        >
+                          削除
+                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setShowDeleteConfirm(session.id);
+                            setShowDeleteConfirm(null);
                           }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-red-400 transition-colors"
-                          title="削除"
-                          aria-label="作品を削除"
+                          className="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded"
                         >
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                            <path d="M3 4h10M5 4V3a1 1 0 011-1h4a1 1 0 011 1v1M6 7v5M10 7v5M4 4l1 9a1 1 0 001 1h4a1 1 0 001-1l1-9" />
-                          </svg>
+                          取消
                         </button>
-                      )
+                      </div>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (currentSessionId !== session.id) {
+                            setShowDeleteConfirm(session.id);
+                          }
+                        }}
+                        className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded transition-colors ${
+                          currentSessionId === session.id 
+                            ? 'text-gray-600 cursor-not-allowed' 
+                            : 'hover:bg-gray-700 text-gray-400 hover:text-red-400'
+                        }`}
+                        title={currentSessionId === session.id ? "現在開いている作品は削除できません" : "削除"}
+                        aria-label={currentSessionId === session.id ? "現在開いている作品は削除できません" : "作品を削除"}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M3 4h10M5 4V3a1 1 0 011-1h4a1 1 0 011 1v1M6 7v5M10 7v5M4 4l1 9a1 1 0 001 1h4a1 1 0 001-1l1-9" />
+                        </svg>
+                      </button>
                     )}
                   </div>
                 ))}
