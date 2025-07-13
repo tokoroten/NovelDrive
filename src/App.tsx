@@ -62,6 +62,20 @@ function App() {
   // 会話キューの作成
   const conversationQueue = useMemo(() => new ConversationQueue(), []);
   
+  // キーボードショートカット
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + B: サイドバーのトグル
+      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault();
+        setSidebarOpen(prev => !prev);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+  
   // APIキーが設定されているかチェック
   useEffect(() => {
     if (!isProviderConfigured()) {
@@ -1121,6 +1135,7 @@ ${documentContent.substring(0, 2000)}`
                         }}
                         className="p-1 hover:bg-gray-200 rounded transition-colors"
                         title="タイトルを編集"
+                        aria-label="タイトルを編集"
                       >
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                           <path d="M11.5 2.5L13.5 4.5L4.5 13.5L2 14L2.5 11.5L11.5 2.5Z" />
@@ -1132,6 +1147,7 @@ ${documentContent.substring(0, 2000)}`
                         disabled={isGeneratingTitle || documentContent.length === 0}
                         className="p-1 hover:bg-gray-200 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         title="AIでタイトルを生成"
+                        aria-label="AIでタイトルを生成"
                       >
                         {isGeneratingTitle ? (
                           <div className="animate-spin">

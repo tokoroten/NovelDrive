@@ -23,6 +23,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(false);
+  const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
 
   // セッション一覧を読み込む
   const loadSessions = async () => {
@@ -61,15 +63,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <>
       {/* サイドバー */}
-      <div className={`fixed left-0 top-0 h-full bg-gray-900 text-white transition-all duration-300 z-40 flex flex-col ${
-        isOpen ? 'w-64' : 'w-16'
-      }`}>
+      <div 
+        className={`fixed left-0 top-0 h-full bg-gray-900 text-white transition-all duration-300 z-40 flex flex-col ${
+          isOpen ? 'w-64' : 'w-16'
+        }`}
+        role="navigation"
+        aria-label="作品一覧"
+      >
         {/* ヘッダー */}
         <div className="p-4">
           <div className="flex items-center justify-between">
             <button
               onClick={onToggle}
               className="text-gray-400 hover:text-white transition-colors p-1.5 hover:bg-gray-800 rounded-lg"
+              aria-label={isOpen ? 'サイドバーを閉じる' : 'サイドバーを開く'}
             >
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                 {isOpen ? (
@@ -95,6 +102,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 isOpen ? 'opacity-100' : 'opacity-0 w-0'
               }`}
               title="新規作成"
+              aria-label="新しい作品を作成"
             >
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="3" width="14" height="14" rx="2" />
@@ -119,22 +127,73 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ) : (
               <div className="space-y-1 py-2">
                 {sessions.map((session) => (
-                  <button
+                  <div
                     key={session.id}
-                    onClick={() => onLoadSession(session)}
-                    className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors group ${
+                    className={`relative rounded-lg hover:bg-gray-800 transition-colors group ${
                       currentSessionId === session.id ? 'bg-gray-800' : ''
                     }`}
+                    onMouseEnter={() => setHoveredSessionId(session.id)}
+                    onMouseLeave={() => setHoveredSessionId(null)}
                   >
-                    <div className="text-sm font-medium truncate">
-                      {session.title}
-                    </div>
-                    <div className="text-xs text-gray-400 flex items-center gap-2">
-                      <span>{formatDate(session.updatedAt)}</span>
-                      <span>•</span>
-                      <span>{formatCharacterCount(session.metadata?.characterCount || session.documentContent.length)}</span>
-                    </div>
-                  </button>
+                    <button
+                      onClick={() => onLoadSession(session)}
+                      className="w-full text-left px-3 py-2"
+                    >
+                      <div className="text-sm font-medium truncate pr-6">
+                        {session.title}
+                      </div>
+                      <div className="text-xs text-gray-400 flex items-center gap-2">
+                        <span>{formatDate(session.updatedAt)}</span>
+                        <span>•</span>
+                        <span>{formatCharacterCount(session.metadata?.characterCount || session.documentContent.length)}</span>
+                      </div>
+                    </button>
+                    
+                    {/* 削除ボタン */}
+                    {hoveredSessionId === session.id && currentSessionId !== session.id && (
+                      showDeleteConfirm === session.id ? (
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await sessionService.deleteSession(session.id);
+                                await loadSessions();
+                                setShowDeleteConfirm(null);
+                              } catch (error) {
+                                console.error('Failed to delete session:', error);
+                              }
+                            }}
+                            className="text-xs px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded"
+                          >
+                            削除
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowDeleteConfirm(null);
+                            }}
+                            className="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded"
+                          >
+                            取消
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowDeleteConfirm(session.id);
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-700 rounded"
+                          title="削除"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                            <path d="M5 5L11 11M11 5L5 11" />
+                          </svg>
+                        </button>
+                      )
+                    )}
+                  </div>
                 ))}
               </div>
             )
