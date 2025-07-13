@@ -23,7 +23,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(false);
-  const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
 
   // セッション一覧を読み込む
@@ -31,7 +30,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setLoading(true);
     try {
       const allSessions = await sessionService.getAllSessions();
-      setSessions(allSessions);
+      // 重複を除去（念のため）
+      const uniqueSessions = allSessions.filter((session, index, self) => 
+        index === self.findIndex((s) => s.id === session.id)
+      );
+      setSessions(uniqueSessions);
+      console.log(`Loaded ${uniqueSessions.length} unique sessions`);
     } catch (error) {
       console.error('Failed to load sessions:', error);
     } finally {
@@ -40,10 +44,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   useEffect(() => {
-    if (isOpen) {
-      loadSessions();
-    }
-  }, [isOpen, currentSessionId]);
+    loadSessions();
+  }, [currentSessionId]);
 
   const formatDate = (date: Date) => {
     const d = new Date(date);
@@ -132,8 +134,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     className={`relative rounded-lg hover:bg-gray-800 transition-colors group ${
                       currentSessionId === session.id ? 'bg-gray-800' : ''
                     }`}
-                    onMouseEnter={() => setHoveredSessionId(session.id)}
-                    onMouseLeave={() => setHoveredSessionId(null)}
                   >
                     <button
                       onClick={() => onLoadSession(session)}
@@ -149,8 +149,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       </div>
                     </button>
                     
-                    {/* 削除ボタン */}
-                    {hoveredSessionId === session.id && currentSessionId !== session.id && (
+                    {/* 削除ボタン（現在のセッション以外で表示） */}
+                    {currentSessionId !== session.id && (
                       showDeleteConfirm === session.id ? (
                         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                           <button
@@ -184,11 +184,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             e.stopPropagation();
                             setShowDeleteConfirm(session.id);
                           }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-700 rounded"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-red-400 transition-colors"
                           title="削除"
+                          aria-label="作品を削除"
                         >
                           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                            <path d="M5 5L11 11M11 5L5 11" />
+                            <path d="M3 4h10M5 4V3a1 1 0 011-1h4a1 1 0 011 1v1M6 7v5M10 7v5M4 4l1 9a1 1 0 001 1h4a1 1 0 001-1l1-9" />
                           </svg>
                         </button>
                       )
