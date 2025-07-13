@@ -1,0 +1,71 @@
+import { LLMProvider, LLMMessage, LLMResponse, LLMTool } from './types';
+import { useAppStore } from '../store';
+
+export class OpenAIProvider implements LLMProvider {
+  name = 'OpenAI';
+  
+  private getApiKey(): string | null {
+    return useAppStore.getState().openAIApiKey;
+  }
+  
+  private getModel(): string {
+    return useAppStore.getState().llmModel;
+  }
+  
+  isConfigured(): boolean {
+    return !!this.getApiKey();
+  }
+  
+  async createResponse(
+    messages: LLMMessage[],
+    tools: LLMTool[],
+    toolChoice: { type: 'function'; name: string }
+  ): Promise<LLMResponse> {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
+      throw new Error('OpenAI APIキーが設定されていません');
+    }
+    
+    const model = this.getModel();
+    
+    // OpenAI APIを直接呼び出す（openaiライブラリが古いため）
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        tools,
+        tool_choice: toolChoice,
+        temperature: 0.7,
+      }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`OpenAI API Error: ${error.error?.message || 'Unknown error'}`);
+    }
+    
+    const data = await response.json();
+    
+    // レスポンスを共通フォーマットに変換
+    const toolCalls = data.choices[0].message.tool_calls;
+    const output = toolCalls ? toolCalls.map((call: { function: { arguments: string } }) => ({
+      type: 'function_call' as const,
+      arguments: call.function.arguments,
+    })) : [];
+    
+    return {
+      output,
+      output_text: data.choices[0].message.content,
+      usage: data.usage ? {
+        prompt_tokens: data.usage.prompt_tokens,
+        completion_tokens: data.usage.completion_tokens,
+        total_tokens: data.usage.total_tokens,
+      } : undefined,
+    };
+  }
+}

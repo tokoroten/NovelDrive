@@ -1,15 +1,20 @@
-import { useEffect, useRef, useMemo } from 'react';
-import { openai } from './openai-client';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import { allAgents } from './agents';
 import { ConversationTurn, AgentResponse } from './types';
 import { ConversationQueue, QueueEvent } from './ConversationQueue';
 import { useAppStore } from './store';
+import { getCurrentProvider, isProviderConfigured } from './llm';
+import { Settings } from './components/Settings';
+import { SessionHistory } from './components/SessionHistory';
+import { VersionTimeline } from './components/VersionTimeline';
+import { Sidebar } from './components/Sidebar';
+import { sessionService } from './db';
+import { Session } from './db/schema';
 
 function App() {
   // Zustandストアから状態を取得 - v2 fix for cache issues
   const {
     conversation,
-    setConversation,
     addConversationTurn,
     updateConversation,
     activeAgentIds,
@@ -36,13 +41,70 @@ function App() {
     setUserInput,
     targetAgent,
     setTargetAgent,
+    currentSessionId,
+    setCurrentSessionId,
+    sessionTitle,
+    setSessionTitle,
   } = useAppStore();
   const conversationEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
+  // 設定画面の表示状態
+  const [showSettings, setShowSettings] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showVersionTimeline, setShowVersionTimeline] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  
   // 会話キューの作成
   const conversationQueue = useMemo(() => new ConversationQueue(), []);
+  
+  // APIキーが設定されているかチェック
+  useEffect(() => {
+    if (!isProviderConfigured()) {
+      console.warn('⚠️ LLMプロバイダーが設定されていません。設定画面からAPIキーを入力してください。');
+    }
+  }, []);
+
+  // 初期化: セッションの作成または復元
+  useEffect(() => {
+    const initSession = async () => {
+      if (!currentSessionId) {
+        // 新しいセッションを作成
+        const session = await sessionService.createSession();
+        setCurrentSessionId(session.id);
+        setSessionTitle(session.title);
+        sessionService.setCurrentSessionId(session.id);
+      }
+    };
+    initSession();
+  }, []);
+
+  // 自動保存（conversation, documentContent, activeAgentIdsが変更されたとき）
+  useEffect(() => {
+    if (!currentSessionId) return;
+
+    const saveTimer = setTimeout(async () => {
+      try {
+        await sessionService.updateSession(currentSessionId, {
+          documentContent,
+          conversation,
+          activeAgentIds,
+          metadata: {
+            characterCount: documentContent.length,
+            totalTokens: conversation.reduce((sum, turn) => 
+              sum + (turn.tokenUsage?.total_tokens || 0), 0
+            ),
+          },
+        });
+        console.log('✅ Session auto-saved');
+      } catch (error) {
+        console.error('Failed to auto-save session:', error);
+      }
+    }, 1000); // 1秒のデバウンス
+
+    return () => clearTimeout(saveTimer);
+  }, [conversation, documentContent, activeAgentIds, currentSessionId]);
   
   // アクティブなエージェントのみを取得
   const agents = useMemo(() => {
@@ -67,19 +129,21 @@ function App() {
       
       // 通常モードの場合はカウントダウン
       const interval = setInterval(() => {
-        setUserTimeoutSeconds(prev => {
-          // ユーザーが入力中の場合はカウントダウンをリセット
-          if (userInput.trim().length > 0) {
-            return 30;
-          }
-          
-          if (prev <= 1) {
-            // タイムアウト：ランダムなエージェントが発言
-            handleUserTimeout();
-            return 30;
-          }
-          return prev - 1;
-        });
+        const currentTimeout = useAppStore.getState().userTimeoutSeconds;
+        
+        // ユーザーが入力中の場合はカウントダウンをリセット
+        if (userInput.trim().length > 0) {
+          setUserTimeoutSeconds(30);
+          return;
+        }
+        
+        if (currentTimeout <= 1) {
+          // タイムアウト：ランダムなエージェントが発言
+          handleUserTimeout();
+          setUserTimeoutSeconds(30);
+        } else {
+          setUserTimeoutSeconds(currentTimeout - 1);
+        }
       }, 1000);
 
       return () => clearInterval(interval);
@@ -229,7 +293,7 @@ function App() {
         name: 'respond_to_conversation',
         description: 'Respond to the conversation with a message and optional document action',
         parameters: {
-          type: 'object',
+          type: 'object' as const,
           properties: {
             speaker: {
               type: 'string',
@@ -240,7 +304,7 @@ function App() {
               description: 'The message content'
             },
             next_speaker: {
-              type: 'object',
+              type: 'object' as const,
               properties: {
                 type: {
                   type: 'string',
@@ -272,7 +336,7 @@ function App() {
                 diffs: {
                   type: 'array',
                   items: {
-                    type: 'object',
+                    type: 'object' as const,
                     properties: {
                       oldText: { type: 'string' },
                       newText: { type: 'string' }
@@ -303,25 +367,19 @@ function App() {
         strict: true
       }];
 
-      // APIリクエストペイロードを構築（新しいResponses API形式）
-      const requestPayload = {
-        model: 'gpt-4.1',
-        input: messages,
-        tools: tools,
-        tool_choice: {
-          type: 'function' as const,
-          name: 'respond_to_conversation'
-        }
-      };
+      // 現在のLLMプロバイダーを使用
+      const provider = getCurrentProvider();
       
-      // リクエストペイロードをコンソールに出力
-      console.log('🚀 API Request Payload:');
-      console.log(JSON.stringify(requestPayload, null, 2));
+      console.log(`🤖 Using LLM Provider: ${provider.name}`);
       
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const response = await (openai as any).responses.create(requestPayload);
+      // プロバイダーを使ってレスポンスを生成
+      const response = await provider.createResponse(
+        messages,
+        tools,
+        { type: 'function', name: 'respond_to_conversation' }
+      );
 
-      console.log(`🔄 Response from OpenAI:`, response);
+      console.log(`🔄 Response from ${provider.name}:`, response);
       
       // API応答を受け取った後、エージェントがまだアクティブか確認
       const agentStillActive = agents.find(a => a.id === agentId);
@@ -410,7 +468,18 @@ function App() {
           // 複数の内容を追記
           if (action.contents && action.contents.length > 0) {
             const newContent = action.contents.join('\n\n');
-            setDocumentContent(currentDoc + '\n\n' + newContent);
+            const updatedContent = currentDoc + '\n\n' + newContent;
+            setDocumentContent(updatedContent);
+            
+            // バージョンを保存
+            if (currentSessionId) {
+              sessionService.saveDocumentVersion(
+                currentSessionId,
+                updatedContent,
+                agentId,
+                { type: 'append', details: { agent: agent.name } }
+              ).catch(error => console.error('Failed to save version:', error));
+            }
           }
         } else if (action.type === 'diff' && agent?.canEdit) {
           // 差分更新権限がある場合、ドキュメントを差分更新
@@ -451,6 +520,16 @@ function App() {
             if (successfulDiffs > 0) {
               setDocumentContent(updatedDoc);
               console.log(`📝 Document updated: ${successfulDiffs} diffs applied, ${failedDiffs} failed`);
+              
+              // バージョンを保存
+              if (currentSessionId) {
+                sessionService.saveDocumentVersion(
+                  currentSessionId,
+                  updatedDoc,
+                  agentId,
+                  { type: 'diff', details: { agent: agent.name, diffs: successfulDiffs } }
+                ).catch(error => console.error('Failed to save version:', error));
+              }
             } else {
               console.error(`❌ No diffs could be applied to the document`);
             }
@@ -604,10 +683,19 @@ function App() {
       }
     } catch (error) {
       console.error('❌ Error in agent turn:', error);
+      
+      // APIキー関連のエラーかチェック
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isApiKeyError = errorMessage.includes('APIキーが設定されていません') || 
+                           errorMessage.includes('API Error') ||
+                           errorMessage.includes('401') ||
+                           errorMessage.includes('Unauthorized');
+      
       console.error('Error details:', {
         agentId,
         agentName: agent?.name,
-        error: error instanceof Error ? error.message : error
+        error: errorMessage,
+        isApiKeyError
       });
       
       // エラー時も考え中の状態を削除
@@ -619,13 +707,19 @@ function App() {
         const errorTurn: ConversationTurn = {
           id: crypto.randomUUID(),
           speaker: 'system',
-          message: `エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`,
+          message: isApiKeyError 
+            ? `APIキーのエラーが発生しました。設定を確認してください。`
+            : `エラーが発生しました: ${errorMessage}`,
           timestamp: new Date()
         };
         return [...filtered, errorTurn];
       });
       
-      setIsRunning(false);
+      // APIキーエラーの場合は設定画面を開く
+      if (isApiKeyError) {
+        setIsRunning(false);
+        setShowSettings(true);
+      }
     }
   };
 
@@ -701,6 +795,14 @@ function App() {
       console.log('🚀 Starting conversation');
       setIsRunning(true);
       setWaitingForUser(false);
+      
+      // APIキーが設定されているかチェック
+      if (!isProviderConfigured()) {
+        alert('APIキーが設定されていません。設定画面からAPIキーを入力してください。');
+        setIsRunning(false);
+        setShowSettings(true);
+        return;
+      }
       
       // キューをクリア
       conversationQueue.clear();
@@ -835,27 +937,97 @@ function App() {
     }
   };
 
+  // 新しいセッションを作成
+  const handleNewSession = async () => {
+    if (documentContent.trim() || conversation.length > 0) {
+      if (!confirm('現在の作品を保存して新しい作品を開始しますか？')) {
+        return;
+      }
+    }
+    
+    // 新しいセッションを作成
+    const session = await sessionService.createSession();
+    setCurrentSessionId(session.id);
+    setSessionTitle(session.title);
+    setDocumentContent('');
+    updateConversation(() => []);
+    sessionService.setCurrentSessionId(session.id);
+    
+    // 状態をリセット
+    setIsRunning(false);
+    setWaitingForUser(false);
+    conversationQueue.clear();
+    
+    console.log('✅ New session created:', session.title);
+  };
+
+  // セッションを読み込む
+  const handleLoadSession = async (session: Session) => {
+    // 現在の状態をクリア
+    setIsRunning(false);
+    setWaitingForUser(false);
+    conversationQueue.clear();
+    
+    // セッションのデータを復元
+    setCurrentSessionId(session.id);
+    setSessionTitle(session.title);
+    setDocumentContent(session.documentContent);
+    
+    // 会話履歴を復元（setConversationの代わりにupdateConversationを使用）
+    updateConversation(() => session.conversation);
+    
+    // アクティブエージェントを復元
+    session.activeAgentIds.forEach(agentId => {
+      if (!activeAgentIds.includes(agentId)) {
+        toggleAgent(agentId);
+      }
+    });
+    
+    // セッションサービスに現在のセッションIDを設定
+    sessionService.setCurrentSessionId(session.id);
+    
+    console.log('✅ Session loaded:', session.title);
+  };
+
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* 左側: チャット */}
-      <div className="flex-1 flex flex-col">
+      {/* サイドバー */}
+      <Sidebar
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        currentSessionId={currentSessionId}
+        onNewSession={handleNewSession}
+        onLoadSession={handleLoadSession}
+        onShowSettings={() => setShowSettings(true)}
+        onShowVersionTimeline={() => setShowVersionTimeline(true)}
+      />
+      
+      {/* メインコンテンツ */}
+      <div className={`flex h-screen bg-gray-100 flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-16'}`}>
+        {/* 左側: チャット */}
+        <div className="flex-1 flex flex-col">
         {/* ヘッダー */}
         <header className="bg-white shadow-sm px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <h1 className="text-2xl font-bold">マルチエージェント会話デモ</h1>
+              <div>
+                <h1 className="text-2xl font-bold">{sessionTitle || '無題の作品'}</h1>
+                <p className="text-sm text-gray-600">NovelDrive - AIマルチエージェント執筆システム</p>
+              </div>
               {queueLength > 0 && (
                 <span className="text-sm bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full">
                   キュー: {queueLength}件待機中
                 </span>
               )}
             </div>
-            <button
-              onClick={() => setShowAgentManager(!showAgentManager)}
-              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-            >
-              エージェント管理 ({activeAgentIds.length}/{allAgents.length})
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowAgentManager(!showAgentManager)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                エージェント管理 ({activeAgentIds.length}/{allAgents.length})
+              </button>
+            </div>
           </div>
           
           {/* エージェント管理パネル */}
@@ -1122,8 +1294,8 @@ function App() {
         </div>
       </div>
 
-      {/* 右側: エディタ */}
-      <div className="w-1/2 flex flex-col bg-white border-l">
+        {/* 右側: エディタ */}
+        <div className="w-1/2 flex flex-col bg-white border-l">
         {/* エディタヘッダー */}
         <div className="px-6 py-4 border-b bg-gray-50">
           <div className="flex items-center justify-between">
@@ -1138,12 +1310,54 @@ function App() {
         <div className="flex-1 p-6">
           <textarea
             value={documentContent || ''}
-            onChange={(e) => setDocumentContent(e.target.value)}
+            onChange={(e) => {
+              const newContent = e.target.value;
+              setDocumentContent(newContent);
+              
+              // デバウンスでバージョンを保存
+              if (currentSessionId) {
+                clearTimeout((window as any).documentVersionSaveTimer);
+                (window as any).documentVersionSaveTimer = setTimeout(() => {
+                  sessionService.saveDocumentVersion(
+                    currentSessionId,
+                    newContent,
+                    'user',
+                    { type: 'manual', details: { source: 'direct_edit' } }
+                  ).catch(error => console.error('Failed to save version:', error));
+                }, 2000); // 2秒後に保存
+              }
+            }}
             className="w-full h-full p-4 border rounded-lg font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="ここに小説を書いてください..."
           />
+          </div>
         </div>
       </div>
+
+      {/* 設定画面 */}
+      <Settings 
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
+
+      {/* 履歴画面 */}
+      <SessionHistory
+        isOpen={showHistory}
+        onClose={() => setShowHistory(false)}
+        onSessionSelect={handleLoadSession}
+      />
+
+      {/* バージョンタイムライン */}
+      <VersionTimeline
+        isOpen={showVersionTimeline}
+        onClose={() => setShowVersionTimeline(false)}
+        sessionId={currentSessionId}
+        currentContent={documentContent}
+        onRestore={(content) => {
+          setDocumentContent(content);
+          console.log('✅ Document version restored');
+        }}
+      />
     </div>
   );
 }

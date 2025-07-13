@@ -41,6 +41,22 @@ interface AppState {
   setUserInput: (input: string) => void;
   targetAgent: string;
   setTargetAgent: (agent: string) => void;
+
+  // API設定
+  openAIApiKey: string | null;
+  setOpenAIApiKey: (key: string) => void;
+  claudeApiKey: string | null;
+  setClaudeApiKey: (key: string) => void;
+  llmProvider: 'openai' | 'claude';
+  setLLMProvider: (provider: 'openai' | 'claude') => void;
+  llmModel: string;
+  setLLMModel: (model: string) => void;
+
+  // セッション管理
+  currentSessionId: string | null;
+  setCurrentSessionId: (id: string | null) => void;
+  sessionTitle: string;
+  setSessionTitle: (title: string) => void;
 }
 
 // LocalStorageから初期値を読み込む関数
@@ -152,4 +168,32 @@ export const useAppStore = create<AppState>((set) => ({
   setUserInput: (input) => set({ userInput: input }),
   targetAgent: 'random',
   setTargetAgent: (agent) => set({ targetAgent: agent }),
+
+  // API設定
+  openAIApiKey: loadFromLocalStorage<string | null>('noveldrive-openai-key', import.meta.env.VITE_OPENAI_API_KEY || null),
+  setOpenAIApiKey: (key) => {
+    saveToLocalStorage('noveldrive-openai-key', key);
+    set({ openAIApiKey: key });
+  },
+  claudeApiKey: loadFromLocalStorage<string | null>('noveldrive-claude-key', null),
+  setClaudeApiKey: (key) => {
+    saveToLocalStorage('noveldrive-claude-key', key);
+    set({ claudeApiKey: key });
+  },
+  llmProvider: loadFromLocalStorage<'openai' | 'claude'>('noveldrive-llm-provider', 'openai'),
+  setLLMProvider: (provider) => {
+    saveToLocalStorage('noveldrive-llm-provider', provider);
+    set({ llmProvider: provider });
+  },
+  llmModel: loadFromLocalStorage<string>('noveldrive-llm-model', 'gpt-4'),
+  setLLMModel: (model) => {
+    saveToLocalStorage('noveldrive-llm-model', model);
+    set({ llmModel: model });
+  },
+
+  // セッション管理
+  currentSessionId: null,
+  setCurrentSessionId: (id) => set({ currentSessionId: id }),
+  sessionTitle: '',
+  setSessionTitle: (title) => set({ sessionTitle: title }),
 }));
