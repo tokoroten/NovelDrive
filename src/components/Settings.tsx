@@ -26,6 +26,12 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
   const [tempModel, setTempModel] = useState(llmModel);
   const [showOpenAIKey, setShowOpenAIKey] = useState(false);
   const [showClaudeKey, setShowClaudeKey] = useState(false);
+  const [validatingOpenAI, setValidatingOpenAI] = useState(false);
+  const [validatingClaude, setValidatingClaude] = useState(false);
+  const [openAIValid, setOpenAIValid] = useState<boolean | null>(null);
+  const [claudeValid, setClaudeValid] = useState<boolean | null>(null);
+  const [openAIError, setOpenAIError] = useState<string>('');
+  const [claudeError, setClaudeError] = useState<string>('');
 
   // モデルオプション
   const openAIModels = [
@@ -75,6 +81,102 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     return tempProvider === 'openai' ? openAIModels : claudeModels;
   };
 
+  // OpenAI APIキーの検証
+  const validateOpenAIKey = async () => {
+    if (!tempOpenAIKey) {
+      setOpenAIError('APIキーを入力してください');
+      setOpenAIValid(false);
+      return;
+    }
+
+    setValidatingOpenAI(true);
+    setOpenAIError('');
+    
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${tempOpenAIKey}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [{ role: 'user', content: 'test' }],
+          max_tokens: 5,
+          temperature: 0
+        }),
+      });
+
+      if (response.ok) {
+        setOpenAIValid(true);
+        setOpenAIError('');
+      } else {
+        const error = await response.json();
+        setOpenAIValid(false);
+        if (response.status === 401) {
+          setOpenAIError('無効なAPIキーです');
+        } else if (response.status === 429) {
+          setOpenAIError('レート制限またはクォータ超過');
+        } else {
+          setOpenAIError(error.error?.message || 'エラーが発生しました');
+        }
+      }
+    } catch {
+      setOpenAIValid(false);
+      setOpenAIError('ネットワークエラー');
+    } finally {
+      setValidatingOpenAI(false);
+    }
+  };
+
+  // Claude APIキーの検証
+  const validateClaudeKey = async () => {
+    if (!tempClaudeKey) {
+      setClaudeError('APIキーを入力してください');
+      setClaudeValid(false);
+      return;
+    }
+
+    setValidatingClaude(true);
+    setClaudeError('');
+    
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': tempClaudeKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-3-haiku-20240307',
+          messages: [{ role: 'user', content: 'test' }],
+          max_tokens: 5,
+        }),
+      });
+
+      if (response.ok) {
+        setClaudeValid(true);
+        setClaudeError('');
+      } else {
+        const error = await response.json();
+        setClaudeValid(false);
+        if (response.status === 401) {
+          setClaudeError('無効なAPIキーです');
+        } else if (response.status === 429) {
+          setClaudeError('レート制限またはクォータ超過');
+        } else {
+          setClaudeError(error.error?.message || 'エラーが発生しました');
+        }
+      }
+    } catch {
+      setClaudeValid(false);
+      setClaudeError('ネットワークエラー');
+    } finally {
+      setValidatingClaude(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -122,21 +224,47 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 OpenAI API Key
               </label>
-              <div className="relative">
-                <input
-                  type={showOpenAIKey ? 'text' : 'password'}
-                  value={tempOpenAIKey}
-                  onChange={(e) => setTempOpenAIKey(e.target.value)}
-                  placeholder="sk-..."
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowOpenAIKey(!showOpenAIKey)}
-                  className="absolute right-2 top-2 text-gray-600 hover:text-gray-800"
-                >
-                  {showOpenAIKey ? '🙈' : '👁️'}
-                </button>
+              <div className="space-y-2">
+                <div className="relative">
+                  <input
+                    type={showOpenAIKey ? 'text' : 'password'}
+                    value={tempOpenAIKey}
+                    onChange={(e) => {
+                      setTempOpenAIKey(e.target.value);
+                      setOpenAIValid(null);
+                      setOpenAIError('');
+                    }}
+                    placeholder="sk-..."
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      openAIValid === true ? 'border-green-500' : 
+                      openAIValid === false ? 'border-red-500' : ''
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowOpenAIKey(!showOpenAIKey)}
+                    className="absolute right-2 top-2 text-gray-600 hover:text-gray-800"
+                  >
+                    {showOpenAIKey ? '🙈' : '👁️'}
+                  </button>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={validateOpenAIKey}
+                    disabled={validatingOpenAI || !tempOpenAIKey}
+                    className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  >
+                    {validatingOpenAI ? '検証中...' : 'APIキーを検証'}
+                  </button>
+                  {openAIValid === true && (
+                    <span className="text-green-600 text-sm">✅ 有効なAPIキー</span>
+                  )}
+                  {openAIValid === false && openAIError && (
+                    <span className="text-red-600 text-sm">❌ {openAIError}</span>
+                  )}
+                </div>
               </div>
               <p className="mt-1 text-sm text-gray-500">
                 APIキーは<a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">OpenAIのダッシュボード</a>から取得できます
@@ -150,21 +278,47 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Claude API Key
               </label>
-              <div className="relative">
-                <input
-                  type={showClaudeKey ? 'text' : 'password'}
-                  value={tempClaudeKey}
-                  onChange={(e) => setTempClaudeKey(e.target.value)}
-                  placeholder="sk-ant-..."
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowClaudeKey(!showClaudeKey)}
-                  className="absolute right-2 top-2 text-gray-600 hover:text-gray-800"
-                >
-                  {showClaudeKey ? '🙈' : '👁️'}
-                </button>
+              <div className="space-y-2">
+                <div className="relative">
+                  <input
+                    type={showClaudeKey ? 'text' : 'password'}
+                    value={tempClaudeKey}
+                    onChange={(e) => {
+                      setTempClaudeKey(e.target.value);
+                      setClaudeValid(null);
+                      setClaudeError('');
+                    }}
+                    placeholder="sk-ant-..."
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      claudeValid === true ? 'border-green-500' : 
+                      claudeValid === false ? 'border-red-500' : ''
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowClaudeKey(!showClaudeKey)}
+                    className="absolute right-2 top-2 text-gray-600 hover:text-gray-800"
+                  >
+                    {showClaudeKey ? '🙈' : '👁️'}
+                  </button>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={validateClaudeKey}
+                    disabled={validatingClaude || !tempClaudeKey}
+                    className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  >
+                    {validatingClaude ? '検証中...' : 'APIキーを検証'}
+                  </button>
+                  {claudeValid === true && (
+                    <span className="text-green-600 text-sm">✅ 有効なAPIキー</span>
+                  )}
+                  {claudeValid === false && claudeError && (
+                    <span className="text-red-600 text-sm">❌ {claudeError}</span>
+                  )}
+                </div>
               </div>
               <p className="mt-1 text-sm text-gray-500">
                 APIキーは<a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Anthropicのコンソール</a>から取得できます
