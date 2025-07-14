@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { ConversationTurn } from './types';
-import { defaultActiveAgents, allAgents } from './agents';
+import { ConversationTurn, Agent } from './types';
+import { defaultActiveAgents, allAgents as defaultAgents } from './agents';
 
 interface AppState {
   // 会話関連
@@ -10,6 +10,11 @@ interface AppState {
   updateConversation: (updater: (prev: ConversationTurn[]) => ConversationTurn[]) => void;
 
   // エージェント関連
+  agents: Agent[];
+  setAgents: (agents: Agent[]) => void;
+  updateAgent: (agentId: string, updates: Partial<Agent>) => void;
+  addAgent: (agent: Agent) => void;
+  deleteAgent: (agentId: string) => void;
   activeAgentIds: string[];
   setActiveAgentIds: (ids: string[]) => void;
   toggleAgent: (agentId: string) => void;
@@ -111,12 +116,47 @@ export const useAppStore = create<AppState>((set) => ({
   }),
 
   // エージェント関連
+  agents: loadFromLocalStorage<Agent[]>('noveldrive-agents', defaultAgents),
+  setAgents: (agents) => {
+    saveToLocalStorage('noveldrive-agents', agents);
+    set({ agents });
+  },
+  updateAgent: (agentId, updates) => set((state) => {
+    const newAgents = state.agents.map(agent => 
+      agent.id === agentId ? { ...agent, ...updates } : agent
+    );
+    saveToLocalStorage('noveldrive-agents', newAgents);
+    return { agents: newAgents };
+  }),
+  addAgent: (agent) => set((state) => {
+    const newAgents = [...state.agents, agent];
+    saveToLocalStorage('noveldrive-agents', newAgents);
+    return { agents: newAgents };
+  }),
+  deleteAgent: (agentId) => set((state) => {
+    // 最低1つのエージェントは必要
+    if (state.agents.length <= 1) return state;
+    
+    const newAgents = state.agents.filter(agent => agent.id !== agentId);
+    const newActiveIds = state.activeAgentIds.filter(id => id !== agentId);
+    
+    // アクティブなエージェントがなくなった場合、残りの最初のエージェントをアクティブにする
+    if (newActiveIds.length === 0 && newAgents.length > 0) {
+      newActiveIds.push(newAgents[0].id);
+    }
+    
+    saveToLocalStorage('noveldrive-agents', newAgents);
+    saveToLocalStorage('noveldrive-active-agents', newActiveIds);
+    
+    return { agents: newAgents, activeAgentIds: newActiveIds };
+  }),
   activeAgentIds: (() => {
     const saved = loadFromLocalStorage<string[]>('noveldrive-active-agents', defaultActiveAgents);
+    const agents = loadFromLocalStorage<Agent[]>('noveldrive-agents', defaultAgents);
     // 保存されたエージェントIDが有効かチェック
     const validIds = saved.filter((id: string) => {
       // 実際のエージェントリストから有効なIDをチェック
-      return allAgents.some(agent => agent.id === id);
+      return agents.some(agent => agent.id === id);
     });
     return validIds.length > 0 ? validIds : defaultActiveAgents;
   })(),

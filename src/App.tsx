@@ -1,5 +1,4 @@
 import { useEffect, useRef, useMemo, useState } from 'react';
-import { allAgents } from './agents';
 import { ConversationTurn, AgentResponse } from './types';
 import { ConversationQueue, QueueEvent } from './ConversationQueue';
 import { useAppStore } from './store';
@@ -15,6 +14,7 @@ import { Session } from './db/schema';
 function App() {
   // Zustandストアから状態を取得 - v2 fix for cache issues
   const {
+    agents,
     conversation,
     addConversationTurn,
     updateConversation,
@@ -220,9 +220,9 @@ ${documentContent.substring(0, 2000)}`
   };
   
   // アクティブなエージェントのみを取得
-  const agents = useMemo(() => {
-    return allAgents.filter(agent => activeAgentIds.includes(agent.id));
-  }, [activeAgentIds]);
+  const activeAgents = useMemo(() => {
+    return agents.filter(agent => activeAgentIds.includes(agent.id));
+  }, [agents, activeAgentIds]);
 
   // 自動スクロール
   useEffect(() => {
@@ -288,8 +288,8 @@ ${documentContent.substring(0, 2000)}`
     console.log('🔍 Debug - currentActiveAgentIds:', currentActiveAgentIds);
     console.log('🔍 Debug - currentActiveAgentIds (detailed):', JSON.stringify(currentActiveAgentIds));
     console.log('🔍 Debug - Looking for agent:', agentId);
-    console.log('🔍 Debug - All agents:', allAgents.map(a => a.id));
-    const currentActiveAgents = allAgents.filter(agent => currentActiveAgentIds.includes(agent.id));
+    console.log('🔍 Debug - All agents:', agents.map(a => a.id));
+    const currentActiveAgents = agents.filter(agent => currentActiveAgentIds.includes(agent.id));
     console.log('🔍 Debug - Active agents:', currentActiveAgents.map(a => a.id));
     console.log('🔍 Debug - Active agents (detailed):', JSON.stringify(currentActiveAgents.map(a => ({ id: a.id, name: a.name }))));
     const agent = currentActiveAgents.find(a => a.id === agentId);
@@ -297,7 +297,7 @@ ${documentContent.substring(0, 2000)}`
       console.error(`Agent not found: ${agentId}`);
       console.error('Available active agents:', currentActiveAgents.map(a => a.id));
       // エージェントが見つからない場合、システムメッセージを追加
-      const missingAgentName = allAgents.find(a => a.id === agentId)?.name || agentId;
+      const missingAgentName = agents.find(a => a.id === agentId)?.name || agentId;
       const systemMessage: ConversationTurn = {
         id: crypto.randomUUID(),
         speaker: 'system',
@@ -683,7 +683,7 @@ ${documentContent.substring(0, 2000)}`
       const latestState = useAppStore.getState();
       const latestIsRunning = latestState.isRunning;
       const latestActiveAgentIds = latestState.activeAgentIds;
-      const latestActiveAgents = allAgents.filter(agent => latestActiveAgentIds.includes(agent.id));
+      const latestActiveAgents = agents.filter(agent => latestActiveAgentIds.includes(agent.id));
       
       console.log('🔍 Checking if conversation should continue. isRunning:', latestIsRunning);
       console.log('📋 Agent response next_speaker:', JSON.stringify(agentResponse.next_speaker));
@@ -718,7 +718,7 @@ ${documentContent.substring(0, 2000)}`
               console.warn(`⚠️ Requested agent ${agentResponse.next_speaker.agent} is not active`);
               
               // システムメッセージを追加
-              const inactiveAgentName = allAgents.find(a => a.id === agentResponse.next_speaker.agent)?.name || agentResponse.next_speaker.agent;
+              const inactiveAgentName = agents.find(a => a.id === agentResponse.next_speaker.agent)?.name || agentResponse.next_speaker.agent;
               const systemMessage: ConversationTurn = {
                 id: crypto.randomUUID(),
                 speaker: 'system',
@@ -879,7 +879,7 @@ ${documentContent.substring(0, 2000)}`
     // ランダムなエージェントが発言（isRunningがtrueの場合のみ）
     if (currentState.isRunning) {
       // 最新のアクティブエージェントを取得
-      const currentActiveAgents = allAgents.filter(agent => currentState.activeAgentIds.includes(agent.id));
+      const currentActiveAgents = agents.filter(agent => currentState.activeAgentIds.includes(agent.id));
       if (currentActiveAgents.length > 0) {
         // 最後に発言したエージェントを取得
         const lastAgentMessage = currentState.conversation
@@ -921,7 +921,7 @@ ${documentContent.substring(0, 2000)}`
       conversationQueue.clear();
       
       // 最新のアクティブエージェントを取得
-      const currentActiveAgents = allAgents.filter(agent => activeAgentIds.includes(agent.id));
+      const currentActiveAgents = agents.filter(agent => activeAgentIds.includes(agent.id));
       if (currentActiveAgents.length === 0) {
         console.error('No active agents available');
         setIsRunning(false);
@@ -1019,7 +1019,7 @@ ${documentContent.substring(0, 2000)}`
     }
 
     // 最新のアクティブエージェントを取得
-    const currentActiveAgents = allAgents.filter(agent => activeAgentIds.includes(agent.id));
+    const currentActiveAgents = agents.filter(agent => activeAgentIds.includes(agent.id));
     if (currentActiveAgents.length === 0) {
       console.error('No active agents available');
       return;
@@ -1199,7 +1199,7 @@ ${documentContent.substring(0, 2000)}`
             <div className="flex items-center gap-2">
               {/* エージェントカウント表示 */}
               <span className="text-sm text-gray-600">
-                エージェント: {activeAgentIds.length}/{allAgents.length}
+                エージェント: {activeAgentIds.length}/{agents.length}
               </span>
             </div>
           </div>
@@ -1209,7 +1209,7 @@ ${documentContent.substring(0, 2000)}`
         <div className="flex-1 overflow-y-auto p-6">
           <div className="max-w-4xl mx-auto space-y-4">
             {(Array.isArray(conversation) ? conversation : []).map((turn) => {
-              const agent = allAgents.find(a => a.id === turn.speaker);
+              const agent = agents.find(a => a.id === turn.speaker);
               const isUser = turn.speaker === 'user';
               const isSystem = turn.speaker === 'system';
               
@@ -1237,7 +1237,7 @@ ${documentContent.substring(0, 2000)}`
                       )}
                       {turn.targetAgent && isUser && (
                         <span className="text-sm text-gray-500">
-                          → {allAgents.find(a => a.id === turn.targetAgent)?.name}
+                          → {agents.find(a => a.id === turn.targetAgent)?.name}
                         </span>
                       )}
                       <span className="text-xs text-gray-400">
@@ -1314,7 +1314,7 @@ ${documentContent.substring(0, 2000)}`
                         )}
                         {turn.documentAction.type === 'request_edit' && (
                           <div className="flex items-center gap-2 text-sm bg-yellow-50 text-yellow-700 p-2 rounded">
-                            <span>📨 {allAgents.find(a => a.id === turn.documentAction?.target_agent)?.name}に編集を依頼しました</span>
+                            <span>📨 {agents.find(a => a.id === turn.documentAction?.target_agent)?.name}に編集を依頼しました</span>
                           </div>
                         )}
                       </div>
@@ -1394,7 +1394,7 @@ ${documentContent.substring(0, 2000)}`
                 disabled={activeAgentIds.length === 0}
               >
                 <option value="random">TO: 誰でも</option>
-                {allAgents.filter(agent => activeAgentIds.includes(agent.id)).map(agent => (
+                {agents.filter(agent => activeAgentIds.includes(agent.id)).map(agent => (
                   <option key={agent.id} value={agent.id}>
                     TO: {agent.avatar} {agent.name}
                   </option>
