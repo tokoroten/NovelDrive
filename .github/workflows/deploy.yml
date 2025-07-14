@@ -33,9 +33,6 @@ jobs:
 
       - name: Build
         run: npm run build
-        env:
-          # GitHub PagesのベースURLを設定
-          BASE_URL: /${{ github.event.repository.name }}/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
