@@ -267,15 +267,22 @@ ${documentContent.substring(0, 2000)}`
 
 
   // エージェントのターン処理（実際の処理）
-  const processAgentTurnInternal = async (agentId: string) => {
+  const processAgentTurnInternal = async (agentId: string, requestSessionId: string) => {
     // 現在の状態を取得
     const currentState = useAppStore.getState();
+    const currentSessionId = currentState.currentSessionId;
     const currentIsRunning = currentState.isRunning;
     const currentActiveAgentIds = currentState.activeAgentIds;
     const currentConversation = Array.isArray(currentState.conversation) ? currentState.conversation : [];
     const currentDocumentContent = currentState.documentContent;
     
-    console.log(`🎯 Processing turn for agent: ${agentId}, isRunning:`, currentIsRunning);
+    console.log(`🎯 Processing turn for agent: ${agentId}, session: ${requestSessionId}, isRunning:`, currentIsRunning);
+    
+    // セッションIDが一致しない場合は処理をスキップ
+    if (currentSessionId !== requestSessionId) {
+      console.log(`⚠️ Session ID mismatch. Current: ${currentSessionId}, Request: ${requestSessionId}. Skipping.`);
+      return;
+    }
     console.log('🔍 Debug - localStorage active agents:', localStorage.getItem('noveldrive-active-agents'));
     
     // 会議が停止されている場合は処理を中止
@@ -696,7 +703,8 @@ ${documentContent.substring(0, 2000)}`
           const randomAgent = latestActiveAgents[Math.floor(Math.random() * latestActiveAgents.length)];
           conversationQueue.enqueue({
             type: 'agent_turn',
-            agentId: randomAgent.id
+            agentId: randomAgent.id,
+            sessionId: requestSessionId
           });
           return;
         }
@@ -754,14 +762,16 @@ ${documentContent.substring(0, 2000)}`
             setTimeout(() => {
               conversationQueue.enqueue({
                 type: 'agent_turn',
-                agentId: nextAgentId!
+                agentId: nextAgentId!,
+                sessionId: requestSessionId
               });
             }, currentState.agentDelay);
           } else {
             // 遅延なしの場合は即座にキューに追加
             conversationQueue.enqueue({
               type: 'agent_turn',
-              agentId: nextAgentId!
+              agentId: nextAgentId!,
+              sessionId: requestSessionId
             });
           }
         }
@@ -838,9 +848,15 @@ ${documentContent.substring(0, 2000)}`
 
   // エージェントのターン処理（キューに追加）
   const processAgentTurn = (agentId: string) => {
+    const sessionId = useAppStore.getState().currentSessionId;
+    if (!sessionId) {
+      console.error('No current session ID');
+      return;
+    }
     conversationQueue.enqueue({
       type: 'agent_turn',
-      agentId
+      agentId,
+      sessionId
     });
   };
 
@@ -848,7 +864,7 @@ ${documentContent.substring(0, 2000)}`
   useEffect(() => {
     const handleQueueEvent = async (event: QueueEvent) => {
       if (event.type === 'agent_turn') {
-        await processAgentTurnInternal(event.agentId);
+        await processAgentTurnInternal(event.agentId, event.sessionId);
       }
     };
 

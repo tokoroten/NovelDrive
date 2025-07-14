@@ -2,6 +2,7 @@ export type QueueEvent = {
   id: string;
   type: 'agent_turn' | 'user_input';
   agentId: string;
+  sessionId: string;
   timestamp: Date;
 };
 
