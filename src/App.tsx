@@ -434,43 +434,48 @@ ${documentContent.substring(0, 2000)}`
               additionalProperties: false
             },
             document_action: {
-              type: ['object', 'null'],
-              properties: {
-                type: {
-                  type: 'string',
-                  enum: ['diff', 'append', 'request_edit'],
-                  description: 'Type of document action'
-                },
-                contents: {
-                  type: 'array',
-                  items: { type: 'string' },
-                  description: 'Contents to append (for append type)'
-                },
-                diffs: {
-                  type: 'array',
-                  items: {
-                    type: 'object' as const,
-                    properties: {
-                      oldText: { type: 'string' },
-                      newText: { type: 'string' }
+              oneOf: [
+                { type: 'null' },
+                {
+                  type: 'object',
+                  properties: {
+                    type: {
+                      type: 'string',
+                      enum: ['diff', 'append', 'request_edit'],
+                      description: 'Type of document action'
                     },
-                    required: ['oldText', 'newText'],
-                    additionalProperties: false
+                    contents: {
+                      type: 'array',
+                      items: { type: 'string' },
+                      description: 'Contents to append (for append type)'
+                    },
+                    diffs: {
+                      type: 'array',
+                      items: {
+                        type: 'object' as const,
+                        properties: {
+                          oldText: { type: 'string' },
+                          newText: { type: 'string' }
+                        },
+                        required: ['oldText', 'newText'],
+                        additionalProperties: false
+                      },
+                      description: 'Diff edits (for diff type)'
+                    },
+                    content: {
+                      type: 'string',
+                      description: 'Content for request_edit'
+                    },
+                    target_agent: {
+                      type: ['string', 'null'],
+                      enum: [...currentActiveAgents.filter(a => a.canEdit).map(a => a.id), null],
+                      description: 'Target agent for request_edit (must be one of the participating agents with edit permission)'
+                    }
                   },
-                  description: 'Diff edits (for diff type)'
-                },
-                content: {
-                  type: 'string',
-                  description: 'Content for request_edit'
-                },
-                target_agent: {
-                  type: ['string', 'null'],
-                  enum: [...currentActiveAgents.filter(a => a.canEdit).map(a => a.id), null],
-                  description: 'Target agent for request_edit (must be one of the participating agents with edit permission)'
+                  required: ['type'],
+                  additionalProperties: false
                 }
-              },
-              required: ['type'],
-              additionalProperties: false,
+              ],
               description: 'Document action: append uses contents[], diff uses diffs[], request_edit uses content and target_agent'
             }
           },
