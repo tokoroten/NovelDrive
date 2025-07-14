@@ -15,33 +15,23 @@ export class ConversationManager {
     summaryTurn: ConversationTurn,
     keepRecentCount: number
   ): ConversationTurn[] {
-    // 最後の要約の位置を探す
-    let lastSummaryIdx = -1;
-    for (let i = currentConversation.length - 1; i >= 0; i--) {
-      if (currentConversation[i].speaker === 'system' && 
-          currentConversation[i].message.includes('📋 会話履歴の要約')) {
-        lastSummaryIdx = i;
-        break;
-      }
-    }
 
     // 新しい会話配列を構築
     let newConversation: ConversationTurn[] = [];
     
-    if (lastSummaryIdx >= 0) {
-      // 既存の要約がある場合
-      // 1. 最初から最後の要約までを保持（過去の要約を含む）
-      newConversation = currentConversation.slice(0, lastSummaryIdx + 1);
-      // 2. 新しい要約を追加
+    // 要約を挿入する位置を決定
+    const insertPosition = currentConversation.length - keepRecentCount;
+    
+    if (insertPosition > 0) {
+      // 要約位置より前の会話を保持
+      newConversation = [...currentConversation.slice(0, insertPosition)];
+      // 要約を挿入
       newConversation.push(summaryTurn);
-      // 3. 最近の会話を追加
-      newConversation.push(...currentConversation.slice(-keepRecentCount));
+      // 要約位置より後の会話を追加
+      newConversation.push(...currentConversation.slice(insertPosition));
     } else {
-      // 初回の要約の場合
-      // 1. 新しい要約を追加
-      newConversation.push(summaryTurn);
-      // 2. 最近の会話を追加
-      newConversation.push(...currentConversation.slice(-keepRecentCount));
+      // 会話が少ない場合は先頭に要約を挿入
+      newConversation = [summaryTurn, ...currentConversation];
     }
 
     this.summaryCount++;
