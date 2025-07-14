@@ -10,6 +10,7 @@ interface SidebarProps {
   onLoadSession: (session: Session) => void;
   onShowSettings: () => void;
   onShowVersionTimeline: () => void;
+  onShowAgentManager: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -20,6 +21,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLoadSession,
   onShowSettings,
   onShowVersionTimeline,
+  onShowAgentManager,
 }) => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(false);
@@ -227,6 +229,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* 下部メニュー */}
         <div className="border-t border-gray-700 p-2">
+          <button
+            onClick={onShowAgentManager}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            title={isOpen ? '' : 'エージェント管理'}
+          >
+            <span className="text-xl">🤖</span>
+            <span className={`transition-opacity duration-300 ${
+              isOpen ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'
+            }`}>
+              エージェント管理
+            </span>
+          </button>
+          
           <button
             onClick={onShowVersionTimeline}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors"

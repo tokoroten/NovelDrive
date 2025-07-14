@@ -20,6 +20,6 @@ export default defineConfig({
     strictPort: true,
   },
   optimizeDeps: {
-    include: ["react", "react-dom", "zustand", "openai"],
+    include: ["react", "react-dom", "zustand", "dexie"],
   },
 });

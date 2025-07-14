@@ -8,6 +8,7 @@ import { Settings } from './components/Settings';
 import { SessionHistory } from './components/SessionHistory';
 import { VersionTimeline } from './components/VersionTimeline';
 import { Sidebar } from './components/Sidebar';
+import { AgentManager } from './components/AgentManager';
 import { sessionService } from './db';
 import { Session } from './db/schema';
 
@@ -35,8 +36,6 @@ function App() {
     setThinkingAgentId,
     queueLength,
     setQueueLength,
-    showAgentManager,
-    setShowAgentManager,
     userInput,
     setUserInput,
     targetAgent,
@@ -54,6 +53,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showVersionTimeline, setShowVersionTimeline] = useState(false);
+  const [showAgentManagerModal, setShowAgentManagerModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitle, setEditingTitle] = useState('');
@@ -1113,6 +1113,7 @@ ${documentContent.substring(0, 2000)}`
         onLoadSession={handleLoadSession}
         onShowSettings={() => setShowSettings(true)}
         onShowVersionTimeline={() => setShowVersionTimeline(true)}
+        onShowAgentManager={() => setShowAgentManagerModal(true)}
       />
       
       {/* メインコンテンツ */}
@@ -1196,51 +1197,12 @@ ${documentContent.substring(0, 2000)}`
               )}
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowAgentManager(!showAgentManager)}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-              >
-                エージェント管理 ({activeAgentIds.length}/{allAgents.length})
-              </button>
+              {/* エージェントカウント表示 */}
+              <span className="text-sm text-gray-600">
+                エージェント: {activeAgentIds.length}/{allAgents.length}
+              </span>
             </div>
           </div>
-          
-          {/* エージェント管理パネル */}
-          {showAgentManager && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-              <h3 className="text-lg font-semibold mb-3">会話に参加するエージェント</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {allAgents.map(agent => (
-                  <label
-                    key={agent.id}
-                    className={`flex items-center gap-2 p-3 rounded-lg cursor-pointer transition-colors ${
-                      activeAgentIds.includes(agent.id)
-                        ? 'bg-blue-100 hover:bg-blue-200 border-2 border-blue-300'
-                        : 'bg-white hover:bg-gray-100 border-2 border-gray-200'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={activeAgentIds.includes(agent.id)}
-                      onChange={() => toggleAgent(agent.id)}
-                      className="w-4 h-4 text-blue-600 rounded"
-                    />
-                    <span className="text-2xl">{agent.avatar}</span>
-                    <div className="flex-1">
-                      <div className="font-medium text-sm">{agent.name}</div>
-                      <div className="text-xs text-gray-600 font-semibold">{agent.title}</div>
-                      <div className="text-xs text-gray-500">
-                        {agent.canEdit ? '編集可' : '編集不可'}
-                      </div>
-                    </div>
-                  </label>
-                ))}
-              </div>
-              <div className="mt-3 text-sm text-gray-600">
-                ※ 最低1つのエージェントを選択する必要があります
-              </div>
-            </div>
-          )}
         </header>
 
         {/* 会話ログ */}
@@ -1520,6 +1482,12 @@ ${documentContent.substring(0, 2000)}`
         isOpen={showHistory}
         onClose={() => setShowHistory(false)}
         onSessionSelect={handleLoadSession}
+      />
+
+      {/* エージェント管理 */}
+      <AgentManager
+        isOpen={showAgentManagerModal}
+        onClose={() => setShowAgentManagerModal(false)}
       />
 
       {/* バージョンタイムライン */}
