@@ -13,6 +13,7 @@ import { sessionService } from './db';
 import { Session } from './db/schema';
 import { applyDiffsWithWorker } from './utils/diffWorkerHelper';
 import { summarizeConversation } from './utils/conversationSummarizer';
+import { ConversationManager } from './utils/conversationManager';
 
 function App() {
   // 起動時のデバッグログ
@@ -75,6 +76,9 @@ function App() {
   
   // 会話キューの作成
   const conversationQueue = useMemo(() => new ConversationQueue(), []);
+  
+  // 会話マネージャーの作成
+  const conversationManager = useMemo(() => new ConversationManager(), []);
   
   // キーボードショートカット
   useEffect(() => {
@@ -726,22 +730,36 @@ ${documentContent.substring(0, 2000)}`
       const currentConversation = useAppStore.getState().conversation;
       const { autoSummarizeEnabled, summarizeThreshold } = useAppStore.getState();
       
-      if (autoSummarizeEnabled && currentConversation.length >= summarizeThreshold && !isSummarizing) {
-        console.log(`📋 Auto-summarizing conversation (${currentConversation.length} turns >= ${summarizeThreshold})`);
+      if (autoSummarizeEnabled && conversationManager.shouldSummarize(currentConversation.length, summarizeThreshold, isSummarizing)) {
+        console.log(`📋 Auto-summarizing conversation (${currentConversation.length} turns, threshold: ${summarizeThreshold})`);
         
         // 非同期で要約を実行（会話の流れを止めない）
         setIsSummarizing(true);
-        summarizeConversation(currentConversation, Math.floor(summarizeThreshold / 2))
+        
+        const keepRecentCount = Math.floor(summarizeThreshold / 2);
+        const conversationToSummarize = conversationManager.getConversationToSummarize(currentConversation, keepRecentCount);
+        
+        summarizeConversation(currentConversation, keepRecentCount, conversationToSummarize)
           .then(({ summaryTurn }) => {
-            addConversationTurn(summaryTurn);
+            // 会話履歴を更新（古い会話を削除して要約を挿入）
+            const newConversation = conversationManager.processSummarizedConversation(
+              currentConversation,
+              summaryTurn,
+              keepRecentCount
+            );
+            
+            // ストアを更新
+            useAppStore.getState().setConversation(newConversation);
             
             // セッションに保存
             if (currentSessionId) {
               sessionService.updateSession(currentSessionId, {
-                conversation: [...currentConversation, summaryTurn],
+                conversation: newConversation,
                 updatedAt: new Date()
               }).catch(error => console.error('Failed to save summary:', error));
             }
+            
+            console.log(`✅ Summary complete. Stats:`, conversationManager.getStats());
           })
           .catch(error => console.error('Failed to auto-summarize:', error))
           .finally(() => setIsSummarizing(false));
@@ -1068,16 +1086,36 @@ ${documentContent.substring(0, 2000)}`
     
     setIsSummarizing(true);
     try {
-      const { summaryTurn } = await summarizeConversation(conversation, 20);
-      addConversationTurn(summaryTurn);
+      const keepRecentCount = Math.min(20, Math.floor(conversation.length / 3));
+      const conversationToSummarize = conversationManager.getConversationToSummarize(conversation, keepRecentCount);
+      
+      if (conversationToSummarize.length === 0) {
+        // 要約する会話がない
+        console.log('No conversation to summarize');
+        return;
+      }
+      
+      const { summaryTurn } = await summarizeConversation(conversation, keepRecentCount, conversationToSummarize);
+      
+      // 会話履歴を更新（古い会話を削除して要約を挿入）
+      const newConversation = conversationManager.processSummarizedConversation(
+        conversation,
+        summaryTurn,
+        keepRecentCount
+      );
+      
+      // ストアを更新
+      useAppStore.getState().setConversation(newConversation);
       
       // セッションに保存
       if (currentSessionId) {
         await sessionService.updateSession(currentSessionId, {
-          conversation: [...conversation, summaryTurn],
+          conversation: newConversation,
           updatedAt: new Date()
         });
       }
+      
+      console.log(`✅ Manual summary complete. Stats:`, conversationManager.getStats());
     } catch (error) {
       console.error('Failed to summarize:', error);
     } finally {

@@ -6,13 +6,14 @@ import { getCurrentProvider } from '../llm';
  */
 export async function summarizeConversation(
   conversation: ConversationTurn[],
-  keepRecentCount: number = 10
+  keepRecentCount: number = 10,
+  conversationToSummarize?: ConversationTurn[]
 ): Promise<{
   summary: string;
   summaryTurn: ConversationTurn;
 }> {
-  // 古い会話を取得（最近の会話は要約対象外）
-  const oldConversation = conversation.slice(0, -keepRecentCount);
+  // 要約対象の会話を決定
+  const oldConversation = conversationToSummarize || conversation.slice(0, -keepRecentCount);
   
   if (oldConversation.length === 0) {
     const noSummaryTurn: ConversationTurn = {
