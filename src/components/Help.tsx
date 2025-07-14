@@ -90,6 +90,21 @@ export const Help: React.FC<HelpProps> = ({ isOpen, onClose }) => {
             </div>
           </section>
 
+          <section>
+            <h3 className="text-lg font-semibold mb-2">💡 トラブルシューティング</h3>
+            <div className="space-y-2 text-gray-700 text-sm">
+              <div>
+                <strong>エージェントの編集が失敗する場合:</strong>
+                <ul className="list-disc list-inside ml-4 mt-1">
+                  <li>エージェントは小さな部分を編集するよう設計されています</li>
+                  <li>大きな変更は複数回に分けて行われます</li>
+                  <li>改行を含む編集は特に注意が必要です</li>
+                  <li>編集に失敗した場合、エージェントは別の方法を試みます</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
           <section className="bg-yellow-50 p-4 rounded-lg">
             <h3 className="text-lg font-semibold mb-2">⚠️ 注意事項</h3>
             <ul className="list-disc list-inside space-y-1 text-gray-700 text-sm">

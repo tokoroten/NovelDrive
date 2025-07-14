@@ -11,6 +11,7 @@ import { AgentManager } from './components/AgentManager';
 import { Help } from './components/Help';
 import { sessionService } from './db';
 import { Session } from './db/schema';
+import { applyDiffs } from './utils/diffMatcher';
 
 function App() {
   // 起動時のデバッグログ
@@ -384,7 +385,7 @@ ${documentContent.substring(0, 2000)}`
       const messages = [
         { 
           role: 'system' as const, 
-          content: agent.systemPrompt + '\n\n【現在参加中のエージェント】\n' + participatingAgents + '\n\n重要: 上記のエージェントのみが会話に参加しています。これら以外のエージェントを指定しないでください。\n\n【ドキュメント編集の注意事項】\n- document_actionオブジェクトには必ず全てのフィールド(type, contents, diffs, content, target_agent)を含めてください。\n- 使用しないフィールドは空の値(contents=[], diffs=[], content="", target_agent="")にしてください。\n\n【編集タイプ】\n- "none": 編集なし。全フィールドを空にする。\n- "append": 既存のドキュメントの末尾に追記。contentsフィールドのみ使用。\n  例: {type: "append", contents: ["第1段落", "第2段落"], diffs: [], content: "", target_agent: ""}\n- "diff": 特定の箇所を差分更新。diffsフィールドのみ使用。\n  例: {type: "diff", contents: [], diffs: [{oldText: "変更前", newText: "変更後"}], content: "", target_agent: ""}\n- "request_edit": 他のエージェントに編集依頼。contentとtarget_agentフィールドを使用。\n  例: {type: "request_edit", contents: [], diffs: [], content: "編集依頼内容", target_agent: "agent_id"}\n\n【diff使用時の重要な注意】\n- oldTextは現在のドキュメントと完全に一致する必要があります（改行、スペース含む）\n- 削除する場合はnewTextを空文字("")にします\n- 全体の書き直しは禁止されています。必ず"append"または"diff"を使用してください。'
+          content: agent.systemPrompt + '\n\n【現在参加中のエージェント】\n' + participatingAgents + '\n\n重要: 上記のエージェントのみが会話に参加しています。これら以外のエージェントを指定しないでください。\n\n【ドキュメント編集の注意事項】\n- document_actionオブジェクトには必ず全てのフィールド(type, contents, diffs, content, target_agent)を含めてください。\n- 使用しないフィールドは空の値(contents=[], diffs=[], content="", target_agent="")にしてください。\n\n【編集タイプ】\n- "none": 編集なし。全フィールドを空にする。\n- "append": 既存のドキュメントの末尾に追記。contentsフィールドのみ使用。\n  例: {type: "append", contents: ["第1段落", "第2段落"], diffs: [], content: "", target_agent: ""}\n- "diff": 特定の箇所を差分更新。diffsフィールドのみ使用。\n  例: {type: "diff", contents: [], diffs: [{oldText: "変更前", newText: "変更後"}], content: "", target_agent: ""}\n- "request_edit": 他のエージェントに編集依頼。contentとtarget_agentフィールドを使用。\n  例: {type: "request_edit", contents: [], diffs: [], content: "編集依頼内容", target_agent: "agent_id"}\n\n【diff使用時の重要な注意】\n- oldTextは現在のドキュメントから正確にコピーしてください\n- 改行は\\nで表現してください（実際の改行文字を使用）\n- 複数行の場合も、改行を含めて正確に指定してください\n- 前後の空白や改行も重要です。余分な空白を追加しないでください\n- 削除する場合はnewTextを空文字("")にします\n- 全体の書き直しは禁止されています。必ず"append"または"diff"を使用してください。\n- 一度に変更するのは小さな部分に留め、大きな変更は複数のdiffに分けてください'
         },
         {
           role: 'user' as const,
@@ -617,32 +618,31 @@ ${documentContent.substring(0, 2000)}`
           // 差分更新権限がある場合、ドキュメントを差分更新
           console.log(`✏️ ${agent.name} is updating the document with diffs`);
           const currentDoc = useAppStore.getState().documentContent;
-          let updatedDoc = currentDoc;
           
           // 各差分を適用
           if (action.diffs && action.diffs.length > 0) {
+            // 新しいdiffマッチャーを使用
+            const { content: updatedDoc, results } = applyDiffs(currentDoc, action.diffs, 0.8);
+            
+            // 結果をログに出力
             let successfulDiffs = 0;
             let failedDiffs = 0;
             
-            action.diffs.forEach((diff, index) => {
-              // 完全一致でテキストを探す
-              const oldTextIndex = updatedDoc.indexOf(diff.oldText);
-              
-              if (oldTextIndex !== -1) {
-                // テキストが見つかった場合、置換
-                updatedDoc = updatedDoc.substring(0, oldTextIndex) + 
-                           diff.newText + 
-                           updatedDoc.substring(oldTextIndex + diff.oldText.length);
+            results.forEach((result, index) => {
+              if (result.applied) {
                 successfulDiffs++;
                 console.log(`✅ Diff ${index + 1} applied successfully`);
+                if (result.similarity && result.similarity < 1.0) {
+                  console.log(`   (類似度: ${(result.similarity * 100).toFixed(1)}%)`);
+                  console.log(`   マッチしたテキスト: "${result.matchedText?.substring(0, 50)}${result.matchedText && result.matchedText.length > 50 ? '...' : ''}"`);
+                }
               } else {
-                // テキストが見つからない場合
                 failedDiffs++;
-                console.error(`❌ Diff ${index + 1} failed: Could not find exact text to replace`);
-                console.error(`   Looking for: "${diff.oldText.substring(0, 50)}${diff.oldText.length > 50 ? '...' : ''}"`);
+                console.error(`❌ Diff ${index + 1} failed: ${result.error}`);
+                console.error(`   探していたテキスト: "${result.oldText.substring(0, 50)}${result.oldText.length > 50 ? '...' : ''}"`);
                 
                 // 部分一致を試みる（デバッグ用）
-                const partialMatch = updatedDoc.includes(diff.oldText.trim());
+                const partialMatch = currentDoc.includes(result.oldText.trim());
                 if (partialMatch) {
                   console.warn(`   ⚠️ Partial match found (trimmed). The text might have extra spaces or newlines.`);
                 }
