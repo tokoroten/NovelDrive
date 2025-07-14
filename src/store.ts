@@ -15,6 +15,7 @@ interface AppState {
   updateAgent: (agentId: string, updates: Partial<Agent>) => void;
   addAgent: (agent: Agent) => void;
   deleteAgent: (agentId: string) => void;
+  resetAgents: () => void;
   activeAgentIds: string[];
   setActiveAgentIds: (ids: string[]) => void;
   toggleAgent: (agentId: string) => void;
@@ -150,6 +151,11 @@ export const useAppStore = create<AppState>((set) => ({
     
     return { agents: newAgents, activeAgentIds: newActiveIds };
   }),
+  resetAgents: () => {
+    saveToLocalStorage('noveldrive-agents', defaultAgents);
+    saveToLocalStorage('noveldrive-active-agents', defaultActiveAgents);
+    set({ agents: defaultAgents, activeAgentIds: defaultActiveAgents });
+  },
   activeAgentIds: (() => {
     const saved = loadFromLocalStorage<string[]>('noveldrive-active-agents', defaultActiveAgents);
     const agents = loadFromLocalStorage<Agent[]>('noveldrive-agents', defaultAgents);

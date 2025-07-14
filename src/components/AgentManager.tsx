@@ -8,7 +8,7 @@ interface AgentManagerProps {
 }
 
 export const AgentManager: React.FC<AgentManagerProps> = ({ isOpen, onClose }) => {
-  const { agents, activeAgentIds, toggleAgent, updateAgent, addAgent, deleteAgent } = useAppStore();
+  const { agents, activeAgentIds, toggleAgent, updateAgent, addAgent, deleteAgent, resetAgents } = useAppStore();
   const [editingAgent, setEditingAgent] = useState<string | null>(null);
   const [editingPrompt, setEditingPrompt] = useState<string>('');
   const [showNewAgentForm, setShowNewAgentForm] = useState(false);
@@ -84,17 +84,30 @@ export const AgentManager: React.FC<AgentManagerProps> = ({ isOpen, onClose }) =
         </div>
 
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-          <div className="mb-4 flex justify-between items-center">
-            <p className="text-gray-600">
+          <div className="mb-4">
+            <p className="text-gray-600 mb-3">
               会話に参加するエージェントを選択・編集してください。最低1つのエージェントを選択する必要があります。
             </p>
-            <button
-              onClick={() => setShowNewAgentForm(true)}
-              className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2"
-            >
-              <span>➕</span>
-              新規エージェント
-            </button>
+            <div className="flex justify-between items-center gap-3">
+              <button
+                onClick={() => {
+                  if (confirm('現在のエージェント設定を削除し、デフォルトのエージェントに戻しますか？')) {
+                    resetAgents();
+                  }
+                }}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
+              >
+                <span>🔄</span>
+                デフォルトエージェントを復元
+              </button>
+              <button
+                onClick={() => setShowNewAgentForm(true)}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2"
+              >
+                <span>➕</span>
+                新規エージェント
+              </button>
+            </div>
           </div>
 
           {/* 新規エージェント作成フォーム */}
