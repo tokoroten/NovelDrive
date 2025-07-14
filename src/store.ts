@@ -88,7 +88,11 @@ const loadFromLocalStorage = <T>(key: string, defaultValue: T): T => {
 // LocalStorageに保存する関数
 const saveToLocalStorage = <T>(key: string, value: T) => {
   if (typeof window === 'undefined') return;
+  console.log(`💾 Saving to LocalStorage: ${key} =`, value);
   localStorage.setItem(key, JSON.stringify(value));
+  // 保存後の確認
+  const saved = localStorage.getItem(key);
+  console.log(`✅ Verified LocalStorage: ${key} =`, saved);
 };
 
 // Zustandストアの作成
@@ -237,8 +241,14 @@ export const useAppStore = create<AppState>((set) => ({
     saveToLocalStorage('noveldrive-llm-provider', provider);
     set({ llmProvider: provider });
   },
-  llmModel: loadFromLocalStorage<string>('noveldrive-llm-model', 'gpt-4'),
+  llmModel: (() => {
+    const defaultModel = 'gpt-4';
+    const saved = loadFromLocalStorage<string>('noveldrive-llm-model', defaultModel);
+    console.log('🔧 Store initialization - llmModel:', saved);
+    return saved;
+  })(),
   setLLMModel: (model) => {
+    console.log('🔧 Setting llmModel to:', model);
     saveToLocalStorage('noveldrive-llm-model', model);
     set({ llmModel: model });
   },

@@ -59,6 +59,9 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
   }, [isOpen, openAIApiKey, claudeApiKey, llmProvider, llmModel]);
 
   const handleSave = () => {
+    console.log('💾 Settings - Saving model:', tempModel);
+    console.log('💾 Settings - Saving provider:', tempProvider);
+    
     // APIキーを保存
     setOpenAIApiKey(tempOpenAIKey);
     setClaudeApiKey(tempClaudeKey);
@@ -74,6 +77,8 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     }
     localStorage.setItem('noveldrive-llm-provider', tempProvider);
     localStorage.setItem('noveldrive-llm-model', tempModel);
+    
+    console.log('✅ Settings - Model saved to localStorage:', localStorage.getItem('noveldrive-llm-model'));
 
     onClose();
   };

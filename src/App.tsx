@@ -12,6 +12,12 @@ import { sessionService } from './db';
 import { Session } from './db/schema';
 
 function App() {
+  // 起動時のデバッグログ
+  console.log('🚀 App starting...');
+  console.log('📦 LocalStorage noveldrive-llm-model:', localStorage.getItem('noveldrive-llm-model'));
+  console.log('📦 LocalStorage noveldrive-llm-provider:', localStorage.getItem('noveldrive-llm-provider'));
+  console.log('📦 All LocalStorage keys:', Object.keys(localStorage).filter(k => k.startsWith('noveldrive-')));
+  
   // Zustandストアから状態を取得 - v2 fix for cache issues
   const {
     agents,
