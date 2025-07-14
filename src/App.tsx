@@ -366,7 +366,7 @@ ${documentContent.substring(0, 2000)}`
       const messages = [
         { 
           role: 'system' as const, 
-          content: agent.systemPrompt + '\n\n【現在参加中のエージェント】\n' + participatingAgents + '\n\n重要: 上記のエージェントのみが会話に参加しています。これら以外のエージェントを指定しないでください。\n\n【ドキュメント編集の注意事項】\n- "append"タイプ: 既存のドキュメントの末尾に追記します。\n  例: {type: "append", contents: ["第1段落", "第2段落", "第3段落"]}\n- "diff"タイプ: 特定の箇所を差分更新します。複数箇所の編集が可能。\n  例: {type: "diff", diffs: [{oldText: "変更前", newText: "変更後"}, {oldText: "別の箇所", newText: "修正後"}]}\n- 削除する場合: diffタイプでnewTextを空文字("")にすることで、文章や段落を削除できます。\n  例: {type: "diff", diffs: [{oldText: "削除したい段落", newText: ""}]}\n\n【diff使用時の重要な注意】\n- oldTextは現在のドキュメントと完全に一致する必要があります（改行、スペース含む）\n- 複数行を編集する場合も、改行文字を含めて正確にコピーしてください\n- 一度に大きな範囲を編集するより、小さな単位で複数のdiffを使う方が確実です\n- 全体の書き直しは禁止されています。必ず"append"または"diff"を使用してください。'
+          content: agent.systemPrompt + '\n\n【現在参加中のエージェント】\n' + participatingAgents + '\n\n重要: 上記のエージェントのみが会話に参加しています。これら以外のエージェントを指定しないでください。\n\n【ドキュメント編集の注意事項】\n- document_actionオブジェクトには必ず全てのフィールド(type, contents, diffs, content, target_agent)を含めてください。\n- 使用しないフィールドは空の値(contents=[], diffs=[], content="", target_agent="")にしてください。\n\n【編集タイプ】\n- "none": 編集なし。全フィールドを空にする。\n- "append": 既存のドキュメントの末尾に追記。contentsフィールドのみ使用。\n  例: {type: "append", contents: ["第1段落", "第2段落"], diffs: [], content: "", target_agent: ""}\n- "diff": 特定の箇所を差分更新。diffsフィールドのみ使用。\n  例: {type: "diff", contents: [], diffs: [{oldText: "変更前", newText: "変更後"}], content: "", target_agent: ""}\n- "request_edit": 他のエージェントに編集依頼。contentとtarget_agentフィールドを使用。\n  例: {type: "request_edit", contents: [], diffs: [], content: "編集依頼内容", target_agent: "agent_id"}\n\n【diff使用時の重要な注意】\n- oldTextは現在のドキュメントと完全に一致する必要があります（改行、スペース含む）\n- 削除する場合はnewTextを空文字("")にします\n- 全体の書き直しは禁止されています。必ず"append"または"diff"を使用してください。'
         },
         {
           role: 'user' as const,
@@ -469,9 +469,9 @@ ${documentContent.substring(0, 2000)}`
                   description: 'Target agent for request_edit (must be one of the participating agents with edit permission, empty string if not applicable)'
                 }
               },
-              required: ['type'],
+              required: ['type', 'contents', 'diffs', 'content', 'target_agent'],
               additionalProperties: false,
-              description: 'Document action: append uses contents[], diff uses diffs[], request_edit uses content and target_agent, none for no action'
+              description: 'Document action: Always provide all fields. For unused fields: contents=[], diffs=[], content="", target_agent="". Only populate relevant fields based on type.'
             }
           },
           required: ['speaker', 'message', 'next_speaker', 'document_action'],
@@ -562,7 +562,7 @@ ${documentContent.substring(0, 2000)}`
                 type: 'random',
                 agent: null
               },
-              document_action: { type: 'none' }
+              document_action: { type: 'none', contents: [], diffs: [], content: '', target_agent: '' }
             };
         console.log(`🔧 Using fallback response:`, agentResponse);
       }
@@ -778,7 +778,7 @@ ${documentContent.substring(0, 2000)}`
               type: 'random',
               agent: null
             },
-            document_action: { type: 'none' }
+            document_action: { type: 'none', contents: [], diffs: [], content: '', target_agent: '' }
           };
         }
       } else {
@@ -791,7 +791,7 @@ ${documentContent.substring(0, 2000)}`
             type: 'random',
             agent: null
           },
-          document_action: { type: 'none' }
+          document_action: { type: 'none', contents: [], diffs: [], content: '', target_agent: '' }
         };
       }
     } catch (error) {
