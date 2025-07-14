@@ -20,8 +20,8 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
   } = useAppStore();
 
   // ローカルステート（保存前の一時的な値）
-  const [tempOpenAIKey, setTempOpenAIKey] = useState(openAIApiKey || '');
-  const [tempClaudeKey, setTempClaudeKey] = useState(claudeApiKey || '');
+  const [tempOpenAIKey, setTempOpenAIKey] = useState('');
+  const [tempClaudeKey, setTempClaudeKey] = useState('');
   const [tempProvider, setTempProvider] = useState(llmProvider);
   const [tempModel, setTempModel] = useState(llmModel);
   const [showOpenAIKey, setShowOpenAIKey] = useState(false);
@@ -204,7 +204,14 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                   name="provider"
                   value="openai"
                   checked={tempProvider === 'openai'}
-                  onChange={(e) => setTempProvider(e.target.value as 'openai' | 'claude')}
+                  onChange={(e) => {
+                    setTempProvider(e.target.value as 'openai' | 'claude');
+                    // プロバイダー切り替え時に検証状態をリセット
+                    setOpenAIValid(null);
+                    setClaudeValid(null);
+                    setOpenAIError('');
+                    setClaudeError('');
+                  }}
                   className="mr-2"
                 />
                 OpenAI
@@ -215,7 +222,14 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                   name="provider"
                   value="claude"
                   checked={tempProvider === 'claude'}
-                  onChange={(e) => setTempProvider(e.target.value as 'openai' | 'claude')}
+                  onChange={(e) => {
+                    setTempProvider(e.target.value as 'openai' | 'claude');
+                    // プロバイダー切り替え時に検証状態をリセット
+                    setOpenAIValid(null);
+                    setClaudeValid(null);
+                    setOpenAIError('');
+                    setClaudeError('');
+                  }}
                   className="mr-2"
                 />
                 Claude (Anthropic)
