@@ -8,6 +8,8 @@ function normalizeWhitespace(text) {
     .replace(/\s+/g, ' ') // 連続する空白を1つに
     .replace(/\r\n/g, '\n') // 改行コードを統一
     .replace(/\n+/g, '\n') // 連続する改行を1つに
+    .replace(/＜/g, '<') // 全角の＜を半角に
+    .replace(/＞/g, '>') // 全角の＞を半角に
     .trim();
 }
 
@@ -50,6 +52,26 @@ function calculateSimilarity(str1, str2) {
 }
 
 /**
+ * 全角・半角の違いを吸収する正規化
+ */
+function normalizeFullHalfWidth(text) {
+  return text
+    .replace(/＜/g, '<')
+    .replace(/＞/g, '>')
+    .replace(/［/g, '[')
+    .replace(/］/g, ']')
+    .replace(/（/g, '(')
+    .replace(/）/g, ')')
+    .replace(/：/g, ':')
+    .replace(/；/g, ';')
+    .replace(/，/g, ',')
+    .replace(/．/g, '.')
+    .replace(/！/g, '!')
+    .replace(/？/g, '?')
+    .replace(/　/g, ' '); // 全角スペースを半角に
+}
+
+/**
  * テキスト内で最も類似した部分を探す
  */
 function findBestMatch(haystack, needle, threshold = 0.8) {
@@ -62,16 +84,53 @@ function findBestMatch(haystack, needle, threshold = 0.8) {
       matchedText: needle
     };
   }
+  
+  // 全角・半角を正規化して完全一致を試す
+  const normalizedNeedle = normalizeFullHalfWidth(needle);
+  const normalizedHaystack = normalizeFullHalfWidth(haystack);
+  const normalizedExactIndex = normalizedHaystack.indexOf(normalizedNeedle);
+  if (normalizedExactIndex !== -1) {
+    // 元のテキストでの位置を探す
+    let originalIndex = 0;
+    let normalizedIndex = 0;
+    for (let i = 0; i < haystack.length; i++) {
+      if (normalizedIndex === normalizedExactIndex) {
+        originalIndex = i;
+        break;
+      }
+      const normalizedChar = normalizeFullHalfWidth(haystack[i]);
+      if (normalizedChar.length > 0) {
+        normalizedIndex++;
+      }
+    }
+    
+    // 元のテキストでの長さを計算
+    let matchLength = 0;
+    let remainingNeedleLength = normalizedNeedle.length;
+    for (let i = originalIndex; i < haystack.length && remainingNeedleLength > 0; i++) {
+      matchLength++;
+      const normalizedChar = normalizeFullHalfWidth(haystack[i]);
+      if (normalizedChar.length > 0) {
+        remainingNeedleLength -= normalizedChar.length;
+      }
+    }
+    
+    return {
+      index: originalIndex,
+      similarity: 0.98, // 全角・半角の違いだけなので高スコア
+      matchedText: haystack.substring(originalIndex, originalIndex + matchLength)
+    };
+  }
 
-  // 正規化して検索
-  const normalizedNeedle = normalizeWhitespace(needle);
-  const normalizedHaystack = normalizeWhitespace(haystack);
+  // 正規化して検索（空白の正規化）
+  const wsNormalizedNeedle = normalizeWhitespace(needle);
+  const wsNormalizedHaystack = normalizeWhitespace(haystack);
   
   // 正規化されたテキストで完全一致を試す
-  const normalizedIndex = normalizedHaystack.indexOf(normalizedNeedle);
-  if (normalizedIndex !== -1) {
+  const wsNormalizedIndex = wsNormalizedHaystack.indexOf(wsNormalizedNeedle);
+  if (wsNormalizedIndex !== -1) {
     // 元のテキストでの位置を推定
-    const originalIndex = findOriginalPosition(haystack, normalizedHaystack, normalizedIndex);
+    const originalIndex = findOriginalPosition(haystack, wsNormalizedHaystack, wsNormalizedIndex);
     const matchLength = findOriginalLength(haystack, originalIndex, needle.length);
     return {
       index: originalIndex,
@@ -91,7 +150,7 @@ function findBestMatch(haystack, needle, threshold = 0.8) {
   for (let i = 0; i <= haystack.length - needle.length / 2; i++) {
     for (let len = Math.floor(needle.length * 0.8); len <= Math.min(searchLength, haystack.length - i); len++) {
       const candidate = haystack.substring(i, i + len);
-      const similarity = calculateSimilarity(normalizeWhitespace(candidate), normalizedNeedle);
+      const similarity = calculateSimilarity(normalizeWhitespace(candidate), wsNormalizedNeedle);
 
       if (similarity >= threshold) {
         if (!bestMatch || similarity > bestMatch.similarity) {
