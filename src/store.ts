@@ -256,7 +256,7 @@ export const useAppStore = create<AppState>((set) => ({
     set({ llmProvider: provider });
   },
   llmModel: (() => {
-    const defaultModel = 'gpt-4';
+    const defaultModel = 'gpt-4.1-mini';
     const saved = loadFromLocalStorage<string>('noveldrive-llm-model', defaultModel);
     console.log('🔧 Store initialization - llmModel:', saved);
     return saved;
