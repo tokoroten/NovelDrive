@@ -11,6 +11,7 @@ interface SidebarProps {
   onShowSettings: () => void;
   onShowVersionTimeline: () => void;
   onShowAgentManager: () => void;
+  isRunning: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -22,6 +23,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onShowSettings,
   onShowVersionTimeline,
   onShowAgentManager,
+  isRunning,
 }) => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(false);
@@ -100,12 +102,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
             
             {/* 新規作成ボタン */}
             <button
-              onClick={onNewSession}
-              className={`p-1.5 hover:bg-gray-800 rounded-lg transition-all ${
+              onClick={() => {
+                if (isRunning) {
+                  alert('会議中は新しい作品を作成できません。会議を停止してください。');
+                } else {
+                  onNewSession();
+                }
+              }}
+              disabled={isRunning}
+              className={`p-1.5 rounded-lg transition-all ${
                 isOpen ? 'opacity-100' : 'opacity-0 w-0'
+              } ${
+                isRunning ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-800'
               }`}
-              title="新規作成"
-              aria-label="新しい作品を作成"
+              title={isRunning ? '会議中は新規作成できません' : '新規作成'}
+              aria-label={isRunning ? '会議中は新しい作品を作成できません' : '新しい作品を作成'}
             >
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="3" width="14" height="14" rx="2" />
@@ -148,13 +159,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {sessions.map((session) => (
                   <div
                     key={session.id}
-                    className={`relative rounded-lg hover:bg-gray-800 transition-colors group ${
+                    className={`relative rounded-lg transition-colors group ${
                       currentSessionId === session.id ? 'bg-gray-800' : ''
+                    } ${
+                      isRunning && currentSessionId !== session.id ? 'opacity-50' : 'hover:bg-gray-800'
                     }`}
                   >
                     <button
-                      onClick={() => onLoadSession(session)}
-                      className="w-full text-left px-3 py-2"
+                      onClick={() => {
+                        if (isRunning && currentSessionId !== session.id) {
+                          alert('会議中は他の作品に切り替えできません。会議を停止してください。');
+                        } else {
+                          onLoadSession(session);
+                        }
+                      }}
+                      disabled={isRunning && currentSessionId !== session.id}
+                      className={`w-full text-left px-3 py-2 ${
+                        isRunning && currentSessionId !== session.id ? 'cursor-not-allowed' : ''
+                      }`}
                     >
                       <div className="text-sm font-medium truncate pr-6">
                         {session.title}
@@ -230,11 +252,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {sessions.slice(0, 5).map((session) => (
                 <button
                   key={session.id}
-                  onClick={() => onLoadSession(session)}
-                  className={`w-full p-3 rounded-lg hover:bg-gray-800 transition-colors flex justify-center ${
+                  onClick={() => {
+                    if (isRunning && currentSessionId !== session.id) {
+                      alert('会議中は他の作品に切り替えできません。会議を停止してください。');
+                    } else {
+                      onLoadSession(session);
+                    }
+                  }}
+                  disabled={isRunning && currentSessionId !== session.id}
+                  className={`w-full p-3 rounded-lg transition-colors flex justify-center ${
                     currentSessionId === session.id ? 'bg-gray-800' : ''
+                  } ${
+                    isRunning && currentSessionId !== session.id ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-800'
                   }`}
-                  title={session.title}
+                  title={isRunning && currentSessionId !== session.id ? '会議中は切り替えできません' : session.title}
                 >
                   <span className="text-lg">📝</span>
                 </button>

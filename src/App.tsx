@@ -1114,6 +1114,7 @@ ${documentContent.substring(0, 2000)}`
         onShowSettings={() => setShowSettings(true)}
         onShowVersionTimeline={() => setShowVersionTimeline(true)}
         onShowAgentManager={() => setShowAgentManagerModal(true)}
+        isRunning={isRunning}
       />
       
       {/* メインコンテンツ */}
