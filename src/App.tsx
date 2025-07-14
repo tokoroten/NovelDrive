@@ -165,6 +165,9 @@ function App() {
         return;
       }
       
+      const currentModel = useAppStore.getState().llmModel;
+      console.log(`🏷️ Generating title with: ${provider.name}, Model: ${currentModel}`);
+      
       const messages = [
         {
           role: 'system' as const,
@@ -490,7 +493,8 @@ ${documentContent.substring(0, 2000)}`
       // 現在のLLMプロバイダーを使用
       const provider = getCurrentProvider();
       
-      console.log(`🤖 Using LLM Provider: ${provider.name}`);
+      const currentModel = useAppStore.getState().llmModel;
+      console.log(`🤖 Using LLM Provider: ${provider.name}, Model: ${currentModel}`);
       
       // プロバイダーを使ってレスポンスを生成
       const response = await provider.createResponse(

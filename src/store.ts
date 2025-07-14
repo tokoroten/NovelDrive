@@ -70,11 +70,17 @@ const loadFromLocalStorage = <T>(key: string, defaultValue: T): T => {
   if (typeof window === 'undefined') return defaultValue;
   
   const saved = localStorage.getItem(key);
-  if (!saved) return defaultValue;
+  if (!saved) {
+    console.log(`📦 LocalStorage: ${key} not found, using default:`, defaultValue);
+    return defaultValue;
+  }
   
   try {
-    return JSON.parse(saved);
+    const parsed = JSON.parse(saved);
+    console.log(`📦 LocalStorage: ${key} loaded:`, parsed);
+    return parsed;
   } catch {
+    console.log(`📦 LocalStorage: ${key} parse error, using default:`, defaultValue);
     return defaultValue;
   }
 };
