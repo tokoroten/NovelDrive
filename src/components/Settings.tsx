@@ -17,6 +17,10 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     setLLMProvider,
     llmModel,
     setLLMModel,
+    autoSummarizeEnabled,
+    setAutoSummarizeEnabled,
+    summarizeThreshold,
+    setSummarizeThreshold,
   } = useAppStore();
 
   // ローカルステート（保存前の一時的な値）
@@ -32,6 +36,8 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
   const [claudeValid, setClaudeValid] = useState<boolean | null>(null);
   const [openAIError, setOpenAIError] = useState<string>('');
   const [claudeError, setClaudeError] = useState<string>('');
+  const [tempAutoSummarize, setTempAutoSummarize] = useState(autoSummarizeEnabled);
+  const [tempThreshold, setTempThreshold] = useState(summarizeThreshold);
 
   // モデルオプション
   const openAIModels = [
@@ -54,8 +60,10 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
       setTempClaudeKey(claudeApiKey || '');
       setTempProvider(llmProvider);
       setTempModel(llmModel);
+      setTempAutoSummarize(autoSummarizeEnabled);
+      setTempThreshold(summarizeThreshold);
     }
-  }, [isOpen, openAIApiKey, claudeApiKey, llmProvider, llmModel]);
+  }, [isOpen, openAIApiKey, claudeApiKey, llmProvider, llmModel, autoSummarizeEnabled, summarizeThreshold]);
 
   const handleSave = () => {
     console.log('💾 Settings - Saving model:', tempModel);
@@ -66,6 +74,8 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     setClaudeApiKey(tempClaudeKey);
     setLLMProvider(tempProvider);
     setLLMModel(tempModel);
+    setAutoSummarizeEnabled(tempAutoSummarize);
+    setSummarizeThreshold(tempThreshold);
 
     // LocalStorageにも保存
     if (tempOpenAIKey) {
@@ -371,6 +381,48 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
               <li>• 共有コンピューターでは使用しないでください</li>
               <li>• APIの使用には料金が発生する場合があります</li>
             </ul>
+          </div>
+
+          {/* 会話履歴の自動要約設定 */}
+          <div className="mt-6">
+            <h4 className="font-medium text-gray-700 mb-3">会話履歴の自動要約</h4>
+            <div className="space-y-4">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="auto-summarize"
+                  checked={tempAutoSummarize}
+                  onChange={(e) => setTempAutoSummarize(e.target.checked)}
+                  className="mr-2"
+                />
+                <label htmlFor="auto-summarize" className="text-sm text-gray-700">
+                  会話が指定数を超えたら自動的に要約する
+                </label>
+              </div>
+              
+              {tempAutoSummarize && (
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">
+                    要約のしきい値（会話ターン数）
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min="20"
+                      max="200"
+                      step="10"
+                      value={tempThreshold}
+                      onChange={(e) => setTempThreshold(Number(e.target.value))}
+                      className="flex-1"
+                    />
+                    <span className="text-sm font-medium text-gray-700 w-12">{tempThreshold}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    会話が{tempThreshold}ターンを超えると、古い会話を要約してメモリを節約します
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

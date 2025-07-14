@@ -1343,8 +1343,34 @@ ${documentContent.substring(0, 2000)}`
                           </div>
                         )}
                         {turn.documentAction.type === 'append' && (
-                          <div className="flex items-center gap-2 text-sm bg-green-50 text-green-700 p-2 rounded">
-                            <span>➕ ドキュメントに追記しました（{turn.documentAction.contents?.length || 0}段落）</span>
+                          <div className="text-sm bg-green-50 text-green-700 p-2 rounded">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span>➕ ドキュメントに追記しました（{turn.documentAction.contents?.length || 0}段落）</span>
+                            </div>
+                            {turn.documentAction.contents && turn.documentAction.contents.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {turn.documentAction.contents.map((content, index) => (
+                                  <div
+                                    key={index}
+                                    className="group relative inline-block cursor-help"
+                                  >
+                                    <span className="text-xs text-green-600 underline decoration-dotted">
+                                      追記内容 {index + 1}
+                                    </span>
+                                    <div className="absolute z-10 w-96 p-3 bg-white border border-gray-200 rounded-lg shadow-lg invisible group-hover:visible bottom-full left-0 mb-1">
+                                      <div className="space-y-2">
+                                        <div>
+                                          <div className="text-xs font-semibold text-green-600 mb-1">追記された内容:</div>
+                                          <div className="text-xs bg-green-50 p-2 rounded border border-green-200 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                                            {content}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
                         {turn.documentAction.type === 'request_edit' && (

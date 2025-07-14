@@ -33,6 +33,12 @@ interface AppState {
   setUserTimeoutSeconds: (seconds: number) => void;
   observerMode: boolean;
   setObserverMode: (mode: boolean) => void;
+  
+  // 会話履歴の自動要約設定
+  autoSummarizeEnabled: boolean;
+  setAutoSummarizeEnabled: (enabled: boolean) => void;
+  summarizeThreshold: number;
+  setSummarizeThreshold: (threshold: number) => void;
   agentDelay: number;
   setAgentDelay: (delay: number) => void;
   thinkingAgentId: string | null;
@@ -224,6 +230,19 @@ export const useAppStore = create<AppState>((set) => ({
   setUserTimeoutSeconds: (seconds) => set({ userTimeoutSeconds: seconds }),
   observerMode: false,
   setObserverMode: (mode) => set({ observerMode: mode }),
+  
+  // 会話履歴の自動要約設定
+  autoSummarizeEnabled: loadFromLocalStorage('noveldrive-auto-summarize', false),
+  setAutoSummarizeEnabled: (enabled) => {
+    saveToLocalStorage('noveldrive-auto-summarize', enabled);
+    set({ autoSummarizeEnabled: enabled });
+  },
+  summarizeThreshold: loadFromLocalStorage('noveldrive-summarize-threshold', 50),
+  setSummarizeThreshold: (threshold) => {
+    saveToLocalStorage('noveldrive-summarize-threshold', threshold);
+    set({ summarizeThreshold: threshold });
+  },
+  
   agentDelay: 0,
   setAgentDelay: (delay) => set({ agentDelay: delay }),
   thinkingAgentId: null,
