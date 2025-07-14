@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store';
+import { db } from '../db';
 
 interface SettingsProps {
   isOpen: boolean;
@@ -197,6 +198,45 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
               <li>• 共有コンピューターでは使用しないでください</li>
               <li>• APIの使用には料金が発生する場合があります</li>
             </ul>
+          </div>
+        </div>
+
+        {/* データ初期化セクション */}
+        <div className="px-6 py-4 border-t">
+          <h3 className="text-lg font-semibold mb-4 text-red-600">データ初期化</h3>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-sm text-red-700 mb-4">
+              警告：この操作はすべての作品、会話履歴、設定を削除します。この操作は元に戻せません。
+            </p>
+            <button
+              onClick={async () => {
+                if (confirm('本当にすべてのデータを初期化しますか？\n\nこの操作は元に戻せません。')) {
+                  try {
+                    // IndexedDBを完全に削除
+                    await db.delete();
+                    
+                    // LocalStorageをクリア
+                    const keysToRemove = [];
+                    for (let i = 0; i < localStorage.length; i++) {
+                      const key = localStorage.key(i);
+                      if (key && key.startsWith('noveldrive-')) {
+                        keysToRemove.push(key);
+                      }
+                    }
+                    keysToRemove.forEach(key => localStorage.removeItem(key));
+                    
+                    alert('データを初期化しました。ページを再読み込みします。');
+                    window.location.reload();
+                  } catch (error) {
+                    console.error('Failed to reset data:', error);
+                    alert('データの初期化に失敗しました。');
+                  }
+                }
+              }}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              すべてのデータを初期化
+            </button>
           </div>
         </div>
 

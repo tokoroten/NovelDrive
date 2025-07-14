@@ -85,16 +85,33 @@ function App() {
 
   // 初期化: セッションの作成または復元
   useEffect(() => {
+    let isMounted = true;
     const initSession = async () => {
-      if (!currentSessionId) {
-        // 新しいセッションを作成
-        const session = await sessionService.createSession();
-        setCurrentSessionId(session.id);
-        setSessionTitle(session.title);
-        sessionService.setCurrentSessionId(session.id);
+      if (!currentSessionId && isMounted) {
+        // 既存のセッションがあるか確認
+        const existingSessions = await sessionService.getAllSessions();
+        if (existingSessions.length > 0 && isMounted) {
+          // 最新のセッションを使用
+          const latestSession = existingSessions[0];
+          setCurrentSessionId(latestSession.id);
+          setSessionTitle(latestSession.title);
+          setDocumentContent(latestSession.documentContent);
+          updateConversation(() => latestSession.conversation);
+          sessionService.setCurrentSessionId(latestSession.id);
+        } else if (isMounted) {
+          // 新しいセッションを作成
+          const session = await sessionService.createSession();
+          setCurrentSessionId(session.id);
+          setSessionTitle(session.title);
+          sessionService.setCurrentSessionId(session.id);
+        }
       }
     };
     initSession();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // 自動保存（conversation, documentContent, activeAgentIdsが変更されたとき）

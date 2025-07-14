@@ -35,7 +35,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         index === self.findIndex((s) => s.id === session.id)
       );
       setSessions(uniqueSessions);
-      console.log(`Loaded ${uniqueSessions.length} unique sessions`);
     } catch (error) {
       console.error('Failed to load sessions:', error);
     } finally {
@@ -195,8 +194,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             ? 'text-gray-600 cursor-not-allowed' 
                             : 'hover:bg-gray-700 text-gray-400 hover:text-red-400'
                         }`}
-                        title={currentSessionId === session.id ? "現在開いている作品は削除できません" : "削除"}
-                        aria-label={currentSessionId === session.id ? "現在開いている作品は削除できません" : "作品を削除"}
+                        title={currentSessionId === session.id ? '現在開いている作品は削除できません' : '削除'}
+                        aria-label={currentSessionId === session.id ? '現在開いている作品は削除できません' : '作品を削除'}
                       >
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                           <path d="M3 4h10M5 4V3a1 1 0 011-1h4a1 1 0 011 1v1M6 7v5M10 7v5M4 4l1 9a1 1 0 001 1h4a1 1 0 001-1l1-9" />
