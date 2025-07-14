@@ -39,8 +39,14 @@ export class OpenAIProvider implements LLMProvider {
         model,
         messages,
         ...(toolChoice.type === 'function' ? {
-          tools,
-          tool_choice: toolChoice,
+          tools: tools.map(tool => ({
+            type: 'function',
+            function: tool
+          })),
+          tool_choice: {
+            type: 'function',
+            function: { name: toolChoice.name }
+          },
         } : {}),
         temperature: 0.7,
       }),
