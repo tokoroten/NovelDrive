@@ -13,6 +13,8 @@ interface SidebarProps {
   onShowAgentManager: () => void;
   onShowHelp: () => void;
   isRunning: boolean;
+  activeAgentCount?: number;
+  totalAgentCount?: number;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -26,6 +28,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onShowAgentManager,
   onShowHelp,
   isRunning,
+  activeAgentCount = 0,
+  totalAgentCount = 0,
 }) => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(false);
@@ -134,13 +138,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             onClick={onShowAgentManager}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors"
-            title={isOpen ? '' : 'エージェント管理'}
+            title={isOpen ? '' : `エージェント管理 (${activeAgentCount}/${totalAgentCount})`}
           >
             <span className="text-xl">🤖</span>
-            <span className={`transition-opacity duration-300 ${
+            <span className={`flex items-center gap-2 transition-opacity duration-300 ${
               isOpen ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'
             }`}>
-              エージェント管理
+              <span>エージェント管理</span>
+              {activeAgentCount > 0 && (
+                <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">
+                  {activeAgentCount}/{totalAgentCount}
+                </span>
+              )}
             </span>
           </button>
         </div>

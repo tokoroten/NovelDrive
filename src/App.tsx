@@ -52,6 +52,8 @@ function App() {
     setCurrentSessionId,
     sessionTitle,
     setSessionTitle,
+    autoSummarizeEnabled,
+    summarizeThreshold,
   } = useAppStore();
   const conversationEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -1165,6 +1167,8 @@ ${documentContent.substring(0, 2000)}`
         onShowAgentManager={() => setShowAgentManagerModal(true)}
         onShowHelp={() => setShowHelp(true)}
         isRunning={isRunning}
+        activeAgentCount={activeAgentIds.length}
+        totalAgentCount={agents.length}
       />
       
       {/* メインコンテンツ */}
@@ -1248,9 +1252,14 @@ ${documentContent.substring(0, 2000)}`
               )}
             </div>
             <div className="flex items-center gap-2">
-              {/* エージェントカウント表示 */}
+              {/* ターン数表示 */}
               <span className="text-sm text-gray-600">
-                エージェント: {activeAgentIds.length}/{agents.length}
+                ターン数: {conversation.length}
+                {autoSummarizeEnabled && (
+                  <span className="text-xs text-gray-500 ml-1">
+                    / {summarizeThreshold}
+                  </span>
+                )}
               </span>
             </div>
           </div>
