@@ -11,7 +11,7 @@ import { AgentManager } from './components/AgentManager';
 import { Help } from './components/Help';
 import { sessionService } from './db';
 import { Session } from './db/schema';
-import { applyDiffs } from './utils/diffMatcher';
+import { applyDiffsWithWorker } from './utils/diffWorkerHelper';
 
 function App() {
   // 起動時のデバッグログ
@@ -67,6 +67,7 @@ function App() {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitle, setEditingTitle] = useState('');
   const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
+  const [isUpdatingDocument, setIsUpdatingDocument] = useState(false);
   
   // 会話キューの作成
   const conversationQueue = useMemo(() => new ConversationQueue(), []);
@@ -621,49 +622,64 @@ ${documentContent.substring(0, 2000)}`
           
           // 各差分を適用
           if (action.diffs && action.diffs.length > 0) {
-            // 新しいdiffマッチャーを使用
-            const { content: updatedDoc, results } = applyDiffs(currentDoc, action.diffs, 0.8);
+            // 更新中フラグを立てる
+            setIsUpdatingDocument(true);
             
-            // 結果をログに出力
-            let successfulDiffs = 0;
-            let failedDiffs = 0;
-            
-            results.forEach((result, index) => {
-              if (result.applied) {
-                successfulDiffs++;
-                console.log(`✅ Diff ${index + 1} applied successfully`);
-                if (result.similarity && result.similarity < 1.0) {
-                  console.log(`   (類似度: ${(result.similarity * 100).toFixed(1)}%)`);
-                  console.log(`   マッチしたテキスト: "${result.matchedText?.substring(0, 50)}${result.matchedText && result.matchedText.length > 50 ? '...' : ''}"`);
-                }
-              } else {
-                failedDiffs++;
-                console.error(`❌ Diff ${index + 1} failed: ${result.error}`);
-                console.error(`   探していたテキスト: "${result.oldText.substring(0, 50)}${result.oldText.length > 50 ? '...' : ''}"`);
-                
-                // 部分一致を試みる（デバッグ用）
-                const partialMatch = currentDoc.includes(result.oldText.trim());
-                if (partialMatch) {
+            try {
+              // Web Workerを使用してdiff計算を実行
+              const { content: updatedDoc, results } = await applyDiffsWithWorker(
+                currentDoc, 
+                action.diffs, 
+                0.8,
+                (message) => console.log(`⏳ ${message}`)
+              );
+              
+              // 結果をログに出力
+              let successfulDiffs = 0;
+              let failedDiffs = 0;
+              
+              results.forEach((result, index) => {
+                if (result.applied) {
+                  successfulDiffs++;
+                  console.log(`✅ Diff ${index + 1} applied successfully`);
+                  if (result.similarity && result.similarity < 1.0) {
+                    console.log(`   (類似度: ${(result.similarity * 100).toFixed(1)}%)`);
+                    console.log(`   マッチしたテキスト: "${result.matchedText?.substring(0, 50)}${result.matchedText && result.matchedText.length > 50 ? '...' : ''}"`);
+                  }
+                } else {
+                  failedDiffs++;
+                  console.error(`❌ Diff ${index + 1} failed: ${result.error}`);
+                  console.error(`   探していたテキスト: "${result.oldText.substring(0, 50)}${result.oldText.length > 50 ? '...' : ''}"`);
+                  
+                  // 部分一致を試みる（デバッグ用）
+                  const partialMatch = currentDoc.includes(result.oldText.trim());
+                  if (partialMatch) {
                   console.warn(`   ⚠️ Partial match found (trimmed). The text might have extra spaces or newlines.`);
                 }
               }
             });
             
-            if (successfulDiffs > 0) {
-              setDocumentContent(updatedDoc);
-              console.log(`📝 Document updated: ${successfulDiffs} diffs applied, ${failedDiffs} failed`);
-              
-              // バージョンを保存
-              if (currentSessionId) {
-                sessionService.saveDocumentVersion(
-                  currentSessionId,
-                  updatedDoc,
-                  agentId,
-                  { type: 'diff', details: { agent: agent.name, diffs: successfulDiffs } }
-                ).catch(error => console.error('Failed to save version:', error));
+              if (successfulDiffs > 0) {
+                setDocumentContent(updatedDoc);
+                console.log(`📝 Document updated: ${successfulDiffs} diffs applied, ${failedDiffs} failed`);
+                
+                // バージョンを保存
+                if (currentSessionId) {
+                  sessionService.saveDocumentVersion(
+                    currentSessionId,
+                    updatedDoc,
+                    agentId,
+                    { type: 'diff', details: { agent: agent.name, diffs: successfulDiffs } }
+                  ).catch(error => console.error('Failed to save version:', error));
+                }
+              } else {
+                console.error(`❌ No diffs could be applied to the document`);
               }
-            } else {
-              console.error(`❌ No diffs could be applied to the document`);
+            } catch (error) {
+              console.error('❌ Error applying diffs:', error);
+            } finally {
+              // 更新中フラグを下ろす
+              setIsUpdatingDocument(false);
             }
           }
         } else if (action.type === 'request_edit' && action.target_agent !== null) {
@@ -1505,9 +1521,19 @@ ${documentContent.substring(0, 2000)}`
         </div>
         
         {/* エディタ本体 */}
-        <div className="flex-1 p-6">
+        <div className="flex-1 p-6 relative">
+          {/* 更新中オーバーレイ */}
+          {isUpdatingDocument && (
+            <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10 rounded-lg">
+              <div className="bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                <span className="font-medium">更新中...</span>
+              </div>
+            </div>
+          )}
           <textarea
             value={documentContent || ''}
+            disabled={isUpdatingDocument}
             onChange={(e) => {
               const newContent = e.target.value;
               setDocumentContent(newContent);
