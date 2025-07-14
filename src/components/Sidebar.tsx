@@ -11,6 +11,7 @@ interface SidebarProps {
   onShowSettings: () => void;
   onShowVersionTimeline: () => void;
   onShowAgentManager: () => void;
+  onShowHelp: () => void;
   isRunning: boolean;
 }
 
@@ -23,6 +24,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onShowSettings,
   onShowVersionTimeline,
   onShowAgentManager,
+  onShowHelp,
   isRunning,
 }) => {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -299,6 +301,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
               isOpen ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'
             }`}>
               設定
+            </span>
+          </button>
+          
+          <button
+            onClick={onShowHelp}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors"
+            title={isOpen ? '' : 'ヘルプ'}
+          >
+            <span className="text-xl">❓</span>
+            <span className={`transition-opacity duration-300 ${
+              isOpen ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'
+            }`}>
+              ヘルプ
             </span>
           </button>
         </div>

@@ -8,6 +8,7 @@ import { SessionHistory } from './components/SessionHistory';
 import { VersionTimeline } from './components/VersionTimeline';
 import { Sidebar } from './components/Sidebar';
 import { AgentManager } from './components/AgentManager';
+import { Help } from './components/Help';
 import { sessionService } from './db';
 import { Session } from './db/schema';
 
@@ -60,6 +61,7 @@ function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [showVersionTimeline, setShowVersionTimeline] = useState(false);
   const [showAgentManagerModal, setShowAgentManagerModal] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitle, setEditingTitle] = useState('');
@@ -1145,6 +1147,7 @@ ${documentContent.substring(0, 2000)}`
         onShowSettings={() => setShowSettings(true)}
         onShowVersionTimeline={() => setShowVersionTimeline(true)}
         onShowAgentManager={() => setShowAgentManagerModal(true)}
+        onShowHelp={() => setShowHelp(true)}
         isRunning={isRunning}
       />
       
@@ -1520,6 +1523,11 @@ ${documentContent.substring(0, 2000)}`
       <AgentManager
         isOpen={showAgentManagerModal}
         onClose={() => setShowAgentManagerModal(false)}
+      />
+      {/* ヘルプ */}
+      <Help
+        isOpen={showHelp}
+        onClose={() => setShowHelp(false)}
       />
 
       {/* バージョンタイムライン */}
