@@ -469,7 +469,7 @@ ${documentContent.substring(0, 2000)}`
                   description: 'Target agent for request_edit (must be one of the participating agents with edit permission)'
                 }
               },
-              required: ['type', 'contents', 'diffs', 'content', 'target_agent'],
+              required: ['type'],
               additionalProperties: false,
               description: 'Document action: append uses contents[], diff uses diffs[], request_edit uses content and target_agent'
             }
