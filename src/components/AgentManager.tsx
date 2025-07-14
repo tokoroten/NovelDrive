@@ -10,7 +10,7 @@ interface AgentManagerProps {
 export const AgentManager: React.FC<AgentManagerProps> = ({ isOpen, onClose }) => {
   const { agents, activeAgentIds, toggleAgent, updateAgent, addAgent, deleteAgent, resetAgents } = useAppStore();
   const [editingAgent, setEditingAgent] = useState<string | null>(null);
-  const [editingPrompt, setEditingPrompt] = useState<string>('');
+  const [editingData, setEditingData] = useState<Partial<Agent>>({});
   const [showNewAgentForm, setShowNewAgentForm] = useState(false);
   const [newAgent, setNewAgent] = useState<Partial<Agent>>({
     name: '',
@@ -22,14 +22,21 @@ export const AgentManager: React.FC<AgentManagerProps> = ({ isOpen, onClose }) =
 
   if (!isOpen) return null;
 
-  const handleEditPrompt = (agent: Agent) => {
+  const handleEditAgent = (agent: Agent) => {
     setEditingAgent(agent.id);
-    setEditingPrompt(agent.systemPrompt);
+    setEditingData({
+      name: agent.name,
+      title: agent.title,
+      avatar: agent.avatar,
+      canEdit: agent.canEdit,
+      systemPrompt: agent.systemPrompt
+    });
   };
 
-  const handleSavePrompt = (agentId: string) => {
-    updateAgent(agentId, { systemPrompt: editingPrompt });
+  const handleSaveAgent = (agentId: string) => {
+    updateAgent(agentId, editingData);
     setEditingAgent(null);
+    setEditingData({});
   };
 
   const handleAddAgent = () => {
@@ -247,41 +254,91 @@ export const AgentManager: React.FC<AgentManagerProps> = ({ isOpen, onClose }) =
                   </div>
                 </label>
 
-                {/* プロンプト編集部分 */}
+                {/* 編集部分 */}
                 <div className="mt-3">
                   {editingAgent === agent.id ? (
-                    <>
-                      <textarea
-                        value={editingPrompt}
-                        onChange={(e) => setEditingPrompt(e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg text-sm"
-                        rows={6}
-                      />
-                      <div className="flex gap-2 mt-2">
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs font-medium mb-1">名前</label>
+                          <input
+                            type="text"
+                            value={editingData.name || ''}
+                            onChange={(e) => setEditingData({ ...editingData, name: e.target.value })}
+                            className="w-full px-2 py-1 border rounded text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1">二つ名</label>
+                          <input
+                            type="text"
+                            value={editingData.title || ''}
+                            onChange={(e) => setEditingData({ ...editingData, title: e.target.value })}
+                            className="w-full px-2 py-1 border rounded text-sm"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs font-medium mb-1">アバター</label>
+                          <input
+                            type="text"
+                            value={editingData.avatar || ''}
+                            onChange={(e) => setEditingData({ ...editingData, avatar: e.target.value })}
+                            className="w-full px-2 py-1 border rounded text-sm"
+                            maxLength={2}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1">編集権限</label>
+                          <label className="flex items-center gap-2 mt-1">
+                            <input
+                              type="checkbox"
+                              checked={editingData.canEdit || false}
+                              onChange={(e) => setEditingData({ ...editingData, canEdit: e.target.checked })}
+                              className="rounded"
+                            />
+                            <span className="text-sm">編集可能</span>
+                          </label>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1">システムプロンプト</label>
+                        <textarea
+                          value={editingData.systemPrompt || ''}
+                          onChange={(e) => setEditingData({ ...editingData, systemPrompt: e.target.value })}
+                          className="w-full px-2 py-1 border rounded text-sm"
+                          rows={4}
+                        />
+                      </div>
+                      <div className="flex gap-2">
                         <button
-                          onClick={() => handleSavePrompt(agent.id)}
+                          onClick={() => handleSaveAgent(agent.id)}
                           className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
                         >
                           保存
                         </button>
                         <button
-                          onClick={() => setEditingAgent(null)}
+                          onClick={() => {
+                            setEditingAgent(null);
+                            setEditingData({});
+                          }}
                           className="px-3 py-1 bg-gray-300 text-gray-700 rounded text-sm hover:bg-gray-400"
                         >
                           キャンセル
                         </button>
                       </div>
-                    </>
+                    </div>
                   ) : (
                     <>
                       <p className="text-xs text-gray-500 line-clamp-3">
                         {agent.systemPrompt.substring(0, 100)}...
                       </p>
                       <button
-                        onClick={() => handleEditPrompt(agent)}
+                        onClick={() => handleEditAgent(agent)}
                         className="mt-2 px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300"
                       >
-                        プロンプトを編集
+                        編集
                       </button>
                     </>
                   )}
