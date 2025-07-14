@@ -16,7 +16,7 @@ interface WorkerMessage {
 export function applyDiffsWithWorker(
   content: string,
   diffs: Array<{ oldText: string; newText: string }>,
-  threshold: number = 0.8,
+  threshold: number = 0.7,
   onProgress?: (message: string) => void
 ): Promise<{
   content: string;
@@ -24,7 +24,7 @@ export function applyDiffsWithWorker(
 }> {
   return new Promise((resolve, reject) => {
     // Web Workerを作成
-    const worker = new Worker('/diffWorker.js');
+    const worker = new Worker('/diffWorkerV2.js');
     
     // タイムアウト設定（30秒）
     const timeout = setTimeout(() => {

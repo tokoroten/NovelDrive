@@ -168,6 +168,7 @@ export interface DiffApplication {
   similarity?: number;
   matchedText?: string;
   error?: string;
+  strategy?: string;
 }
 
 export function applyDiffs(

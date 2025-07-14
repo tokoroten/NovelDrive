@@ -638,7 +638,7 @@ ${documentContent.substring(0, 2000)}`
               const { content: updatedDoc, results } = await applyDiffsWithWorker(
                 currentDoc, 
                 action.diffs, 
-                0.8,
+                0.7,
                 (message) => console.log(`⏳ ${message}`)
               );
               
@@ -649,7 +649,7 @@ ${documentContent.substring(0, 2000)}`
               results.forEach((result, index) => {
                 if (result.applied) {
                   successfulDiffs++;
-                  console.log(`✅ Diff ${index + 1} applied successfully`);
+                  console.log(`✅ Diff ${index + 1} applied successfully${result.strategy ? ` (${result.strategy})` : ''}`);
                   if (result.similarity && result.similarity < 1.0) {
                     console.log(`   (類似度: ${(result.similarity * 100).toFixed(1)}%)`);
                     console.log(`   マッチしたテキスト: "${result.matchedText?.substring(0, 50)}${result.matchedText && result.matchedText.length > 50 ? '...' : ''}"`);
