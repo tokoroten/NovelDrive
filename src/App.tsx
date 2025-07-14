@@ -229,9 +229,9 @@ ${documentContent.substring(0, 2000)}`
   };
   
   // アクティブなエージェントのみを取得
-  const activeAgents = useMemo(() => {
-    return agents.filter(agent => activeAgentIds.includes(agent.id));
-  }, [agents, activeAgentIds]);
+  // const activeAgents = useMemo(() => {
+  //   return agents.filter(agent => activeAgentIds.includes(agent.id));
+  // }, [agents, activeAgentIds]);
 
   // 自動スクロール
   useEffect(() => {
@@ -680,7 +680,12 @@ ${documentContent.substring(0, 2000)}`
         speaker: agentId,
         message: agentResponse.message,
         timestamp: new Date(),
-        documentAction: agentResponse.document_action || undefined,
+        documentAction: agentResponse.document_action && agentResponse.document_action.type !== 'none' ? {
+          type: agentResponse.document_action.type as 'diff' | 'append' | 'request_edit',
+          contents: agentResponse.document_action.contents,
+          diffs: agentResponse.document_action.diffs,
+          target_agent: agentResponse.document_action.target_agent,
+        } : undefined,
         tokenUsage: response.usage ? {
           prompt_tokens: response.usage.prompt_tokens,
           completion_tokens: response.usage.completion_tokens,
