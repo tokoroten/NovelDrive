@@ -12,6 +12,7 @@ import { Help } from './components/Help';
 import { sessionService } from './db';
 import { Session } from './db/schema';
 import { applyDiffsWithWorker } from './utils/diffWorkerHelper';
+import { summarizeConversation } from './utils/conversationSummarizer';
 
 function App() {
   // 起動時のデバッグログ
@@ -70,6 +71,7 @@ function App() {
   const [editingTitle, setEditingTitle] = useState('');
   const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
   const [isUpdatingDocument, setIsUpdatingDocument] = useState(false);
+  const [isSummarizing, setIsSummarizing] = useState(false);
   
   // 会話キューの作成
   const conversationQueue = useMemo(() => new ConversationQueue(), []);
@@ -720,6 +722,31 @@ ${documentContent.substring(0, 2000)}`
         return [...filtered, newTurn];
       });
 
+      // 自動要約のチェック
+      const currentConversation = useAppStore.getState().conversation;
+      const { autoSummarizeEnabled, summarizeThreshold } = useAppStore.getState();
+      
+      if (autoSummarizeEnabled && currentConversation.length >= summarizeThreshold && !isSummarizing) {
+        console.log(`📋 Auto-summarizing conversation (${currentConversation.length} turns >= ${summarizeThreshold})`);
+        
+        // 非同期で要約を実行（会話の流れを止めない）
+        setIsSummarizing(true);
+        summarizeConversation(currentConversation, Math.floor(summarizeThreshold / 2))
+          .then(({ summaryTurn }) => {
+            addConversationTurn(summaryTurn);
+            
+            // セッションに保存
+            if (currentSessionId) {
+              sessionService.updateSession(currentSessionId, {
+                conversation: [...currentConversation, summaryTurn],
+                updatedAt: new Date()
+              }).catch(error => console.error('Failed to save summary:', error));
+            }
+          })
+          .catch(error => console.error('Failed to auto-summarize:', error))
+          .finally(() => setIsSummarizing(false));
+      }
+
       // 次の発言者を決定
       // 最新の状態を再度取得
       const latestState = useAppStore.getState();
@@ -1035,6 +1062,29 @@ ${documentContent.substring(0, 2000)}`
     }
   };
 
+  // 手動で会話を要約
+  const handleManualSummarize = async () => {
+    if (isSummarizing) return;
+    
+    setIsSummarizing(true);
+    try {
+      const { summaryTurn } = await summarizeConversation(conversation, 20);
+      addConversationTurn(summaryTurn);
+      
+      // セッションに保存
+      if (currentSessionId) {
+        await sessionService.updateSession(currentSessionId, {
+          conversation: [...conversation, summaryTurn],
+          updatedAt: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Failed to summarize:', error);
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
   // ユーザー入力の処理
   const handleUserInput = async () => {
     if (!userInput.trim()) return;
@@ -1261,6 +1311,21 @@ ${documentContent.substring(0, 2000)}`
                   </span>
                 )}
               </span>
+              {/* 手動要約ボタン */}
+              {conversation.length > 10 && (
+                <button
+                  onClick={handleManualSummarize}
+                  disabled={isSummarizing || isRunning}
+                  className={`text-xs px-2 py-1 rounded ${
+                    isSummarizing 
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                  }`}
+                  title="会話履歴を要約"
+                >
+                  {isSummarizing ? '要約中...' : '要約'}
+                </button>
+              )}
             </div>
           </div>
         </header>
