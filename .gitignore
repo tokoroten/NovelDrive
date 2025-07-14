@@ -104,4 +104,4 @@ e2e/screenshots/
 old/
 
 # Package lock files (using npm)
-package-lock.json
+# package-lock.json is required for npm ci in CI/CD
