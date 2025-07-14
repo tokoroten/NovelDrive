@@ -75,13 +75,20 @@ const loadFromLocalStorage = <T>(key: string, defaultValue: T): T => {
     return defaultValue;
   }
   
+  // 特定のキーは文字列として扱う
+  if (key === 'noveldrive-llm-model' || key === 'noveldrive-llm-provider') {
+    console.log(`📦 LocalStorage: ${key} loaded as string:`, saved);
+    return saved as T;
+  }
+  
   try {
     const parsed = JSON.parse(saved);
     console.log(`📦 LocalStorage: ${key} loaded:`, parsed);
     return parsed;
   } catch {
-    console.log(`📦 LocalStorage: ${key} parse error, using default:`, defaultValue);
-    return defaultValue;
+    console.log(`📦 LocalStorage: ${key} parse error, returning as string:`, saved);
+    // JSON.parseに失敗した場合は文字列として返す
+    return saved as T;
   }
 };
 
@@ -89,7 +96,14 @@ const loadFromLocalStorage = <T>(key: string, defaultValue: T): T => {
 const saveToLocalStorage = <T>(key: string, value: T) => {
   if (typeof window === 'undefined') return;
   console.log(`💾 Saving to LocalStorage: ${key} =`, value);
-  localStorage.setItem(key, JSON.stringify(value));
+  
+  // 特定のキーは文字列として保存
+  if (key === 'noveldrive-llm-model' || key === 'noveldrive-llm-provider') {
+    localStorage.setItem(key, value as string);
+  } else {
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+  
   // 保存後の確認
   const saved = localStorage.getItem(key);
   console.log(`✅ Verified LocalStorage: ${key} =`, saved);

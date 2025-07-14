@@ -27,6 +27,8 @@ export class OpenAIProvider implements LLMProvider {
     }
     
     const model = this.getModel();
+    console.log('🔍 OpenAIProvider - Using model:', model);
+    console.log('🔍 OpenAIProvider - Current store model:', useAppStore.getState().llmModel);
     
     // OpenAI APIを直接呼び出す（openaiライブラリが古いため）
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -54,6 +56,8 @@ export class OpenAIProvider implements LLMProvider {
     
     if (!response.ok) {
       const error = await response.json();
+      console.error('❌ OpenAI API Error - Request model:', model);
+      console.error('❌ OpenAI API Error - Response:', error);
       throw new Error(`OpenAI API Error: ${error.error?.message || 'Unknown error'}`);
     }
     
