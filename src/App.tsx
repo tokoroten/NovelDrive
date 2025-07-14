@@ -434,49 +434,44 @@ ${documentContent.substring(0, 2000)}`
               additionalProperties: false
             },
             document_action: {
-              oneOf: [
-                { type: 'null' },
-                {
-                  type: 'object',
-                  properties: {
-                    type: {
-                      type: 'string',
-                      enum: ['diff', 'append', 'request_edit'],
-                      description: 'Type of document action'
+              type: 'object',
+              properties: {
+                type: {
+                  type: 'string',
+                  enum: ['none', 'diff', 'append', 'request_edit'],
+                  description: 'Type of document action (use "none" for no action)'
+                },
+                contents: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Contents to append (for append type)'
+                },
+                diffs: {
+                  type: 'array',
+                  items: {
+                    type: 'object' as const,
+                    properties: {
+                      oldText: { type: 'string' },
+                      newText: { type: 'string' }
                     },
-                    contents: {
-                      type: 'array',
-                      items: { type: 'string' },
-                      description: 'Contents to append (for append type)'
-                    },
-                    diffs: {
-                      type: 'array',
-                      items: {
-                        type: 'object' as const,
-                        properties: {
-                          oldText: { type: 'string' },
-                          newText: { type: 'string' }
-                        },
-                        required: ['oldText', 'newText'],
-                        additionalProperties: false
-                      },
-                      description: 'Diff edits (for diff type)'
-                    },
-                    content: {
-                      type: 'string',
-                      description: 'Content for request_edit'
-                    },
-                    target_agent: {
-                      type: ['string', 'null'],
-                      enum: [...currentActiveAgents.filter(a => a.canEdit).map(a => a.id), null],
-                      description: 'Target agent for request_edit (must be one of the participating agents with edit permission)'
-                    }
+                    required: ['oldText', 'newText'],
+                    additionalProperties: false
                   },
-                  required: ['type'],
-                  additionalProperties: false
+                  description: 'Diff edits (for diff type)'
+                },
+                content: {
+                  type: 'string',
+                  description: 'Content for request_edit'
+                },
+                target_agent: {
+                  type: 'string',
+                  enum: [...currentActiveAgents.filter(a => a.canEdit).map(a => a.id), ''],
+                  description: 'Target agent for request_edit (must be one of the participating agents with edit permission, empty string if not applicable)'
                 }
-              ],
-              description: 'Document action: append uses contents[], diff uses diffs[], request_edit uses content and target_agent'
+              },
+              required: ['type'],
+              additionalProperties: false,
+              description: 'Document action: append uses contents[], diff uses diffs[], request_edit uses content and target_agent, none for no action'
             }
           },
           required: ['speaker', 'message', 'next_speaker', 'document_action'],
@@ -567,13 +562,13 @@ ${documentContent.substring(0, 2000)}`
                 type: 'random',
                 agent: null
               },
-              document_action: null
+              document_action: { type: 'none' }
             };
         console.log(`🔧 Using fallback response:`, agentResponse);
       }
       
       // ドキュメントアクションの処理
-      if (agentResponse.document_action !== null && agentResponse.document_action !== undefined) {
+      if (agentResponse.document_action && agentResponse.document_action.type !== 'none') {
         const action = agentResponse.document_action;
         const agent = currentActiveAgents.find(a => a.id === agentId);
         console.log(`📄 Document action detected:`, action);
@@ -783,7 +778,7 @@ ${documentContent.substring(0, 2000)}`
               type: 'random',
               agent: null
             },
-            document_action: null
+            document_action: { type: 'none' }
           };
         }
       } else {
@@ -796,7 +791,7 @@ ${documentContent.substring(0, 2000)}`
             type: 'random',
             agent: null
           },
-          document_action: null
+          document_action: { type: 'none' }
         };
       }
     } catch (error) {

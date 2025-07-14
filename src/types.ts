@@ -41,10 +41,10 @@ export interface AgentResponse {
     agent: string | null;
   };
   document_action: {
-    type: 'diff' | 'append' | 'request_edit';
+    type: 'none' | 'diff' | 'append' | 'request_edit';
     contents?: string[];    // appendの場合
     diffs?: DiffEdit[];     // diffの場合
     content?: string;       // request_editの場合
     target_agent?: string | null; // request_editの場合、誰に編集を依頼するか
-  } | null;
+  };
 }
