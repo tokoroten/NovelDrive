@@ -240,7 +240,7 @@ export const useAppStore = create<AppState>((set) => ({
   setTargetAgent: (agent) => set({ targetAgent: agent }),
 
   // API設定
-  openAIApiKey: loadFromLocalStorage<string | null>('noveldrive-openai-key', import.meta.env.VITE_OPENAI_API_KEY || null),
+  openAIApiKey: loadFromLocalStorage<string | null>('noveldrive-openai-key', null),
   setOpenAIApiKey: (key) => {
     saveToLocalStorage('noveldrive-openai-key', key);
     set({ openAIApiKey: key });
