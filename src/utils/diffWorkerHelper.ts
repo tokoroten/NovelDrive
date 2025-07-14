@@ -65,7 +65,15 @@ export function applyDiffsWithWorker(
     worker.addEventListener('error', (error) => {
       clearTimeout(timeout);
       worker.terminate();
-      reject(error);
+      console.error('Web Worker error:', error);
+      console.error('Error details:', {
+        message: error.message || 'Unknown error',
+        filename: error.filename || 'Unknown file',
+        lineno: error.lineno || 'Unknown line',
+        colno: error.colno || 'Unknown column',
+        error: error.error || 'No error object'
+      });
+      reject(new Error(`Web Worker error: ${error.message || 'Unknown error'}`));
     });
     
     // diff計算を開始

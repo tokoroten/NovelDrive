@@ -693,6 +693,14 @@ ${documentContent.substring(0, 2000)}`
               }
             } catch (error) {
               console.error('❌ Error applying diffs:', error);
+              // デバッグ用の詳細情報を出力
+              console.error('Error details:', {
+                errorType: error instanceof Error ? error.constructor.name : typeof error,
+                message: error instanceof Error ? error.message : String(error),
+                stack: error instanceof Error ? error.stack : 'No stack trace',
+                diffsToApply: action.diffs,
+                documentLength: currentDoc.length
+              });
             } finally {
               // 更新中フラグを下ろす
               setIsUpdatingDocument(false);

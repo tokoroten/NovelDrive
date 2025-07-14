@@ -359,15 +359,44 @@ function applyDiffs(content, diffs, threshold = 0.7) {
 
 // Web Worker message handler
 self.addEventListener('message', (event) => {
-  const { content, diffs, threshold = 0.7 } = event.data;
-  
   try {
+    const { content, diffs, threshold = 0.7 } = event.data;
+    
+    // 入力検証
+    if (typeof content !== 'string') {
+      throw new Error(`Invalid content type: expected string, got ${typeof content}`);
+    }
+    if (!Array.isArray(diffs)) {
+      throw new Error(`Invalid diffs type: expected array, got ${typeof diffs}`);
+    }
+    
     self.postMessage({ type: 'progress', message: '改良版diff計算を開始しました...' });
     
     const result = applyDiffs(content, diffs, threshold);
     
     self.postMessage({ type: 'complete', result });
   } catch (error) {
-    self.postMessage({ type: 'error', error: error.message });
+    console.error('Worker error:', error);
+    self.postMessage({ 
+      type: 'error', 
+      error: error.message || 'Unknown error in worker',
+      stack: error.stack || 'No stack trace available',
+      data: event.data
+    });
   }
+});
+
+// エラーハンドラを追加
+self.addEventListener('error', (error) => {
+  console.error('Worker uncaught error:', error);
+  self.postMessage({ 
+    type: 'error', 
+    error: 'Uncaught error in worker',
+    details: {
+      message: error.message,
+      filename: error.filename,
+      lineno: error.lineno,
+      colno: error.colno
+    }
+  });
 });
