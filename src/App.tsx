@@ -659,12 +659,20 @@ ${documentContent.substring(0, 2000)}`
                   console.error(`❌ Diff ${index + 1} failed: ${result.error}`);
                   console.error(`   探していたテキスト: "${result.oldText.substring(0, 50)}${result.oldText.length > 50 ? '...' : ''}"`);
                   
+                  // デバッグ用のJSON出力
+                  const debugInfo = {
+                    fullText: currentDoc,
+                    before: result.oldText,
+                    after: result.newText
+                  };
+                  console.warn('⚠️ Diff failed - Debug info:', JSON.stringify(debugInfo, null, 2));
+                  
                   // 部分一致を試みる（デバッグ用）
                   const partialMatch = currentDoc.includes(result.oldText.trim());
                   if (partialMatch) {
-                  console.warn(`   ⚠️ Partial match found (trimmed). The text might have extra spaces or newlines.`);
+                    console.warn(`   ⚠️ Partial match found (trimmed). The text might have extra spaces or newlines.`);
+                  }
                 }
-              }
             });
             
               if (successfulDiffs > 0) {
